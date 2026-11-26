@@ -1,24 +1,27 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * GIFTS: a place in the alpha, given as a present (workplan 0172; the owner,
- * 2026-11-24, G1 and G3). Three doors, one file:
+ * GIFTS: a code that one member makes for one person they know (workplans
+ * 0172 and 0177). During the Alpha it is a *recommendation* (0177 D1), and it
+ * lets its person in at once (0177 D6). Three doors, one file:
  *
- *  - **The giver's** (`authenticate`): list their gifts and their limit, make
- *    one, revoke an unused one. A giver is a member of an organisation, which
- *    during the alpha means somebody the owner let in. Making a gift takes the
- *    card's language and nothing else: no recipient's address, name or
- *    message reaches this server (`a-gift-that-keeps-no-recipient`).
- *  - **The door's** (anonymous, `POST /redeem`): a code becomes an access
- *    request marked as a gift, which the owner approves like any other. The
- *    request form's protections, by name: a refusing rate limit of its own,
- *    the same trap field, and every stored field capped. Every bad code gets
- *    the same refusal (`GIFT_REFUSAL`), as a grant link's does.
+ *  - **The giver's** (`authenticate`): list their cards, their limit and
+ *    whether the Alpha has room for a new one; make one; revoke an unused
+ *    one. A giver is a member of an organisation. Making a card takes the
+ *    card's language and nothing else: no recipient's address, name or message
+ *    reaches this server (`a-gift-that-keeps-no-recipient`).
+ *  - **The door's** (anonymous): `POST /check` reads a code and writes
+ *    nothing; `POST /redeem` lets the code's person in, in one transaction
+ *    (managed migration 0066), and mails them and the operator after the
+ *    commit. The request form's protections, by name: a refusing rate limit,
+ *    one for both, the same trap field, and every stored field capped. Every
+ *    bad code gets the same refusal (`GIFT_REFUSAL`), as a grant link's does.
  *  - **The operator's** (`authenticateSubject`, English only): every gift and
- *    whose, revoking one, the limit for everyone and for one person, and how
- *    many people the alpha has let in. As with the access queue, nothing here
- *    re-checks "operator": migration 0065's policies are the rule, and a
- *    non-operator reads an empty list and changes nothing.
+ *    whose, revoking one, the rule (the number each person may give and the
+ *    Alpha's two ceilings, 0177 §20), the number for one person, and the
+ *    Alpha's counts. As with the access queue, nothing here re-checks
+ *    "operator": migration 0065's policies are the rule, and a non-operator
+ *    reads an empty list and changes nothing.
  */
 
 import { Router } from 'express';
@@ -27,23 +30,36 @@ import { z } from 'zod';
 import { sql } from 'drizzle-orm';
 import { withSubject, withSubjectAndTenant } from '@openmig/ledger';
 import {
-  GIFT_ALREADY_ASKED,
+  GIFT_ALREADY_IN,
+  GIFT_FULL,
   GIFT_REFUSAL,
+  GIFT_TOO_MANY_TRIES,
   GIFTS_PER_PERSON_MAX,
+  alphaCounts,
+  checkGift,
   giftLimitFor,
   giftState,
-  giftsPerPerson,
   giftsHeldBy,
   listOwnGifts,
   makeGift,
   redeemGift,
   revokeGift,
+  roomForACard,
+  theGiftRule,
 } from '@openmig/managed';
 import { log, reasonPair } from '@openmig/shared';
 import { authenticate, authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
-import { appUrl, tellOperator } from '../access-notify.ts';
+import {
+  accessGrantedEvent,
+  answersFrom,
+  appUrl,
+  channelIsOn,
+  tell,
+  tellOperator,
+  type TellOutcome,
+} from '../access-notify.ts';
 import { createKnockLimiter, type KnockLimiter } from '../knock-limit.ts';
 
 const router = Router();
@@ -53,12 +69,14 @@ let _pool: Pool | null = null;
 const pool = (): Pool => (_pool ??= getDbPool());
 
 /**
- * Twenty tries an hour from one caller. Sized as the request form's is, as a
- * SERVICE-WIDE cap unless `TRUST_PROXY` makes it per caller (`knock-limit.ts`):
- * a person with a card types it once or twice, and a script trying codes gets
- * twenty a deployment an hour against 80 bits.
+ * Forty tries an hour from one caller, for the check and the redeem together
+ * (0177 §5): a person's journey is two calls where it was one, so the twenty
+ * of 0172 became forty. Sized as the request form's is, as a SERVICE-WIDE cap
+ * unless `TRUST_PROXY` makes it per caller (`knock-limit.ts`): a person with a
+ * card types it once or twice, and a script trying codes gets forty a
+ * deployment an hour against 80 bits.
  */
-export const GIFT_REDEEM_LIMIT = { windowMs: 60 * 60 * 1000, max: 20 } as const;
+export const GIFT_REDEEM_LIMIT = { windowMs: 60 * 60 * 1000, max: 40 } as const;
 
 let _limiter: KnockLimiter | null = null;
 const limiter = (): KnockLimiter => (_limiter ??= createKnockLimiter(GIFT_REDEEM_LIMIT));
@@ -71,17 +89,14 @@ export function __resetGiftLimiterForTests(): void {
 /** The request form's trap, by the same name (`access-requests.ts`, `TRAP_FIELD`). */
 const TRAP_FIELD = 'website';
 
-/** The request form's answer, byte for byte: a gift request is a request. */
-const RECEIVED = {
-  received: true,
-  message: 'Thank you — we have your request. You will hear back by email.',
-} as const;
-
-/** Where the recipient types the code: the app's door with the code field open. */
+/** Where the recipient types the code: the door's own address, the same in both languages (0177 D9). */
 const redeemAt = (): string | null => {
   const app = appUrl();
-  return app ? `${app}/redeem` : null;
+  return app ? `${app}/code` : null;
 };
+
+/** Whether a yes mail can go out at all: a channel, and an address to sign in at. */
+const aMailCanGo = (): boolean => channelIsOn() && appUrl() !== null;
 
 const subjectOf = (req: AuthenticatedRequest, res: Response): string | null => {
   if (!req.userId) {
@@ -98,20 +113,26 @@ const pathId = (req: Request): string | null => {
 
 // ================================ The giver ================================
 
-/** GET /api/gifts/mine: their gifts, newest first, and how many they may hold. */
+/**
+ * GET /api/gifts/mine: their cards, newest first, how many they may hold, and
+ * whether the Alpha has room for a new card (`room`, 0177 §20.3): a yes or a
+ * no, never the count behind it.
+ */
 router.get('/mine', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = subjectOf(req, res);
     if (!userId) return;
-    const { gifts, limit, held } = await withSubject(pool(), userId, async (db) => ({
+    const { gifts, limit, held, room } = await withSubject(pool(), userId, async (db) => ({
       gifts: await listOwnGifts(db, userId),
       limit: await giftLimitFor(db, userId),
       held: await giftsHeldBy(db, userId),
+      room: await roomForACard(db),
     }));
     res.json({
       gifts,
       limit: limit.limit,
       held,
+      room,
       redeemAt: redeemAt(),
     });
   } catch (error) {
@@ -129,7 +150,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     if (!userId) return;
     const tenantId = req.tenantId;
     if (!tenantId) {
-      res.status(400).json({ error: 'Bad request', message: 'A gift is given from an organisation.' });
+      res.status(400).json({ error: 'Bad request', message: 'A recommendation is made from an organisation.' });
       return;
     }
     const parsed = MakeSchema.safeParse(req.body ?? {});
@@ -145,9 +166,18 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         error: 'gift_limit',
         message:
           outcome.limit === 1
-            ? 'You have given your gift already. Revoke an unused one to make another.'
-            : `You have given your ${outcome.limit} gifts already. Revoke an unused one to make another.`,
+            ? 'You have recommended someone already. Withdraw an unused card to make another.'
+            : `You have recommended ${outcome.limit} people already. Withdraw an unused card to make another.`,
         limit: outcome.limit,
+      });
+      return;
+    }
+    if (outcome.kind === 'noRoom') {
+      // The second ceiling (0177 §20.3, rule 1): a card on paper says the
+      // person is let in at once, so none is made that the Alpha could not keep.
+      res.status(409).json({
+        error: 'no_room',
+        message: 'The Alpha is full for now. No new recommendation can be made.',
       });
       return;
     }
@@ -189,17 +219,71 @@ function answerRevoke(res: Response, id: string, outcome: Awaited<ReturnType<typ
 
 // ================================= The door =================================
 
+/** Past the one limit: in both languages, with when to come back (0177 §5). */
+function tooManyTries(req: Request, res: Response): boolean {
+  const caller = req.ip ?? 'unknown';
+  if (limiter().take(caller)) return false;
+  res.set('Retry-After', String(limiter().retryAfterSeconds(caller)));
+  res.status(429).json({ error: 'Too many requests', message: GIFT_TOO_MANY_TRIES.en, ...reasonPair(GIFT_TOO_MANY_TRIES) });
+  return true;
+}
+
+/** 410, as a spent grant link answers, and the same body for every cause. */
+const refuse = (res: Response): void => {
+  res.status(410).json({ error: 'gift_refused', ...reasonPair(GIFT_REFUSAL) });
+};
+
+/** 409: the Alpha has no room (0177 §20.3). The code is kept; the page says until when it works. */
+const full = (res: Response, until: Date): void => {
+  res.status(409).json({ error: 'full', ...reasonPair(GIFT_FULL), until: until.toISOString() });
+};
+
+const CheckSchema = z.object({ code: z.string().max(64) });
+
 /**
- * What the recipient types: the code, and their own request. Capped as the
- * request form caps the same fields.
+ * POST /api/gifts/check (0177 §5, step 1 of 3): whether a code can be used.
+ * Writes nothing and spends nothing; behind the redeem's limit, with its one
+ * refusal. Its yes carries the code's last day, which the card prints anyway,
+ * and the bare address the yes mail comes from, where one can go, so the page
+ * names no address the mail does not come from.
+ */
+router.post('/check', async (req: Request, res: Response) => {
+  try {
+    if (tooManyTries(req, res)) return;
+    const parsed = CheckSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Validation error', details: parsed.error.issues });
+      return;
+    }
+    const outcome = await checkGift(pool(), parsed.data.code);
+    if (outcome.kind === 'refused') {
+      log.info('[gift] a code was refused at the check');
+      refuse(res);
+      return;
+    }
+    if (outcome.kind === 'full') {
+      log.info('[gift] a good code met a full Alpha at the check; nothing written');
+      full(res, outcome.until);
+      return;
+    }
+    const from = aMailCanGo() ? answersFrom() : null;
+    res.json({ ok: true, until: outcome.until.toISOString(), ...(from ? { answersFrom: from } : {}) });
+  } catch (error) {
+    serverFault(res, 'gift_check_failed', 'checking this code', error);
+  }
+});
+
+/**
+ * What the door's last step sends (0177 §5): the code, the address, a name if
+ * one was typed, the answer about Google, and the page's language. Capped as
+ * the request form caps the same fields. No organisation, note or package:
+ * a field the page never sends is not read, and not kept.
  */
 const RedeemSchema = z.object({
   code: z.string().max(64),
   email: z.string().trim().email().max(320),
   name: z.string().trim().max(200).optional(),
-  organisation: z.string().trim().max(200).optional(),
-  note: z.string().trim().max(2000).optional(),
-  tier: z.string().trim().max(40).optional(),
+  google: z.boolean().default(false),
   locale: z.enum(['en', 'nl']).default('en'),
   [TRAP_FIELD]: z.unknown().optional(),
 });
@@ -207,18 +291,10 @@ const RedeemSchema = z.object({
 const trapFilled = (value: unknown): boolean =>
   value === undefined || value === null ? false : typeof value === 'string' ? value.trim() !== '' : true;
 
-/** POST /api/gifts/redeem: a code becomes a request marked as a gift, or the one refusal. */
+/** POST /api/gifts/redeem: a code lets its person in at once (0177 D6), or says why not. */
 router.post('/redeem', async (req: Request, res: Response) => {
   try {
-    const caller = req.ip ?? 'unknown';
-    if (!limiter().take(caller)) {
-      res.set('Retry-After', String(limiter().retryAfterSeconds(caller)));
-      res.status(429).json({
-        error: 'Too many requests',
-        message: 'That is more tries than we expected from one place. Try again later — nothing is lost.',
-      });
-      return;
-    }
+    if (tooManyTries(req, res)) return;
     const parsed = RedeemSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'Validation error', details: parsed.error.issues });
@@ -226,44 +302,87 @@ router.post('/redeem', async (req: Request, res: Response) => {
     }
     const body = parsed.data;
     if (trapFilled(body[TRAP_FIELD])) {
-      log.info('[gift] a redemption filled the trap field; answered as received, nothing kept');
-      res.status(201).json(RECEIVED);
+      // Answered as a real let-in would most often be, so the trap tells a
+      // script nothing; nothing is written, spent or sent.
+      log.info('[gift] a redemption filled the trap field; answered as let in, nothing kept');
+      res.status(201).json({ letIn: true, mailed: aMailCanGo() });
       return;
     }
 
     const outcome = await redeemGift(pool(), body.code, {
       email: body.email,
       ...(body.name ? { name: body.name } : {}),
-      ...(body.organisation ? { organisation: body.organisation } : {}),
-      ...(body.note ? { note: body.note } : {}),
-      ...(body.tier ? { tier: body.tier } : {}),
+      google: body.google,
       locale: body.locale,
     });
 
     if (outcome.kind === 'refused') {
-      // 410, as a spent grant link answers, and the same body for every cause.
       log.info('[gift] a code was refused');
-      res.status(410).json({ error: 'gift_refused', ...reasonPair(GIFT_REFUSAL) });
+      refuse(res);
       return;
     }
-    if (outcome.kind === 'alreadyAsked') {
-      log.info('[gift] an address with a request still open came with a gift; nothing written, gift unspent');
-      res.status(409).json({ error: 'already_asked', ...reasonPair(GIFT_ALREADY_ASKED) });
+    if (outcome.kind === 'full') {
+      log.info('[gift] a good code met a full Alpha; nothing written, the code kept');
+      full(res, outcome.until);
+      return;
+    }
+    if (outcome.kind === 'alreadyIn') {
+      log.info('[gift] a good code came with an address that already has access; nothing written, the code kept');
+      res.status(409).json({ error: 'already_in', ...reasonPair(GIFT_ALREADY_IN) });
       return;
     }
 
-    log.info(`[gift] gift ${outcome.giftId} became request ${outcome.requestId} (${body.locale})`);
-    const announced = await tellOperator({ kind: 'access_requested', email: body.email, fromGift: true });
+    // By their ids, never the code or the address (§17).
+    log.info(`[gift] gift ${outcome.giftId} let in request ${outcome.requestId}: tenant ${outcome.tenantId} (${body.locale})`);
+
+    // AFTER the commit, and outside it, as the grant's (0095 T3): the person
+    // is in whether or not the mail server answers, and each mail only ever
+    // says what already happened. Neither changes the 201.
+    const mailed = await mailTheYes(outcome, body.locale, body.google);
+    const announced = await tellOperator({
+      kind: 'access_requested',
+      email: outcome.email,
+      withCode: true,
+      ...(body.google ? { google: true } : {}),
+    });
     if (announced === 'off') {
       log.warn(`[gift] nobody was told about request ${outcome.requestId} — no SMTP configured.`);
     } else if (announced === 'failed') {
-      log.error(`[gift] could not announce request ${outcome.requestId}; it is in the queue.`);
+      log.error(`[gift] could not announce request ${outcome.requestId}; it is in the queue, let in.`);
     }
-    res.status(201).json(RECEIVED);
+    res.status(201).json({ letIn: true, mailed: mailed === 'sent' });
   } catch (error) {
-    serverFault(res, 'gift_redeem_failed', 'reading this gift code', error);
+    serverFault(res, 'gift_redeem_failed', 'reading this code', error);
   }
 });
+
+/** The yes mail for a code (0177 §8), in the door's language, through `accessGrantedEvent`. */
+async function mailTheYes(
+  letIn: { requestId: string; organisation: string; email: string },
+  locale: 'en' | 'nl',
+  google: boolean,
+): Promise<TellOutcome> {
+  const where = appUrl();
+  if (!where) {
+    log.error(
+      `[gift] WEB_URL is not set — let in request ${letIn.requestId} but sent no email, ` +
+        'because it would have named no address to sign in at',
+    );
+    return 'off';
+  }
+  return tell(
+    letIn.email,
+    locale,
+    accessGrantedEvent({
+      organisation: letIn.organisation,
+      appUrl: where,
+      email: letIn.email,
+      withCode: true,
+      ...(google ? { google: true } : {}),
+    }),
+    `access request ${letIn.requestId}`,
+  );
+}
 
 // ============================== The operator ===============================
 
@@ -271,7 +390,7 @@ type Row = Record<string, unknown>;
 const rowsOf = (result: unknown): Row[] => (result as { rows: Row[] }).rows;
 const dateOrNull = (v: unknown): Date | null => (v === null || v === undefined ? null : new Date(String(v)));
 
-/** GET /api/gifts/operator: every gift, the limits, and the alpha's count. */
+/** GET /api/gifts/operator: every gift, the rule, and the Alpha's counts and ceilings. */
 router.get('/operator', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = subjectOf(req, res);
@@ -327,25 +446,23 @@ router.get('/operator', authenticateSubject, async (req: AuthenticatedRequest, r
         setAt: new Date(String(r.set_at)),
         note: r.note === null ? null : String(r.note),
       }));
-      const [counts] = rowsOf(
-        await db.execute(sql`
-          SELECT count(*) FILTER (WHERE r.state = 'granted')::int AS granted,
-                 count(*) FILTER (WHERE r.state = 'open')::int AS open,
-                 count(*) FILTER (WHERE r.state = 'open'
-                   AND EXISTS (SELECT 1 FROM public.gift g WHERE g.redeemed_request_id = r.id))::int AS open_gifts
-            FROM public.access_request r`),
-      );
-      return { gifts, allowances, counts, perPerson: await giftsPerPerson(db) };
+      return { gifts, allowances, counts: await alphaCounts(db), rule: await theGiftRule(db) };
     });
     res.json({
       gifts: answer.gifts,
-      giftsPerPerson: answer.perPerson,
+      giftsPerPerson: answer.rule.giftsPerPerson,
       allowances: answer.allowances,
       alpha: {
-        granted: Number(answer.counts?.granted ?? 0),
-        open: Number(answer.counts?.open ?? 0),
-        openFromGifts: Number(answer.counts?.open_gifts ?? 0),
+        granted: answer.counts.granted,
+        open: answer.counts.open,
+        openFromGifts: answer.counts.openFromGifts,
         unusedGifts: answer.gifts.filter((g) => g.state === 'unused').length,
+        // The two ceilings and their counts (0177 §20.6). The queue reads the
+        // owner's line from here.
+        byOwner: answer.counts.byOwner,
+        byRecommendation: answer.counts.byRecommendation,
+        ownerCeiling: answer.rule.ownerCeiling,
+        recommendationCeiling: answer.rule.recommendationCeiling,
       },
     });
   } catch (error) {
@@ -369,9 +486,27 @@ router.post('/operator/:id/revoke', authenticateSubject, async (req: Authenticat
   }
 });
 
-const RuleSchema = z.object({ giftsPerPerson: z.number().int().min(0).max(GIFTS_PER_PERSON_MAX) }).strict();
+/** A ceiling: a whole number, nought or more, within what the column holds (0177 §21.3 item 12). */
+const CEILING = z.number().int().min(0).max(2_147_483_647);
 
-/** PUT /api/gifts/operator/rule: how many gifts each person may hold. */
+const RuleSchema = z
+  .object({
+    giftsPerPerson: z.number().int().min(0).max(GIFTS_PER_PERSON_MAX).optional(),
+    ownerCeiling: CEILING.optional(),
+    recommendationCeiling: CEILING.optional(),
+  })
+  .strict()
+  .refine(
+    (rule) => rule.giftsPerPerson !== undefined || rule.ownerCeiling !== undefined || rule.recommendationCeiling !== undefined,
+    { message: 'Name at least one of giftsPerPerson, ownerCeiling and recommendationCeiling.' },
+  );
+
+/**
+ * PUT /api/gifts/operator/rule: how many each person may give, and either of
+ * the Alpha's two ceilings (0177 §20.2). What is not named stays as it is. A
+ * ceiling set under its count takes nobody out; nobody new comes in until the
+ * count is under it again.
+ */
 router.put('/operator/rule', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = subjectOf(req, res);
@@ -381,22 +516,34 @@ router.put('/operator/rule', authenticateSubject, async (req: AuthenticatedReque
       res.status(400).json({ error: 'Validation error', details: parsed.error.issues });
       return;
     }
-    const changed = rowsOf(
+    const { giftsPerPerson, ownerCeiling, recommendationCeiling } = parsed.data;
+    const [changed, ...more] = rowsOf(
       await withSubject(pool(), userId, (db) =>
         db.execute(sql`
           UPDATE public.gift_rule
-             SET gifts_per_person = ${parsed.data.giftsPerPerson}, set_by = ${userId}, set_at = now()
-           RETURNING gifts_per_person`),
+             SET gifts_per_person = COALESCE(${giftsPerPerson ?? null}::int, gifts_per_person),
+                 owner_ceiling = COALESCE(${ownerCeiling ?? null}::int, owner_ceiling),
+                 recommendation_ceiling = COALESCE(${recommendationCeiling ?? null}::int, recommendation_ceiling),
+                 set_by = ${userId}, set_at = now()
+           RETURNING gifts_per_person, owner_ceiling, recommendation_ceiling`),
       ),
     );
-    if (changed.length !== 1) {
+    if (!changed || more.length > 0) {
       res.status(404).json({ error: 'Not Found', message: 'No rule you may change.' });
       return;
     }
-    log.info(`[gift] gifts per person set to ${parsed.data.giftsPerPerson}`);
-    res.json({ giftsPerPerson: parsed.data.giftsPerPerson });
+    const rule = {
+      giftsPerPerson: Number(changed.gifts_per_person),
+      ownerCeiling: Number(changed.owner_ceiling),
+      recommendationCeiling: Number(changed.recommendation_ceiling),
+    };
+    log.info(
+      `[gift] the rule set: ${rule.giftsPerPerson} per person, ${rule.ownerCeiling} let in by the owner, ` +
+        `${rule.recommendationCeiling} by a recommendation`,
+    );
+    res.json(rule);
   } catch (error) {
-    serverFault(res, 'gift_rule_failed', 'setting the gifts per person', error);
+    serverFault(res, 'gift_rule_failed', 'setting the rule', error);
   }
 });
 

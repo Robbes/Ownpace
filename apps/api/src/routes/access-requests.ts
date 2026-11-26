@@ -48,7 +48,13 @@ import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { withSubject, withSubjectAndTenant, tenant as tenantTable } from '@openmig/ledger';
 import { accessRequest, tenantMember } from '@openmig/managed/schema-managed';
-import { giveBackDeclinedGift } from '@openmig/managed';
+import {
+  THE_OWNERS_NUMBER_REFUSES,
+  alphaCounts,
+  giveBackDeclinedGift,
+  ownersRoomFor,
+  theGiftRule,
+} from '@openmig/managed';
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -415,7 +421,20 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
       const giftOf = new Map(
         marks.map((m) => [String(m.request_id), { from: m.giver_email === null ? null : String(m.giver_email) }]),
       );
-      return rows.map((r) => ({ ...r, gift: giftOf.get(r.id) ?? null }));
+      /**
+       * LET IN BY A RECOMMENDATION (workplan 0177 §5, D6): a code let this
+       * person in at the door, granted with nobody named as having decided it.
+       * A request a card made before 0177 and the owner granted carries the
+       * mark of its gift and a decider, and is not this.
+       */
+      return rows.map((r) => {
+        const gift = giftOf.get(r.id) ?? null;
+        return {
+          ...r,
+          gift,
+          letInByRecommendation: gift !== null && r.state === 'granted' && r.decidedBy === null,
+        };
+      });
     });
 
     res.json({ requests });
@@ -568,6 +587,20 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
         return { kind: 'alreadyOwns', organisations: already } as const;
       }
 
+      /**
+       * THE OWNER'S OWN NUMBER (workplan 0177 §20.4), D17's one place on this
+       * route. Until the owner answers, (b): shown on the Gifts screen and
+       * above the queue, and nothing refuses a yes past it. Answered (a),
+       * `THE_OWNERS_NUMBER_REFUSES` becomes true and this counts first, behind
+       * the Alpha's lock, and writes nothing at the number. A request a card
+       * points to is never refused here: it is counted under the second.
+       */
+      if (THE_OWNERS_NUMBER_REFUSES && !(await ownersRoomFor(db, id))) {
+        const { byOwner } = await alphaCounts(db);
+        const { ownerCeiling } = await theGiftRule(db);
+        return { kind: 'alphaFull', byOwner, ownerCeiling } as const;
+      }
+
       const name =
         parsed.data.organisationName ?? request.organisation ?? request.name ?? request.email;
 
@@ -635,6 +668,16 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
         message:
           `That request was already ${outcome.state}. Deciding it twice would ` +
           'either create a second organisation or lose the first.',
+      });
+      return;
+    }
+    if (outcome.kind === 'alphaFull') {
+      // Only once D17 is answered (a): see `THE_OWNERS_NUMBER_REFUSES`.
+      res.status(409).json({
+        error: 'alpha_full',
+        message:
+          `The Alpha holds ${outcome.ownerCeiling} people you let in, and ${outcome.byOwner} are in. ` +
+          'Raise the number on the Gifts screen to let in more.',
       });
       return;
     }
