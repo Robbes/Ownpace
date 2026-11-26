@@ -609,8 +609,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   from a request across files and functions, which Semgrep's free engine cannot, and uploads every
   alert to code scanning beside Trivy's and Semgrep's. No alert fails it, the two ReDoS queries'
   included, until workplan 0178 T6 has read the first list; a query blocks later only through a
-  report that fails on that query alone (T9). `scripts/codeql-report.mjs` writes every alert to
-  the summary, by query, and fails a scan that did not finish: no SARIF, a file CodeQL could not
+  report that fails on that query alone (T9). `scripts/codeql-report.mjs` writes the alerts to
+  the summary as counts by query only (a run's summary is public here, and each alert, with its
+  file and line, belongs in code scanning, which only people with write access can read), and fails a scan that did not finish: no SARIF, a file CodeQL could not
   extract, or a source file the checkout tracks that is not among the files CodeQL says it
   extracted, since CodeQL parses TypeScript with its own compiler and not this repository's
   TypeScript 7. **Its proof:** dispatched with `proof`, it also reads the known-bad fixture in

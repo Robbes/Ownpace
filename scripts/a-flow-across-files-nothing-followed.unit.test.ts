@@ -37,7 +37,9 @@
  *     could not be extracted, or when a source file the checkout tracks is not
  *     among those CodeQL says it extracted (0178 §4.1: CodeQL parses
  *     TypeScript with its own compiler, not this repository's 7). It never
- *     fails on an alert.
+ *     fails on an alert, and it says COUNTS BY QUERY ONLY: a run's summary
+ *     and log are public here, so no alert's file, line or message is
+ *     written to either.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -223,7 +225,7 @@ const sarif = (results: Array<[string, string]>, extracted: string[], problems: 
         tool: { driver: { name: 'CodeQL', semanticVersion: '2.27.5' } },
         results: results.map(([ruleId, uri]) => ({
           ruleId,
-          message: { text: 'a flow' },
+          message: { text: 'a flow from a request to a sink' },
           locations: [{ physicalLocation: { artifactLocation: { uri }, region: { startLine: 7 } } }],
         })),
         invocations: [
@@ -271,6 +273,32 @@ describe('5. a scan that did not finish is never green, and an alert never fails
     expect(out.markdown).toMatch(/\| `js\/redos` \| 2 \|/);
     expect(out.markdown).toMatch(/\| `js\/xss` \| 1 \|/);
     expect(out.markdown).toMatch(/report only/i);
+  });
+
+  it('says counts by query only: no alert\'s file, line or message reaches the summary or the log, which a public repository publishes', () => {
+    // A run's job summary is readable by anyone here; code scanning's list is
+    // not. Until 2026-11-26 the summary listed every alert by file:line, and
+    // four runs on main published them (0178 T6, the maintainer's catch).
+    const alerts: Array<[string, string]> = [['js/redos', TREE[0]!], ['js/xss', TREE[1]!], ['js/sql-injection', TREE[2]!]];
+    const ordinary = report({ sarifs: [sarif(alerts, TREE)], tracked: TRACKED, proof: false });
+    const extracted = [...TREE, FIXTURE_FILE];
+    const proven = report({
+      sarifs: [sarif([...alerts, ...PROOF_QUERIES.map((q) => [q, FIXTURE_FILE] as [string, string])], extracted)],
+      tracked: TRACKED,
+      proof: true,
+    });
+    expect([ordinary.code, proven.code]).toEqual([0, 0]);
+    for (const out of [ordinary, proven]) {
+      const published = `${out.markdown}\n${out.lines.join('\n')}`;
+      for (const [, uri] of alerts) expect(published, uri).not.toContain(uri);
+      expect(published, 'a file:line').not.toMatch(/\.[cm]?[jt]sx?:\d+/);
+      expect(published, "an alert's message").not.toContain('a flow from a request');
+      expect(published).not.toMatch(/<details>/);
+    }
+    expect(ordinary.markdown).toMatch(/\| `js\/sql-injection` \| 1 \|/);
+    // The fixture may be named, the proof's own check: both queries fired there.
+    expect(proven.markdown).toContain(FIXTURE);
+    expect(proven.markdown).not.toContain(FIXTURE_FILE + ':');
   });
 
   it('fails when there is no SARIF, or one with no run', () => {
