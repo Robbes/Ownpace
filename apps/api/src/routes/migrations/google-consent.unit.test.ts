@@ -523,12 +523,12 @@ describe("the link holder's ending says read-only only where Google holds the gr
   });
 
   it('says read-only when it is', () => {
-    const page = grantResultPage({ ok: true, permission: 'read-only' });
+    const page = grantResultPage({ ok: true, provider: 'google', permission: 'read-only' });
     expect(page).toContain('Access is <strong>read-only</strong>');
   });
 
   it('says Ownpace only reads, and that the permission allows changes, when it does', () => {
-    const page = grantResultPage({ ok: true, permission: 'allows-changes' });
+    const page = grantResultPage({ ok: true, provider: 'google', permission: 'allows-changes' });
     expect(page).not.toMatch(/read-only/i);
     expect(page).toContain('Ownpace only reads');
     expect(page).toContain('nothing is ever deleted or changed at your end');
@@ -537,7 +537,7 @@ describe("the link holder's ending says read-only only where Google holds the gr
   });
 
   it('says Google added an earlier permission when the grant came back broader than the link asked', () => {
-    const page = grantResultPage({ ok: true, permission: 'widened' });
+    const page = grantResultPage({ ok: true, provider: 'google', permission: 'widened' });
     expect(page).not.toMatch(/read-only/i);
     expect(page).toContain('Ownpace only reads');
     expect(page).toContain('already given the same app');
@@ -589,7 +589,7 @@ describe('every ending is a whole document a phone lays out at its own width', (
     ['the owner, handed back', consentResultPage({ webOrigin: 'https://app.example.nl', outcome: OK })],
     ['the owner, copy-paste', consentResultPage({ outcome: OK })],
     ['the owner, refused', consentResultPage({ outcome: { ok: false, reason: 'access_denied' } })],
-    ['the link holder, done', grantResultPage({ ok: true, permission: 'read-only' })],
+    ['the link holder, done', grantResultPage({ ok: true, provider: 'google', permission: 'read-only' })],
     ['the link holder, refused', grantResultPage({ ok: false, reason: 'No.', link: 'unused' })],
   ];
 
@@ -640,7 +640,7 @@ describe("the headers the page is served under: the API's defaults deny it its o
     const pages = [
       consentResultPage({ webOrigin: ORIGIN, outcome: { ok: false, reason: 'Google reported: access_denied.' } }),
       consentResultPage({ outcome: OK }),
-      grantResultPage({ ok: true, permission: 'read-only' }),
+      grantResultPage({ ok: true, provider: 'google', permission: 'read-only' }),
     ];
     for (const page of pages) {
       expect(scriptOf(page)).toBeUndefined();

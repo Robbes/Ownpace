@@ -64,6 +64,16 @@ export function formatDateTime(
   }).format(date);
 }
 
+/**
+ * A time of day in the active language's conventions: en "2:05 PM", nl
+ * "14:05". For a page that says when it last read something on the same day
+ * (workplan 0176 T6.4: *Last updated at {time}*).
+ */
+export function formatTime(when: string | Date, locale: Locale, options?: Intl.DateTimeFormatOptions): string {
+  const date = when instanceof Date ? when : new Date(when);
+  return new Intl.DateTimeFormat(locale, { timeStyle: 'short', ...options }).format(date);
+}
+
 /** Grouped integer/decimal in the active language: en "1,234" — nl "1.234". */
 /**
  * A calendar day, `YYYY-MM-DD` as a document dates it: "October 1, 2026" /

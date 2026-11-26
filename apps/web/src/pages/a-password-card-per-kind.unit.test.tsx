@@ -24,6 +24,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, within, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { credentialFieldsFor } from '@openmig/shared';
@@ -166,8 +167,36 @@ afterEach(() => {
   globalThis.localStorage.removeItem('ownpace.locale');
 });
 
-const cardOf = async (account: string): Promise<HTMLElement> => {
+/**
+ * Since 2026-11-26 a person's link asks one thing at a time (workplan 0176
+ * T1): the first screen's question, the accounts where the link holds more
+ * than one (each with its state, as a region named by its address), then a
+ * password account's own step, which holds its card, named the same way. The
+ * cards all stood on one page.
+ */
+const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** An account as the accounts screen shows it: its state, and its button or why there is none. */
+const accountCard = async (account: string): Promise<HTMLElement> => {
   const heading = await screen.findByRole('heading', { level: 3, name: account });
+  return heading.closest('section') as HTMLElement;
+};
+
+/** A password account's card, on its own step: through the first screen and the accounts. */
+const cardOf = async (account: string): Promise<HTMLElement> => {
+  await screen.findByRole('heading', { level: 1 });
+  const yes = screen.queryByRole('button', { name: /^(Yes, that is right|Ja, dat klopt)$/ });
+  if (yes) await userEvent.click(yes);
+  if (!screen.queryByRole('heading', { level: 2, name: account })) {
+    // On another account's step: back to the accounts first.
+    if (!screen.queryByRole('heading', { level: 1, name: /^(Your accounts|Uw accounts)$/ })) {
+      const back = screen.queryByRole('button', { name: /^(Back|Terug)$/ });
+      if (back) await userEvent.click(back);
+    }
+    const connect = new RegExp(`^(Connect ${escaped(account)}|${escaped(account)} verbinden)$`);
+    await userEvent.click(await screen.findByRole('button', { name: connect }));
+  }
+  const heading = await screen.findByRole('heading', { level: 2, name: account });
   return heading.closest('section') as HTMLElement;
 };
 
@@ -353,7 +382,7 @@ describe('where the password goes, before any box (0174 §5.8, D3)', () => {
       ),
     );
     renderPage();
-    await cardOf('anna@gmail.example');
+    await accountCard('anna@gmail.example');
     expect(document.querySelector('[data-no-phone]')).toBeNull();
   });
 });
@@ -368,24 +397,25 @@ describe('the two groups (0174 §4.5)', () => {
       ]),
     );
     renderPage();
-    await cardOf('anna-soverin@example.com');
+    // On the accounts screen, which a link with an account connected opens on (0176 §5.3).
+    await accountCard('anna-soverin@example.com');
     const groups = [...document.querySelectorAll<HTMLElement>('[data-group]')];
     expect(groups.map((g) => g.dataset.group)).toEqual(['source', 'target']);
     expect(within(groups[0]!).getByRole('heading', { level: 2 }).textContent).toBe('The accounts your data is copied from');
     expect(within(groups[1]!).getByRole('heading', { level: 2 }).textContent).toBe('The accounts your data is copied to');
 
-    const apple = await cardOf('anna-apple@example.com');
+    const apple = await accountCard('anna-apple@example.com');
     expect(apple.dataset.cardState).toBe('connected');
     expect(within(apple).getByText('Connected')).toBeInTheDocument();
     expect(apple.querySelector('input')).toBeNull();
 
-    const imap = await cardOf('anna-imap@example.com');
+    const imap = await accountCard('anna-imap@example.com');
     expect(imap.dataset.cardState).toBe('locked');
     expect(within(imap).getByText('Locked on this link')).toBeInTheDocument();
     expect(within(imap).getByText('Too many tries on this link. Ask owner@example.org for a new link.')).toBeInTheDocument();
     expect(imap.querySelector('form')).toBeNull();
 
-    const soverin = await cardOf('anna-soverin@example.com');
+    const soverin = await accountCard('anna-soverin@example.com');
     expect(soverin.dataset.cardState).toBe('waiting');
     expect(within(soverin).getByText('Waiting')).toBeInTheDocument();
     expect(within(soverin).getByText('From anna@gmail.example, Gmail: your email — messages, folders and labels.')).toBeInTheDocument();

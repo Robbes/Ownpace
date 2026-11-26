@@ -275,6 +275,10 @@ describe('on the grant page', () => {
   }
 
   const BUTTON: Readonly<Record<Locale, RegExp>> = { en: /^Continue with Google/, nl: /^Doorgaan met Google/ };
+  // A person's link, one thing at a time (0176 T1): its first answer, its Next, and Google's button.
+  const PERSON_YES: Readonly<Record<Locale, string>> = { en: 'Yes, that is right', nl: 'Ja, dat klopt' };
+  const PERSON_NEXT: Readonly<Record<Locale, string>> = { en: 'Next', nl: 'Verder' };
+  const PERSON_SIGN_IN: Readonly<Record<Locale, string>> = { en: 'Sign in with Google', nl: 'Inloggen met Google' };
 
   for (const locale of LOCALES) {
     it(`${locale}: a migration's link has the line above the Google button while the Alpha runs`, async () => {
@@ -288,36 +292,22 @@ describe('on the grant page', () => {
       expect(before(note, button)).toBe(true);
     });
 
-    it(`${locale}: a person's link has it above the first Google button`, async () => {
+    // A person's link tells Google's screens before they come, in our own words, on a step
+    // of its own (2026-11-26, workplan 0176 T1, D12 (a)): no line to the guide on any of its
+    // screens, where it had one above the first Google button. What it says instead is held
+    // by `a-link-page-that-asks-one-thing-at-a-time.unit.test.tsx`.
+    it(`${locale}: a person's link has no line to the guide, up to the Google button`, async () => {
+      // The answer is kept for the tab (§5.1): a case before this one gave it.
+      globalThis.sessionStorage.clear();
       inAlpha();
       readMock.mockResolvedValue(PERSON);
       renderGrant(locale);
-      const button = await screen.findByRole('button', { name: BUTTON[locale] });
-      expect(before(screen.getByRole('note'), button)).toBe(true);
-      expect(screen.getByRole('note').textContent).toBe(SAID[locale]);
-    });
-
-    it(`${locale}: a person's link whose first account is connected has it after that card, above the button`, async () => {
-      inAlpha();
-      readMock.mockResolvedValue({
-        ...PERSON,
-        accounts: [
-          { ...PERSON.accounts[0], granted: true },
-          { ...PERSON.accounts[0], account: 'anna.work@gmail.com' },
-        ],
-      });
-      renderGrant(locale);
-      const button = await screen.findByRole('button', { name: BUTTON[locale] });
-      const connected = screen.getByRole('region', { name: 'anna@gmail.com' });
-      const waiting = screen.getByRole('region', { name: 'anna.work@gmail.com' });
-      const note = screen.getByRole('note');
-      expect(note.textContent).toBe(SAID[locale]);
-      expect(within(connected).queryByRole('button')).not.toBeInTheDocument();
-      expect(waiting).toContainElement(button);
-      // Between the connected card and the card with the button: right above
-      // the button a reader presses, not above a card that needs nothing.
-      expect(before(connected, note)).toBe(true);
-      expect(before(note, waiting)).toBe(true);
+      expect(await screen.findByRole('button', { name: PERSON_YES[locale] })).toBeInTheDocument();
+      expect(screen.queryByRole('note')).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: PERSON_YES[locale] }));
+      await userEvent.click(await screen.findByRole('button', { name: PERSON_NEXT[locale] }));
+      expect(await screen.findByRole('button', { name: PERSON_SIGN_IN[locale] })).toBeInTheDocument();
+      expect(screen.queryByRole('note')).not.toBeInTheDocument();
     });
   }
 

@@ -188,7 +188,11 @@ const LinkSection: React.FC<{
   links: GrantLink[] | undefined;
   loadFailed: boolean;
   words?: (typeof WORDS)[MappingLinkPurpose];
-}> = ({ doors, purpose, links, loadFailed, words: ownWords }) => {
+  /** The lifetime offered first, where it is not the purpose's own. */
+  firstDays?: number;
+  /** One line before the form: said where the link is made, before it is (0176 D13). */
+  beforeForm?: React.ReactNode;
+}> = ({ doors, purpose, links, loadFailed, words: ownWords, firstDays, beforeForm }) => {
   // Links that are only listed and revoked here, never made: a migration's
   // sent before the person's replaced them.
   const issuable = doors.issue !== undefined;
@@ -198,7 +202,7 @@ const LinkSection: React.FC<{
   const words = ownWords ?? WORDS[purpose];
   const lifetimes = LINK_LIFETIMES[purpose];
 
-  const [expiryDays, setExpiryDays] = React.useState<number>(lifetimes.fallback);
+  const [expiryDays, setExpiryDays] = React.useState<number>(firstDays ?? lifetimes.fallback);
   const [issued, setIssued] = React.useState<IssuedGrantLink | null>(null);
   const [issueError, setIssueError] = React.useState('');
   const [issuing, setIssuing] = React.useState(false);
@@ -266,6 +270,7 @@ const LinkSection: React.FC<{
       <h3 className="text-base font-semibold text-gray-900">{t(words.title)}</h3>
       <Hint className="mt-0.5" text={t(words.blurb)} why={t(words.why)} />
 
+      {issuable && beforeForm}
       {issuable && (
       <form onSubmit={issue} className="mt-3 flex flex-wrap items-end gap-3">
         <label className="flex flex-col text-sm text-gray-700">
@@ -393,17 +398,42 @@ const LinkSection: React.FC<{
 };
 
 /**
+ * A person's grant link works thirty days unless the member chooses less
+ * (workplan 0176 D13 (a), the owner, 2026-11-26): long enough for a person who
+ * waits for a call, or for a weekend, before they open it. The choices stay
+ * 1, 7 and 30; a migration's own link keeps seven.
+ */
+const PERSON_GRANT_LINK_DAYS = 30;
+
+/**
  * A PERSON'S grant link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)):
  * one link for all of their migrations, on their page and on *Start a
  * migration*'s last screen.
+ *
+ * TELL THEM FIRST (workplan 0176 D13 (a)). The person's first screen asks
+ * whether the sender told them about the link themselves, so the member is
+ * told so here, before the link is made. One line; a tick, a message to send
+ * and the voice are step B's (T8).
  */
 export const PersonGrantLinkSection: React.FC<{
   personId: string;
+  /** How the member's screens name the person, in the line before the form. */
+  personName: string;
   links: GrantLink[] | undefined;
   loadFailed: boolean;
-}> = ({ personId, ...props }) => (
-  <LinkSection {...props} doors={personDoors(personId)} purpose="grant" words={PERSON_WORDS.grant} />
-);
+}> = ({ personId, personName, ...props }) => {
+  const t = useT();
+  return (
+    <LinkSection
+      {...props}
+      doors={personDoors(personId)}
+      purpose="grant"
+      words={PERSON_WORDS.grant}
+      firstDays={PERSON_GRANT_LINK_DAYS}
+      beforeForm={<p className="mt-3 text-sm text-gray-900">{t('personLink.tellFirst', { name: personName })}</p>}
+    />
+  );
+};
 
 /**
  * A PERSON'S progress link (slice 3): one page for all of their migrations,

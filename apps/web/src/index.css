@@ -283,3 +283,15 @@
     box-shadow: none;
   }
 }
+
+/*
+ * A PERSON'S OWN PAGES, THE FOCUS (workplan 0176 T9, §13): wherever the
+ * keyboard is on the link page and the progress page, a 2-pixel outline in
+ * the page's blue, 2 pixels off the edge, at 8.9 to 1 on the paper. A rule
+ * on the pages' frame (`data-persons-page`), so the member's screens keep
+ * their rings.
+ */
+[data-persons-page] :focus-visible {
+  outline: 2px solid var(--color-blue-700);
+  outline-offset: 2px;
+}

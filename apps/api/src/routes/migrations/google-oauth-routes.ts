@@ -22,6 +22,7 @@ import { authenticate, getDbPool } from '../../middleware/auth.ts';
 import { closedOrganisation } from '../../closed-organisation.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import {
+  EXCHANGE_FOR_A_PERSONS_LINK,
   EXCHANGE_FOR_THE_LINK_HOLDER,
   NOTHING_CAME_BACK,
   NOT_KEPT,
@@ -223,6 +224,8 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
  */
 const FOR_THE_LINK_HOLDER_AFTER_GOOGLE: Readonly<Record<ExchangeRefusalCode, Bilingual>> =
   EXCHANGE_FOR_THE_LINK_HOLDER;
+/** The same, on a person's link, in a person's words: the link, never a migration (workplan 0176 D1). */
+const FOR_A_PERSONS_LINK_AFTER_GOOGLE: Readonly<Record<ExchangeRefusalCode, Bilingual>> = EXCHANGE_FOR_A_PERSONS_LINK;
 
 /** One pool for the close's read, built on first use rather than per request. */
 let _closurePool: ReturnType<typeof getDbPool> | null = null;
@@ -351,7 +354,8 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       `[api] a grant link's code exchange failed (${outcome.code}) for ` +
         `${link ? `mapping ${link.mappingId}` : `person ${personLink!.personId}`}: ${outcome.reason}`,
     );
-    return refuse(400, FOR_THE_LINK_HOLDER_AFTER_GOOGLE[outcome.code], 'unused');
+    // A person's link says the link, never a migration (workplan 0176 D1, §21.3).
+    return refuse(400, (personLink ? FOR_A_PERSONS_LINK_AFTER_GOOGLE : FOR_THE_LINK_HOLDER_AFTER_GOOGLE)[outcome.code], 'unused');
   }
 
   if (personLink) {
@@ -384,7 +388,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     return page(
       200,
       grantResultPage(
-        { ok: true, permission, ...(personProgressUrl ? { progressUrl: personProgressUrl } : {}), ...(more ? { more } : {}) },
+        { ok: true, provider: 'google', permission, ...(personProgressUrl ? { progressUrl: personProgressUrl } : {}), ...(more ? { more } : {}) },
         locale,
       ),
     );
@@ -442,7 +446,10 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   const permission = recordedPermission(pending.scope, outcome.grantedScopes);
   page(
     200,
-    grantResultPage(progressUrl ? { ok: true, progressUrl, permission } : { ok: true, permission }, locale),
+    grantResultPage(
+      progressUrl ? { ok: true, provider: 'google', progressUrl, permission } : { ok: true, provider: 'google', permission },
+      locale,
+    ),
   );
 });
 

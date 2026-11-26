@@ -111,7 +111,7 @@ const renderPanel = () => wrap(<MappingLinksPanel mappingId="acme-mail" />);
 const renderPersonLinks = (links: ReturnType<typeof link>[] = []) =>
   wrap(
     <>
-      <PersonGrantLinkSection personId="p-anna" links={links} loadFailed={false} />
+      <PersonGrantLinkSection personId="p-anna" personName="Anna" links={links} loadFailed={false} />
       <PersonViewLinkSection personId="p-anna" links={links} loadFailed={false} />
     </>,
   );
@@ -131,16 +131,31 @@ beforeEach(() => {
 });
 
 describe("issuing a person's grant link", () => {
-  it('offers the three lifetimes with seven days pre-filled', async () => {
+  // Thirty days first, where it was seven: workplan 0176 D13 (a), the owner,
+  // 2026-11-26 ("D13: a"), on the owner's "Ok" to thirty days for a person's
+  // link (§1). The choices stay 1, 7 and 30.
+  it('offers the three lifetimes with thirty days pre-filled', async () => {
     renderPersonLinks();
     const grant = await section('One grant link for everything');
     const select = grant.getByLabelText(/The link works for/);
-    expect((select as HTMLSelectElement).value).toBe('7');
+    expect((select as HTMLSelectElement).value).toBe('30');
+    expect(grant.getAllByRole('option').map((o) => o.textContent)).toEqual(['1 day', '7 days', '30 days']);
     expect(grant.getByRole('option', { name: '1 day' })).toBeInTheDocument();
     expect(grant.getByRole('option', { name: '30 days' })).toBeInTheDocument();
     // The progress link's lifetimes are NOT on offer here: seven days is the
     // credential's window and ninety is the page's.
     expect(grant.queryByRole('option', { name: '90 days' })).not.toBeInTheDocument();
+  });
+
+  // Workplan 0176 D13 (a), the owner, 2026-11-26: the person's first screen
+  // asks whether the sender told them, so the member is told so where the link
+  // is made. One line; the tick, the message and the voice are step B's (T8).
+  it('says to tell them first, before the link is made, and that the page asks', async () => {
+    renderPersonLinks();
+    const grant = await section('One grant link for everything');
+    const line = grant.getByText('Tell Anna first, by phone or in person. The page asks whether you did.');
+    const button = grant.getByRole('button', { name: /Create grant link/ });
+    expect(line.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows the URL once, says so, and says who sends it', async () => {

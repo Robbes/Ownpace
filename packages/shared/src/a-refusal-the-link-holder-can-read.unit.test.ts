@@ -97,6 +97,15 @@ const CALLS: Readonly<Record<string, () => Array<{ pair: Bilingual; findings: st
   nothingCameBackFrom: () => PROVIDERS.map((p) => ({ pair: prose.nothingCameBackFrom(p), findings: [] })),
   exchangeRefusedAt: () => PROVIDERS.map((p) => ({ pair: prose.exchangeRefusedAt(p), findings: [] })),
   twoClientsAt: () => ['google', ...PROVIDERS].map((p) => ({ pair: prose.twoClientsAt(p), findings: [] })),
+  // A person's link, in a person's own words (workplan 0176 D1, §21.3).
+  accountNotReady: () =>
+    Object.values(prose.NOT_READY_BECAUSE).map((what) => ({ pair: prose.accountNotReady(what), findings: [] })),
+  cannotSignInYetOnAPersonsLink: () =>
+    ['google', ...PROVIDERS].map((p) => ({ pair: prose.cannotSignInYetOnAPersonsLink(p, DETAIL), findings: [DETAIL] })),
+  noNamedAccountOnAPersonsLinkAt: () =>
+    ['google', ...PROVIDERS].map((p) => ({ pair: prose.noNamedAccountOnAPersonsLinkAt(p), findings: [] })),
+  anotherAccountOnAPersonsLink: () =>
+    ['google', ...PROVIDERS].map((p) => ({ pair: prose.anotherAccountOnAPersonsLink(p, OTHER, NAMED), findings: [OTHER, NAMED] })),
 };
 
 function withoutFindings(s: string, findings: ReadonlyArray<string>): string {
@@ -196,14 +205,17 @@ describe('which language a request asked for', () => {
 });
 
 describe('two applications for one account name its own provider (0171 T3)', () => {
-  it('keeps Google’s sentence as it always was', () => {
+  // A person's page says kopiëren, never a form of migreren: workplan 0176 D1,
+  // the owner, 2026-11-26 ("D1 to D11: ok on the advised"). The sentence is
+  // the person page's own, so it moves with the page's words.
+  it('says Google’s sentence in a person’s words', () => {
     expect(prose.twoClientsAt('google')).toEqual({
       en:
-        'Your migrations from this account are set up with two different Google applications, so ' +
-        'one sign-in cannot serve them both. Ask the person who sent you this link to set them up alike.',
+        'The copying from this account is set up with two different Google applications, so one ' +
+        'sign-in cannot serve both. Ask the person who sent you this link to set it up with one.',
       nl:
-        'Uw migraties vanuit dit account zijn ingesteld met twee verschillende Google-applicaties, dus ' +
-        'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om ze gelijk in te stellen.',
+        'Het kopiëren uit dit account is ingesteld met twee verschillende Google-applicaties, dus ' +
+        'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om het met één in te stellen.',
     });
   });
 

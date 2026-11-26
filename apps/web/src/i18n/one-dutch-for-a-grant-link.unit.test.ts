@@ -27,7 +27,9 @@ const dutch = Object.entries(STRINGS.nl as Record<string, string>).filter(([k]) 
 
 describe('the grant link’s Dutch', () => {
   it('finds the keys it holds, so the checks are not vacuous', () => {
-    for (const key of ['grant.password.submit', 'grant.state.locked', 'person.awaiting.locked', 'connections.waitingFor', 'grant.continue.cirrux']) {
+    // `grant.continue.cirrux` left with the cards (2026-11-26, workplan 0176 T1): a person's
+    // page connects each account by its address, on the accounts screen.
+    for (const key of ['grant.password.submit', 'grant.state.locked', 'person.awaiting.locked', 'connections.waitingFor', 'grant.person.connectAccount']) {
       expect(dutch.map(([k]) => k)).toContain(key);
     }
   });

@@ -85,7 +85,9 @@ import {
   NOT_READY_BECAUSE,
   NOT_READY_BECAUSE_DROPBOX,
   NOT_READY_BECAUSE_MICROSOFT,
+  accountNotReady,
   cannotSignInYet,
+  cannotSignInYetOnAPersonsLink,
   dropboxDeploymentClient,
   googleDeploymentClient,
   localeOf,
@@ -493,16 +495,17 @@ async function authorizeForAPerson(
   if (!client) {
     return void res.status(409).json({
       error: 'not_ready',
-      ...reasonPair(notReadyBecause(forTheLinkHolder(provider).client_not_configured)),
+      // A person's link says the account, never a migration (workplan 0176 D1, §21.3).
+      ...reasonPair(accountNotReady(forTheLinkHolder(provider).client_not_configured)),
     });
   }
 
   const redirectUri = callbackFor(req, provider);
   const ipRefusal = rawIpCallbackRefusal(redirectUri);
-  if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYet(ipRefusal)) });
+  if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, ipRefusal)) });
   const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
   if (unreachable) {
-    return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYet(unreachable)) });
+    return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, unreachable)) });
   }
 
   const locale = localeOf((req.body as { locale?: unknown } | undefined)?.locale);
@@ -571,15 +574,15 @@ async function authorizeTargetForAPerson(
   if (!client || !begin || !connectionId) {
     return void res.status(409).json({
       error: 'not_ready',
-      ...reasonPair(notReadyBecause(FOR_THE_LINK_HOLDER.client_not_configured)),
+      ...reasonPair(accountNotReady(FOR_THE_LINK_HOLDER.client_not_configured)),
     });
   }
   const redirectUri = callbackFor(req, provider);
   const ipRefusal = rawIpCallbackRefusal(redirectUri);
-  if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYet(ipRefusal)) });
+  if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, ipRefusal)) });
   const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
   if (unreachable) {
-    return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYet(unreachable)) });
+    return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, unreachable)) });
   }
   const locale = localeOf((req.body as { locale?: unknown } | undefined)?.locale);
   const { verifier, challenge } = pkcePair();

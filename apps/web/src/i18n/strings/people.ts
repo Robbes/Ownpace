@@ -12,6 +12,9 @@ export const en = {
   'personLink.blurb':
     'One link for all of this person’s Google accounts: they sign in to each once, and every migration that reads it is connected.',
   'personLink.empty': 'No link yet for this person.',
+  // Where a person's link is made (workplan 0176 D13 (a), the owner,
+  // 2026-11-26): the person's first screen asks whether they were told.
+  'personLink.tellFirst': 'Tell {name} first, by phone or in person. The page asks whether you did.',
   'personLink.asksAgain':
     'Every Google account of theirs is connected, so this link asks them to connect each one again. Send it when a connection has stopped working.',
   'personLink.view.title': 'One progress link for everything',
@@ -176,6 +179,7 @@ export const nl: Record<keyof typeof en, string> = {
   'personLink.blurb':
     'Eén link voor alle Google-accounts van deze persoon: bij elk account één keer aanmelden, en de migratie kan verder.',
   'personLink.empty': 'Nog geen link voor deze persoon.',
+  'personLink.tellFirst': 'Vertel het {name} eerst, aan de telefoon of persoonlijk. De pagina vraagt of u dat hebt gedaan.',
   'personLink.asksAgain':
     'Elk Google-account van deze persoon is verbonden; deze link vraagt om elk account opnieuw te verbinden. Stuur hem als een verbinding niet meer werkt.',
   'personLink.view.title': 'Eén voortgangslink voor alles',

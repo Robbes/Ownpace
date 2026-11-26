@@ -141,6 +141,26 @@ export const COPY = {
       alt: 'The app’s page for Anna Jansen: three migrations, from Gmail, Google and Dropbox to Soverin and Nextcloud. Email and contacts are kept in step; the calendar and the files are being copied.',
       caption: 'A real screen of the app, with an example person.',
     },
+    // Migrating for a family member (workplan 0176 D17 (b); the owner,
+    // 2026-11-26): who does what, after the app's page for a person. It says
+    // only what a person's two pages do once step A is merged: not one link
+    // (step C), not the member by name (step B), and it shows no screen. What
+    // the family member does is said with their pages' own word, copying.
+    // site.unit.test.ts holds all of it.
+    forFamily: {
+      title: 'Migrating for a family member',
+      lede: 'Is one of the people you migrate for a family member? You arrange it. They give permission themselves, and they can stop it themselves.',
+      cards: [
+        ['You tell them first',
+         'Call, or say it when you see each other: a link is coming from you, and what it is for. The page they open asks whether you did.'],
+        ['You send the link',
+         'In the app you make a grant link for that person. Send it yourself, the way you always reach them. We never send it.'],
+        ['They give permission themselves',
+         'They sign in themselves, or type their own password, on their own page. You do not ask for it, and you never see it. You can be there while they do it: on the phone, or at the table.'],
+        ['They can follow it, and stop it',
+         'After that, they have a page of their own. It shows how far the copying is, and nothing from their account. They can also stop the copying there.'],
+      ],
+    },
     // Where to (workplan 0152 T4): what the app moves data into, from the
     // guarded copy in destinations.mjs. The data types are named as the app
     // names them (its 'domain.*' strings), and a guard holds them equal.
@@ -259,7 +279,7 @@ export const COPY = {
       },
       // Below the steps, on every page a grant link can serve (workplan 0174, alpha.21).
       byLink:
-        'Moving somebody else’s account? Send them a grant link instead of asking for their password: they sign in, or type their own password, on a page only they see, and it never passes through you.',
+        'Moving somebody else’s account? Send them a grant link instead of asking for their password: they sign in, or type their own password, on their own page, and it never passes through you.',
       costTitle: 'A typical cost',
       costPaid: (what, tier, price) => `One person moving their ${what} at once: ${tier}, ${price} a month.`,
       costFree: (what, tier) => `One person moving their ${what}: ${tier}, nothing a month and no invoice.`,
@@ -539,6 +559,21 @@ export const COPY = {
       alt: 'De pagina van Anna Jansen in de app: drie migraties, van Gmail, Google en Dropbox naar Soverin en Nextcloud. E-mail en contacten worden bijgehouden; de agenda en de bestanden worden gekopieerd.',
       caption: 'Een echt scherm van de app, met een voorbeeldpersoon.',
     },
+    // Migreren voor een familielid (workplan 0176 D17 (b)) — zie het Engelse blok.
+    forFamily: {
+      title: 'Migreren voor een familielid',
+      lede: 'Is een van de mensen voor wie u migreert een familielid? U regelt het. Uw familielid geeft zelf toestemming, en kan het zelf weer stoppen.',
+      cards: [
+        ['U vertelt het eerst zelf',
+         'Bel, of zeg het als u elkaar ziet: er komt een link van u, en waarvoor die is. De pagina die uw familielid opent, vraagt of u dat hebt gedaan.'],
+        ['U stuurt de link',
+         'In de app maakt u een toegangslink voor die persoon. Stuur de link zelf, zoals u die persoon altijd bereikt. Wij sturen hem nooit.'],
+        ['Uw familielid geeft zelf toestemming',
+         'Uw familielid meldt zich zelf aan, of typt zelf het wachtwoord, op de eigen pagina. U vraagt er niet om, en u ziet het nooit. U mag erbij zijn: aan de telefoon, of aan tafel.'],
+        ['Uw familielid kan het volgen, en stoppen',
+         'Daarna heeft uw familielid een eigen pagina. Daar staat hoe ver het kopiëren is, en niets uit het account. Daar kan uw familielid het kopiëren ook stoppen.'],
+      ],
+    },
     whereTitle: 'Waar naartoe',
     whereLede:
       'Uw nieuwe thuis is een account dat u opent bij een Europese aanbieder, en dat u aan hen betaalt. Ownpace migreert uw gegevens daarheen en houdt ze bij.',
@@ -645,7 +680,7 @@ export const COPY = {
       },
       // Onder de stappen, op elke pagina die een toegangslink kan dienen (workplan 0174, alpha.21).
       byLink:
-        'Migreert u het account van iemand anders? Stuur die persoon een toegangslink in plaats van om het wachtwoord te vragen: die meldt zich aan, of typt het eigen wachtwoord, op een pagina die alleen die persoon ziet, en het komt nooit bij u terecht.',
+        'Migreert u het account van iemand anders? Stuur die persoon een toegangslink in plaats van om het wachtwoord te vragen: die meldt zich aan, of typt het eigen wachtwoord, op de eigen pagina, en het komt nooit bij u terecht.',
       costTitle: 'Wat het meestal kost',
       costPaid: (what, tier, price) => `Eén persoon die ${what} tegelijk migreert: ${tier}, ${price} per maand.`,
       costFree: (what, tier) => `Eén persoon die ${what} migreert: ${tier}, niets per maand en geen factuur.`,

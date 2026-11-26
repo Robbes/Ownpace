@@ -429,12 +429,115 @@ export function exchangeRefusedAt(provider: string): Bilingual {
  */
 export function twoClientsAt(provider: string): Bilingual {
   const name = providerName(provider);
+  // A person's page says *kopiëren*, never a form of *migreren* (workplan 0176 D1, §21.3).
   return {
     en:
-      `Your migrations from this account are set up with two different ${name} applications, so ` +
-      'one sign-in cannot serve them both. Ask the person who sent you this link to set them up alike.',
+      `The copying from this account is set up with two different ${name} applications, so one ` +
+      'sign-in cannot serve both. Ask the person who sent you this link to set it up with one.',
     nl:
-      `Uw migraties vanuit dit account zijn ingesteld met twee verschillende ${name}-applicaties, dus ` +
-      'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om ze gelijk in te stellen.',
+      `Het kopiëren uit dit account is ingesteld met twee verschillende ${name}-applicaties, dus ` +
+      'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om het met één in te stellen.',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// A person's link, in a person's own words (workplan 0176 D1, §21.3)
+// ---------------------------------------------------------------------------
+//
+// A person's link page and progress page say *kopiëren*, never a form of
+// *migreren*: a reader with no account hears in *migreren* that their mail
+// goes away (the owner, 2026-11-26). These are the sentences above that a
+// person's link can show, said of the link or the account where they said
+// *this migration*. A migration's own link, sent before 2026-10-03, keeps the
+// sentences above.
+
+/** `MIGRATION_GONE`, on a person's progress link: their page is what is gone. */
+export const PERSON_PAGE_GONE: Bilingual = {
+  en: `This page no longer exists, so there is nothing to show. Nothing you can do from here will fix that; ${TELL.en}`,
+  nl: `Deze pagina bestaat niet meer, dus er valt niets te tonen. U kunt dat vanaf hier niet oplossen; ${TELL.nl}`,
+};
+
+/** `notReady`, for an account on a person's link: the account, not a migration. */
+export function accountNotReady(what: Bilingual): Bilingual {
+  return {
+    en: `This account is not ready to be connected — ${what.en}. Nothing you can do from here will fix that; ${TELL.en}`,
+    nl: `Dit account is nog niet klaar om te verbinden: ${what.nl}. U kunt dat vanaf hier niet oplossen; ${TELL.nl}`,
+  };
+}
+
+/**
+ * `cannotSignInYet`, on a person's link, in the name of the provider whose
+ * sign-in was asked: a Microsoft or a Dropbox account is not told about Google.
+ */
+export function cannotSignInYetOnAPersonsLink(provider: string, detail: string): Bilingual {
+  const name = providerName(provider);
+  return {
+    en:
+      `This link cannot use a ${name} sign-in yet, because of how the server is reached. ` +
+      `Please forward this to the person who sent you the link: ${detail}`,
+    nl:
+      `Deze link kan nog geen ${name}-aanmelding gebruiken, door de manier waarop de server ` +
+      `bereikbaar is. Stuur dit door naar de persoon die u de link stuurde: ${detail}`,
+  };
+}
+
+/** `EXCHANGE_FOR_THE_LINK_HOLDER`, on a person's link: the two that named a migration say the link. */
+export const EXCHANGE_FOR_A_PERSONS_LINK = {
+  ...EXCHANGE_FOR_THE_LINK_HOLDER,
+  refused: {
+    en:
+      'Google turned down the application this link uses, so your permission did not arrive. ' +
+      `Nothing you can do from here will fix that; ${TELL.en}`,
+    nl:
+      'Google heeft de app geweigerd waarmee deze link werkt, dus uw toestemming is niet ' +
+      `aangekomen. U kunt dat vanaf hier niet oplossen; ${TELL.nl}`,
+  },
+  scope_missing: {
+    en:
+      'Some of the permissions this link asks for were left unticked at Google. Open your link ' +
+      'again and leave every one of them ticked.',
+    nl:
+      'Bij Google zijn enkele toestemmingen die deze link vraagt niet aangevinkt. Open uw link ' +
+      'opnieuw en laat ze allemaal aangevinkt.',
+  },
+} as const satisfies Readonly<Record<keyof typeof EXCHANGE_FOR_THE_LINK_HOLDER, Bilingual>>;
+
+/** `NO_NAMED_ACCOUNT`, on a person's link. */
+export const NO_NAMED_ACCOUNT_ON_A_PERSONS_LINK: Bilingual = {
+  en:
+    'This link no longer names the Google account to read, so your permission could not be ' +
+    'checked against it. Please tell the person who sent you the link.',
+  nl:
+    'Deze link noemt niet langer welk Google-account wordt gelezen, dus uw toestemming kon niet ' +
+    'met dat account worden vergeleken. Laat het de persoon weten die u de link stuurde.',
+};
+
+/** `noNamedAccountAt`, on a person's link. */
+export function noNamedAccountOnAPersonsLinkAt(provider: string): Bilingual {
+  const name = providerName(provider);
+  return {
+    en:
+      `This link no longer names the ${name} account to read, so your permission could not be ` +
+      'checked against it. Please tell the person who sent you the link.',
+    nl:
+      `Deze link noemt niet langer welk ${name}-account wordt gelezen, dus uw toestemming kon niet ` +
+      'met dat account worden vergeleken. Laat het de persoon weten die u de link stuurde.',
+  };
+}
+
+/**
+ * `anotherAccount`, on a person's link: Google's says the link, where it said
+ * *this migration reads*. Every other provider's already says the link
+ * (`anotherAccountAt`).
+ */
+export function anotherAccountOnAPersonsLink(provider: string, signedInAs: string, named: string): Bilingual {
+  if (provider !== 'google') return anotherAccountAt(provider, signedInAs, named);
+  return {
+    en:
+      `You signed in to Google as ${signedInAs}, but this link is for ${named}. Open your link ` +
+      `again and choose ${named} at Google.`,
+    nl:
+      `U bent bij Google ingelogd als ${signedInAs}, maar deze link is voor ${named}. Open uw link ` +
+      `opnieuw en kies ${named} bij Google.`,
   };
 }

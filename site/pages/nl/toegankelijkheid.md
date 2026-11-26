@@ -4,14 +4,14 @@ Ownpace moet werken voor iedereen die het gebruikt, ook met een schermlezer, all
 toetsenbord, met sterke vergroting of op een telefoon. Op deze pagina leest u hoe ver we zijn,
 wat nog niet goed werkt, en hoe u ons laat weten dat iets u in de weg zit.
 
-**Laatst nagekeken:** 2026-11-23
+**Laatst nagekeken:** 2026-11-26
 
 ## Waar deze verklaring over gaat {#reikwijdte}
 
 - Deze website, www.ownpace.eu, in het Nederlands en het Engels.
-- De Ownpace-app op app.ownpace.eu, met de pagina's die een link opent zonder dat u inlogt: de
-  pagina waarop u toegang geeft tot een account, en de pagina die de voortgang van een migratie
-  laat zien.
+- De Ownpace-app op app.ownpace.eu. Daar horen ook de twee pagina's bij die u met een link opent,
+  zonder in te loggen. Op de eerste geeft u toestemming. Op de tweede ziet u hoe ver het kopiëren
+  is.
 - De zelf gehoste Ownpace-appliance toont dezelfde schermen van de app op uw eigen computer. Wat
   deze pagina over de app zegt, geldt ook voor die schermen.
 
@@ -29,12 +29,29 @@ nagekeken.
 ## Wat we hebben gedaan {#gedaan}
 
 Tussen september en november 2026 hebben we de app nagelopen met telefoons en schermlezers in
-gedachten. Het menu op een telefoon neemt de focus van het toetsenbord over en geeft hem terug,
-elke stap van *Migratie starten* opent bovenaan met de focus op de kop, foutmeldingen en
-wachtmeldingen worden voorgelezen, een grijze knop zegt in woorden waarom u er niet op kunt
-drukken, en een link *Naar de inhoud* staat op elke pagina vooraan. Onze automatische tests
-openen de inlogpagina's, de lijst met migraties, elke stap van *Migratie starten* en de links
-die u ontvangt op de breedte van een telefoon, en slaan alarm als een daarvan zijwaarts schuift.
+gedachten. Zo werkt het nu:
+
+- Het menu op een telefoon neemt de focus van het toetsenbord over, en geeft hem terug.
+- Elke stap van *Migratie starten* opent bovenaan, met de focus op de kop. Dat doet ook elke stap
+  van de pagina waarop u toestemming geeft.
+- Foutmeldingen en wachtmeldingen worden voorgelezen.
+- Een grijze knop zegt in woorden waarom u er niet op kunt drukken.
+- Een link *Naar de inhoud* staat op elke pagina vooraan.
+
+De twee pagina's van een link zijn groter en duidelijker dan de rest van de app:
+
+- Zinnen zijn 18 pixels groot. Geen tekst is kleiner dan 16 pixels.
+- Een hoofdknop is minstens 60 pixels hoog, en zo breed als de kolom. Elke andere knop of link die
+  los staat, is minstens 44 bij 44 pixels.
+- Zinnen hebben een contrast van minstens 7 op 1.
+- De focus van het toetsenbord is te zien, ook op een gekleurde knop.
+
+Dat is meer dan WCAG 2.2 op niveau AA vraagt.
+
+Onze automatische tests openen de app op de breedte van een telefoon. Ze openen de inlogpagina's,
+de lijst met migraties, elke stap van *Migratie starten* en de links die u ontvangt. Ze slaan
+alarm als een daarvan zijwaarts schuift. De twee pagina's van een link openen ze ook op 320 pixels
+breed. Zo smal is een scherm van 1280 pixels bij 400% zoom.
 
 In oktober 2026 hebben we elk scherm van de app en elke pagina van deze site bekeken, in het
 Nederlands en het Engels, op een telefoon en op een computer, en een automatische
@@ -48,9 +65,10 @@ controle daarna vond hij geen ernstige of kritieke problemen meer op de pagina's
 Dit zijn de problemen die we kennen en nog niet hebben verholpen:
 
 - **Een nieuw scherm wordt niet aangekondigd.** Volgt u in de app een link naar een ander
-  scherm, dan verandert de titel van het scherm, maar de focus van het toetsenbord gaat niet naar
-  het nieuwe scherm. Een schermlezer zegt niet dat er een nieuw scherm is geopend, en u moet de
-  inhoud zelf zoeken. De stappen van *Migratie starten* zijn de uitzondering.
+  scherm? Dan verandert de titel van het scherm, maar de focus van het toetsenbord gaat niet mee.
+  Een schermlezer zegt niet dat er een nieuw scherm is geopend. U moet de inhoud dan zelf zoeken.
+  Bij de stappen van *Migratie starten* gaat de focus wel mee. Dat geldt ook voor elke stap op de
+  pagina's van een link.
 - **Sommige uitleg verschijnt alleen als u er met een muis boven hangt.** Op het scherm
   *Verificatie* is de korte uitleg bij elke uitkomst (wat *Geslaagd*, *Niet geverifieerd* of *Kon
   niet worden geverifieerd* betekent, en hoeveel van de inhoud is vergeleken) een tekst die alleen bij aanwijzen
@@ -60,8 +78,8 @@ Dit zijn de problemen die we kennen en nog niet hebben verholpen:
 
 ## Wat we nog niet hebben nagekeken {#niet-nagekeken}
 
-- We hebben de app nog niet van begin tot eind gebruikt met VoiceOver op een iPhone of TalkBack
-  op een Android-telefoon, en ook niet met 200% zoom.
+- We hebben de app nog niet van begin tot eind gebruikt met VoiceOver op een iPhone. Ook niet met
+  TalkBack op een Android-telefoon, of met 200% zoom.
 - We hebben nog niet elke app geprobeerd die links in een eigen browser opent, zoals een mail- of
   chatapp. Sommige daarvan blokkeren misschien het venster waarin u bij Google inlogt.
 - Onze automatische tests laten nog niet bij elke wijziging een toegankelijkheidscontrole lopen,

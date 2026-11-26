@@ -902,6 +902,13 @@ export function grantResultPage(
   outcome:
     | {
         readonly ok: true;
+        /**
+         * Whose sign-in this ending follows (workplan 0176 T2.4). One ending
+         * serves every provider, and its last sentence sent a Microsoft and
+         * a Dropbox account to Google's settings. Required, so no caller can
+         * fall back to Google by leaving it out.
+         */
+        readonly provider: 'google' | 'dropbox' | 'microsoft';
         readonly progressUrl?: ProgressPageUrl;
         /**
          * A person's link with accounts still to connect (the owner's
@@ -968,6 +975,11 @@ export function grantResultPage(
       `<script>${COPY_LINK_SCRIPT}</script>` +
       `<p>${words.keepIt} ${words.howLong}</p>`
     : '';
+  // The provider that was signed in to, by its own name, and first the
+  // person's own page where there is one: a stop is easiest there (0176 T2.4).
+  const name = PROVIDER_NAME[outcome.provider];
+  const stopIt = `<p>${outcome.progressUrl ? words.stopHere(name) : words.stopAt(name)}</p>`;
+  const access = `<p>${words.access[outcome.permission](name)}</p>`;
   // "Read-only" only where Google holds what it recorded to reading (0144 T3
   // (c)). Otherwise what is true of Ownpace, and what is true of the
   // permission, said apart.
@@ -978,28 +990,44 @@ export function grantResultPage(
     // every ending.
     const left = outcome.more.left === 1 ? words.oneMore : words.manyMore.replace('{n}', String(outcome.more.left));
     return shell(
-      `<main style="${PAGE_STYLE}"><h1>${words.oneConnected}</h1>` +
+      `<main style="${GRANT_PAGE_STYLE}"><h1>${words.oneConnected}</h1>` +
         `<p>${left}</p>` +
         `<p><a href="${esc(outcome.more.backUrl)}" style="${BACK_LINK_STYLE}">${words.back}</a></p>` +
         keepThis +
-        `<p>${words.access[outcome.permission]} ${words.withdraw}</p></main>`,
+        access +
+        stopIt +
+        `</main>`,
       lang,
     );
   }
   return shell(
-    `<main style="${PAGE_STYLE}"><h1>${words.done}</h1>` +
+    `<main style="${GRANT_PAGE_STYLE}"><h1>${words.done}</h1>` +
       `<p>${words.connected}</p>` +
       keepThis +
-      `<p>${words.access[outcome.permission]} ${words.withdraw}</p></main>`,
+      access +
+      stopIt +
+      `</main>`,
     lang,
   );
 }
 
-const COPY_BUTTON_STYLE = 'min-height:44px;padding:8px 16px;font-size:1rem';
-/** *Back to the link*, drawn as a button a finger finds: a plain link, so no script is needed. */
+/**
+ * THE LINK HOLDER'S ENDING, AS LARGE AS THEIR PAGES (workplan 0176 T9, §13):
+ * sentences at 18 pixels, in the policy's inline styles (`callbackPageHeaders`).
+ * A 16-pixel gutter keeps it off a phone's edge at 320 pixels.
+ */
+const GRANT_PAGE_STYLE = `${PAGE_STYLE} font-size:1.125rem; padding:0 16px;`;
+/** *Copy link*: a target that stands alone, at least 44 by 44 (§13). */
+const COPY_BUTTON_STYLE = 'min-height:44px;min-width:44px;padding:8px 16px;font-size:1.125rem';
+/**
+ * *Back to the link*, a main button: at least 60 pixels high and as wide as
+ * the column, its words 18 pixels and free to wrap (§13). A plain link, so no
+ * script is needed; its edge is dark enough to see (criterion 1.4.11).
+ */
 const BACK_LINK_STYLE =
-  'display:inline-block;min-height:44px;line-height:44px;padding:0 16px;font-size:1rem;' +
-  'border:1px solid #1f2937;border-radius:6px;color:#111827;text-decoration:none';
+  'display:block;box-sizing:border-box;width:100%;min-height:60px;padding:16px;text-align:center;' +
+  'font-size:1.125rem;line-height:1.5;border:2px solid #1f2937;border-radius:8px;color:#111827;' +
+  'text-decoration:none';
 
 /**
  * Copies the progress link (the owner's hand test, 2026-11-24). The Clipboard
@@ -1041,8 +1069,12 @@ const GRANT_ENDING: Readonly<
       readonly copied: string;
       readonly copyRefused: string;
       readonly howLong: string;
-      readonly access: Readonly<Record<RecordedPermission, string>>;
-      readonly withdraw: string;
+      /** What the permission allows, with the provider that recorded it. */
+      readonly access: Readonly<Record<RecordedPermission, (provider: string) => string>>;
+      /** Where to stop it: the person's own page, above, then the provider (0176 T2.4). */
+      readonly stopHere: (provider: string) => string;
+      /** Where to stop it when the ending has no page of the person's to show. */
+      readonly stopAt: (provider: string) => string;
       readonly oneConnected: string;
       readonly oneMore: string;
       readonly manyMore: string;
@@ -1058,34 +1090,36 @@ const GRANT_ENDING: Readonly<
       'Nothing was stored. If you were sent a link, ask the person who sent it for a fresh one ' +
       '— issuing another takes them a moment.',
     done: 'Thank you — that is done',
+    // A person's pages say *copy*, and English follows its Dutch (workplan
+    // 0176 D1, §15): the ending's three sentences that said *migration*.
     connected:
-      'Your account is now connected, and the migration can read from it. You do not have to do ' +
+      'Your account is now connected, and Ownpace can read from it. You do not have to do ' +
       'anything else, and this link will not work again.',
     yourPage:
-      'Here is your own page for this migration — <strong>keep this one</strong>. It shows how ' +
-      'far along your move is, and nothing from inside your account:',
+      'Here is your own page. <strong>Keep this one.</strong> It shows how far the copying is, ' +
+      'and nothing from inside your account:',
     keepIt:
       'Keep this link: bookmark it or copy it somewhere safe. If this page opened inside another ' +
       'app, that app may not keep it for you.',
     copy: 'Copy link',
     copied: 'Copied.',
     copyRefused: 'This browser did not allow copying. The link is selected: copy it from there.',
-    howLong:
-      'It works for the next 90 days, and the person running the migration can turn it off at ' +
-      'any time.',
+    howLong: 'It works for the next 90 days, and whoever sent you the link can turn it off at any time.',
     access: {
-      'read-only': 'Access is <strong>read-only</strong>: nothing is ever deleted or changed at your end.',
-      'allows-changes':
+      'read-only': () => 'Access is <strong>read-only</strong>: nothing is ever deleted or changed at your end.',
+      'allows-changes': (provider) =>
         '<strong>Ownpace only reads</strong>: nothing is ever deleted or changed at your end. The ' +
-        'permission Google recorded also allows changes; Ownpace makes none.',
-      widened:
+        `permission ${provider} recorded also allows changes; Ownpace makes none.`,
+      widened: (provider) =>
         '<strong>Ownpace only reads</strong>: nothing is ever deleted or changed at your end. ' +
-        'Google also added permissions this account had already given the same app, and one of ' +
+        `${provider} also added permissions this account had already given the same app, and one of ` +
         'them allows changes; Ownpace makes none.',
     },
-    withdraw:
-      'You can withdraw it at any time from your Google account’s security settings, under the ' +
-      'third-party apps that have access.',
+    stopHere: (provider) =>
+      `You can stop this at any time on your own page, above. Or at ${provider}, in the list of ` +
+      'apps that have access to your account.',
+    stopAt: (provider) =>
+      `You can stop this at any time at ${provider}, in the list of apps that have access to your account.`,
     // A person's link with more to connect (the owner's decisions of 2026-11-26).
     oneConnected: 'Thank you, this account is connected.',
     oneMore: 'There is one more.',
@@ -1100,35 +1134,37 @@ const GRANT_ENDING: Readonly<
       'Er is niets opgeslagen. Hebt u een link gekregen, vraag de persoon die hem stuurde dan om ' +
       'een nieuwe; die is zo gemaakt.',
     done: 'Dank u, het is gelukt',
+    // Kopiëren, as a person's two pages say it (workplan 0176 D1, §15).
     connected:
-      'Uw account is nu verbonden, en de migratie kan eruit lezen. U hoeft verder niets te doen, ' +
+      'Uw account is nu verbonden, en Ownpace kan eruit lezen. U hoeft verder niets te doen, ' +
       'en deze link werkt niet meer.',
     yourPage:
-      'Hier is uw eigen pagina voor deze migratie — <strong>bewaar deze</strong>. Die laat zien ' +
-      'hoe ver de migratie is, en niets uit uw account:',
+      'Hier is uw eigen pagina. <strong>Bewaar deze.</strong> Die laat zien hoe ver het kopiëren ' +
+      'is, en niets uit uw account:',
     keepIt:
       'Bewaar deze link: zet hem bij uw favorieten of kopieer hem naar een veilige plek. Is deze ' +
       'pagina in een andere app geopend, dan bewaart die app hem misschien niet.',
     copy: 'Link kopiëren',
     copied: 'Gekopieerd.',
     copyRefused: 'Deze browser stond kopiëren niet toe. De link is geselecteerd: kopieer hem vanaf daar.',
-    howLong:
-      'Hij werkt de komende 90 dagen, en wie de migratie uitvoert kan hem op elk moment uitzetten.',
+    howLong: 'Hij werkt de komende 90 dagen, en wie u de link stuurde, kan hem op elk moment uitzetten.',
     access: {
-      'read-only':
+      'read-only': () =>
         'De toegang is <strong>alleen-lezen</strong>: aan uw kant wordt nooit iets verwijderd of gewijzigd.',
-      'allows-changes':
+      'allows-changes': (provider) =>
         '<strong>Ownpace leest alleen</strong>: aan uw kant wordt nooit iets verwijderd of ' +
-        'gewijzigd. De toestemming die Google heeft vastgelegd staat ook wijzigingen toe; Ownpace ' +
+        `gewijzigd. De toestemming die ${provider} heeft vastgelegd staat ook wijzigingen toe; Ownpace ` +
         'brengt er geen aan.',
-      widened:
+      widened: (provider) =>
         '<strong>Ownpace leest alleen</strong>: aan uw kant wordt nooit iets verwijderd of ' +
-        'gewijzigd. Google heeft ook toestemmingen toegevoegd die dit account al aan dezelfde app ' +
+        `gewijzigd. ${provider} heeft ook toestemmingen toegevoegd die dit account al aan dezelfde app ` +
         'had gegeven, en een daarvan staat wijzigingen toe; Ownpace brengt er geen aan.',
     },
-    withdraw:
-      'U kunt de toegang op elk moment intrekken in de beveiligingsinstellingen van uw ' +
-      'Google-account, bij de apps van derden die toegang hebben.',
+    stopHere: (provider) =>
+      `U kunt dit altijd weer stoppen op uw eigen pagina, hierboven. Of bij ${provider}, in de ` +
+      'lijst van apps die toegang hebben tot uw account.',
+    stopAt: (provider) =>
+      `U kunt dit altijd weer stoppen bij ${provider}, in de lijst van apps die toegang hebben tot uw account.`,
     oneConnected: 'Dank u, dit account is verbonden.',
     oneMore: 'Er is nog één account.',
     manyMore: 'Er zijn nog {n} accounts.',

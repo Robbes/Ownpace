@@ -84,6 +84,15 @@
  * window use: `https:` on `accounts.google.com` exactly, or nothing is opened
  * and the page says the address is not Google's own page.
  *
+ * ## A person's link, one thing at a time (workplan 0176 step A)
+ *
+ * A person's link, which asks for one or more of a person's accounts, is no
+ * longer drawn here: `PersonGrant.tsx` asks one thing at a time, in a
+ * person's words and at a person's sizes (`persons-page.tsx`). What both
+ * pages say alike is in `grant-parts.tsx`. This page keeps the migration's
+ * own link, sent before 2026-10-03, as it was, and names the tab and draws
+ * the frame of both.
+ *
  * ## What it must never do
  *
  * Never show a token, never receive one, never postMessage. The refresh token
@@ -95,19 +104,21 @@
 import React from 'react';
 import { useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { YourNewAddress } from '../components/YourNewAddress.tsx';
-import { CheckCircle2, ShieldCheck } from 'lucide-react';
-import type { DiscoveryDomain } from '@openmig/shared';
-import {
-  grantApi,
-  type CardProvider,
-  type GrantProvider,
-  type GrantSubject,
-  type PasswordAnswer,
-  type PersonGrantCard,
-  type PersonGrantSubject,
-} from '../services/grant-service.ts';
-import { GrantPasswordCard } from '../components/GrantPasswordCard.tsx';
+import { ShieldCheck } from 'lucide-react';
+import { grantApi, type GrantSubject, type PersonGrantSubject } from '../services/grant-service.ts';
+import { linkRefusal } from '../services/link-refusal.ts';
+import { consentToFollow } from '../services/address-to-follow.ts';
+import { legalLinks } from '../services/legal-links.ts';
+import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import BuildStamp from '../components/BuildStamp.tsx';
+import LanguageSwitch from '../components/LanguageSwitch.tsx';
+import ReportThisLink from '../components/ReportThisLink.tsx';
+import AlphaGoogleLine from '../components/AlphaGoogleLine.tsx';
+import { isAlpha } from '../components/AlphaNote.tsx';
+import AccessibilityLink from '../components/AccessibilityLink.tsx';
+import { PersonsPageProvider } from '../components/persons-page.tsx';
+import { PersonGrant } from './PersonGrant.tsx';
+import { GrantScope, NotTheProvider, failureSentence, providerName, readsKey, wordsOf } from './grant-parts.tsx';
 
 /**
  * Whether the page opened a person's link. Here rather than imported, so a
@@ -117,45 +128,11 @@ const isPersonSubject = (s: GrantSubject | PersonGrantSubject): s is PersonGrant
   'kind' in s && s.kind === 'person';
 
 /**
- * A failure that is no request: the address the API answered is not the
- * provider's own page (workplan 0163 T4; per provider since 0171).
+ * Whether a link is a person's by its shape (`p.<id>.<secret>`): so the page
+ * draws a person's sizes while it loads, and for a refusal, which a person
+ * reads too (workplan 0176 T9).
  */
-class NotTheProvider {
-  constructor(readonly name: string) {}
-}
-
-/** What a failure says: the refusal above, or the server's sentence in the page's language. */
-function failureSentence(error: unknown, locale: Locale, t: ReturnType<typeof useT>): string {
-  return error instanceof NotTheProvider
-    ? t('account.consent.notTheProvider', { provider: error.name })
-    : linkRefusal(error, locale, t);
-}
-
-/**
- * THE PAGE IN EACH PROVIDER'S WORDS (workplan 0171 §3.4). Google's are the
- * page as it was; a Microsoft account's link says Microsoft wherever they say
- * Google, and since alpha.21 a Dropbox link says Dropbox (workplan 0174 §6).
- * Apple adds its own with its task; the API offers it no link until then, and
- * the page would say Google's words for it, so `wordsOf` refuses to guess and
- * falls back only for Google.
- */
-interface ProviderWords {
-  readonly name: string;
-  /** The box above the scope: read-only where the provider holds it so, else what Ownpace does. */
-  readonly readOnly: (readOnlyAtProvider: boolean) => StringKey;
-  readonly scopeIntro: StringKey;
-  readonly technicalLine: StringKey;
-  readonly signInAs: StringKey;
-  readonly connecting: StringKey;
-  readonly withdraw: StringKey;
-  /** A person's card: the button, with the account. */
-  readonly connectAs: StringKey;
-  readonly connectAgainAs: StringKey;
-  /** A migration's page: the button. */
-  readonly connect: StringKey;
-  /** Files, in the provider's own product's name. */
-  readonly readsFile: StringKey;
-}
+const isPersonsLink = (link: string | undefined): boolean => (link ?? '').startsWith('p.');
 
 /**
  * DO IT TOGETHER, DURING THE ALPHA (the owner's decisions of 2026-11-26,
@@ -171,512 +148,6 @@ const DoItTogether: React.FC<{ who: string; className?: string }> = ({ who, clas
   const t = useT();
   if (!isAlpha()) return null;
   return <p className={`${className ?? ''} text-sm text-gray-900`}>{t('grant.together', { who })}</p>;
-};
-
-const PROVIDER_WORDS: Readonly<Record<'google' | 'microsoft' | 'dropbox', ProviderWords>> = {
-  google: {
-    name: 'Google',
-    readOnly: (held) => (held ? 'grant.readOnly' : 'grant.readsOnly'),
-    scopeIntro: 'grant.scopeIntro',
-    technicalLine: 'grant.scope.technical.line',
-    signInAs: 'grant.signInAs',
-    connecting: 'grant.connecting',
-    withdraw: 'grant.withdraw',
-    connectAs: 'grant.person.connect',
-    connectAgainAs: 'grant.person.connectAgain',
-    connect: 'grant.connect',
-    readsFile: 'grant.reads.file',
-  },
-  microsoft: {
-    name: 'Microsoft',
-    // Every Graph scope a link asks for is a `.Read` one (`microsoftLinkAsk`).
-    readOnly: () => 'grant.readOnly.microsoft',
-    scopeIntro: 'grant.scopeIntro.microsoft',
-    technicalLine: 'grant.scope.technical.line.microsoft',
-    signInAs: 'grant.signInAs.microsoft',
-    connecting: 'grant.connecting.microsoft',
-    withdraw: 'grant.withdraw.microsoft',
-    connectAs: 'grant.continue.microsoft',
-    connectAgainAs: 'grant.connectAgain.microsoft',
-    connect: 'grant.continue.microsoft',
-    readsFile: 'grant.reads.file.microsoft',
-  },
-  dropbox: {
-    name: 'Dropbox',
-    // Every scope a Dropbox link asks for reads (`dropboxLinkAsk`), and the
-    // exchange refuses a grant that carries more.
-    readOnly: () => 'grant.readOnly.dropbox',
-    scopeIntro: 'grant.scopeIntro.dropbox',
-    technicalLine: 'grant.scope.technical.line.dropbox',
-    signInAs: 'grant.signInAs.dropbox',
-    connecting: 'grant.connecting.dropbox',
-    withdraw: 'grant.withdraw.dropbox',
-    connectAs: 'grant.continue.dropbox',
-    connectAgainAs: 'grant.connectAgain.dropbox',
-    connect: 'grant.continue.dropbox',
-    readsFile: 'grant.reads.file.dropbox',
-  },
-};
-
-function wordsOf(provider: GrantProvider | CardProvider | undefined): ProviderWords {
-  // Absent is Google: an answer from before the seam (the service defaults it
-  // when it parses one; a page handed data directly may not have).
-  if (provider === undefined || provider === 'google' || provider === 'microsoft' || provider === 'dropbox') {
-    return PROVIDER_WORDS[provider ?? 'google'];
-  }
-  throw new Error(`the grant page has no words for ${provider} yet`);
-}
-
-/** What each data type reads, in this provider's words. */
-function readsKey(d: DiscoveryDomain, words: ProviderWords): StringKey {
-  return d === 'file' ? words.readsFile : READS_KEY[d];
-}
-import { linkRefusal } from '../services/link-refusal.ts';
-import { consentToFollow } from '../services/address-to-follow.ts';
-import { legalLinks } from '../services/legal-links.ts';
-import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
-import type { Locale, StringKey } from '../i18n/strings.ts';
-import BuildStamp from '../components/BuildStamp.tsx';
-import LanguageSwitch from '../components/LanguageSwitch.tsx';
-import ReportThisLink from '../components/ReportThisLink.tsx';
-import AlphaGoogleLine from '../components/AlphaGoogleLine.tsx';
-import { isAlpha } from '../components/AlphaNote.tsx';
-import AccessibilityLink from '../components/AccessibilityLink.tsx';
-import { SOURCE_CARDS, TARGET_CARDS } from '../components/front-door-cards.ts';
-import { scopeWordKeys } from '../i18n/google-scope-words.ts';
-
-/**
- * What each data type reads, as the dictionary says it (workplan 0145 T6). A
- * total record, so a sixth data type is a compile error here rather than a
- * gap in what a person is told they are giving access to.
- */
-const READS_KEY: Readonly<Record<DiscoveryDomain, StringKey>> = {
-  email: 'grant.reads.email',
-  calendar: 'grant.reads.calendar',
-  contact: 'grant.reads.contact',
-  file: 'grant.reads.file',
-  task: 'grant.reads.task',
-};
-
-/**
- * THE PERMISSION, IN WORDS, AND THE SCOPE BEHIND A FOLD (the owner,
- * 2026-10-14). Each scope the link asks for is said as what it allows
- * (`google-scope-words.ts`), in the reader's language; the exact string Google
- * records stays on the page, inside a closed *Technical details*, for whoever
- * wants to compare it with their account (ADR-0041 *Decision* 4: the scopes
- * as scopes, not only a paraphrase).
- */
-const GrantScope: React.FC<{ scope: string; className: string; provider?: GrantProvider }> = ({
-  scope,
-  className,
-  provider = 'google',
-}) => {
-  const t = useT();
-  const words = wordsOf(provider);
-  return (
-    <div className={className}>
-      <p className="text-sm text-gray-600">{t(words.scopeIntro)}</p>
-      <ul className="mt-1 list-disc pl-5 space-y-0.5 text-sm text-gray-900">
-        {scopeWordKeys(scope, provider).map((key) => (
-          <li key={key}>{t(key)}</li>
-        ))}
-      </ul>
-      <details className="mt-2 text-sm">
-        <summary className="cursor-pointer select-none text-gray-500">{t('grant.scope.technical')}</summary>
-        <p className="mt-1 text-gray-600">{t(words.technicalLine)}</p>
-        <p className="mt-1 font-mono break-all text-gray-900">{scope}</p>
-      </details>
-    </div>
-  );
-};
-
-/** A destination's kind, by the name its card carries; the kind itself otherwise. */
-function providerName(kind: string): string {
-  return TARGET_CARDS.find((c) => c.id === kind)?.name ?? kind;
-}
-
-/** A source's kind, by the name its card carries; the kind itself otherwise (0174 §4.5). */
-function sourceName(kind: string): string {
-  const card = SOURCE_CARDS.find((c) => c.id === kind);
-  return (card && 'name' in card ? card.name : undefined) ?? kind;
-}
-
-/**
- * What each data type is, on a card that is no Google or Microsoft sign-in
- * (0174 §4.5): a password card, or a destination. Files are *your files*,
- * not Google Drive's.
- */
-function cardReadsKey(card: PersonGrantCard, d: DiscoveryDomain): StringKey {
-  if (wayOf(card) === 'sign-in' && roleOf(card) === 'source') return readsKey(d, wordsOf(card.provider));
-  return d === 'file' ? 'grant.reads.file.other' : READS_KEY[d];
-}
-
-/**
- * A card's role and way. Absent is a Google sign-in source: an answer from
- * before 0174, as the service's defaults read it, and as a page handed data
- * directly may hold it.
- */
-const roleOf = (a: PersonGrantCard): 'source' | 'target' => a.role ?? 'source';
-const wayOf = (a: PersonGrantCard): 'sign-in' | 'password' => a.way ?? 'sign-in';
-
-/** A card's state, as its chip says it (0174 §4.5): connected, waiting, or locked on this link. */
-type CardState = 'connected' | 'waiting' | 'locked';
-const STATE_WORDS: Readonly<Record<CardState, StringKey>> = {
-  connected: 'grant.state.connected',
-  waiting: 'grant.state.waiting',
-  locked: 'grant.state.locked',
-};
-const STATE_TONE: Readonly<Record<CardState, string>> = {
-  connected: 'bg-green-50 text-green-800 border-green-200',
-  waiting: 'bg-gray-50 text-gray-700 border-gray-200',
-  locked: 'bg-amber-50 text-amber-900 border-amber-200',
-};
-
-/**
- * A PERSON'S link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): who is
- * asking and who asked, once, then one card per account. Each card says
- * where each of its migrations goes and what it copies, what the permission
- * allows and the scope in Google's words, which account to sign in with, and
- * its own button; or that it is connected already; or, in the reader's
- * language, why it cannot be asked. Everything else on the page is the
- * migration's page's, in the same words.
- *
- * TWO GROUPS, AND PASSWORDS (workplan 0174 §4.5, T4). The link asks for
- * accounts, each a source or a destination (`role`), each by a sign-in or the
- * person's own password (`way`). The cards are grouped: the accounts the data
- * is copied FROM, then the ones it is copied TO, a group only when it has a
- * card. Each card says its state: connected, waiting, or locked on this link
- * after five refused tries. A password card is `GrantPasswordCard`, with the
- * server line before any box; the page adds, once above the cards, what to do
- * when the organisation gave no phone number (§5.8).
- */
-const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ data, link }) => {
-  const t = useT();
-  const { locale } = useLocale();
-  const { dateTime, list } = useFormatters();
-  const legal = legalLinks(locale);
-  // Which account's button was pressed, and what refused it.
-  const [starting, setStarting] = React.useState<string | null>(null);
-  const [failure, setFailure] = React.useState<{ account: string; error: unknown } | null>(null);
-  // Password cards connected on this visit, and the tries their last answer left (by `ref`).
-  const [connectedHere, setConnectedHere] = React.useState<ReadonlySet<string>>(new Set());
-  const [triesHere, setTriesHere] = React.useState<Readonly<Record<string, { left: number; locked: boolean }>>>({});
-  // The person's progress page, minted by the password route after a write
-  // (0174 §5.3 step 8), as a sign-in's ending hands it over on its own page.
-  const [progressUrl, setProgressUrl] = React.useState<string | null>(null);
-
-  const connect = async (account: string, provider: GrantProvider) => {
-    setStarting(account);
-    setFailure(null);
-    try {
-      const { url } = await grantApi.authorize(link, locale, provider, account);
-      // Only to the provider's own page (0163 T4), the host by provider (0171).
-      const consent = consentToFollow(provider, url);
-      if (consent === null) {
-        setFailure({ account, error: new NotTheProvider(wordsOf(provider).name) });
-        setStarting(null);
-        return;
-      }
-      globalThis.location.assign(consent);
-    } catch (error) {
-      setFailure({ account, error });
-      setStarting(null);
-    }
-  };
-
-  // A destination's Cirrux Drive (0174 §4.4, T5): named by its `ref`, since
-  // Cirrux vouches for no address; followed only to Cirrux's own host.
-  const connectDrive = async (a: PersonGrantCard) => {
-    setStarting(a.ref);
-    setFailure(null);
-    try {
-      const { url } = await grantApi.authorizeDrive(link, a.ref, locale);
-      const consent = consentToFollow('cirrux', url);
-      if (consent === null) {
-        setFailure({ account: a.ref, error: new NotTheProvider('Cirrux') });
-        setStarting(null);
-        return;
-      }
-      globalThis.location.assign(consent);
-    } catch (error) {
-      setFailure({ account: a.ref, error });
-      setStarting(null);
-    }
-  };
-
-  const onPasswordAnswer = (ref: string, answer: PasswordAnswer) => {
-    if (answer.kind === 'connected') {
-      setConnectedHere((prev) => new Set(prev).add(ref));
-      if (answer.progressUrl !== undefined) setProgressUrl(answer.progressUrl);
-    }
-    else if (answer.kind === 'locked') setTriesHere((prev) => ({ ...prev, [ref]: { left: 0, locked: true } }));
-    else if (answer.kind === 'refused_login' && answer.left !== null) {
-      setTriesHere((prev) => ({ ...prev, [ref]: { left: answer.left!, locked: false } }));
-    }
-  };
-
-  const where = (to: PersonGrantCard['migrations'][number]['to']) => {
-    const place = to.host ? t('grant.toWhere', { provider: providerName(to.provider), host: to.host }) : providerName(to.provider);
-    return to.account ? t('grant.person.where', { account: to.account, place }) : place;
-  };
-  const whence = (from: NonNullable<PersonGrantCard['migrations'][number]['from']>) =>
-    from.account ? t('grant.person.where', { account: from.account, place: sourceName(from.provider) }) : sourceName(from.provider);
-
-  const triesOf = (a: PersonGrantCard) => triesHere[a.ref] ?? a.tries ?? null;
-  const stateOf = (a: PersonGrantCard): CardState =>
-    (a.granted && !a.again) || connectedHere.has(a.ref) ? 'connected' : triesOf(a)?.locked === true ? 'locked' : 'waiting';
-  const askedBy = data.askedBy ?? data.organisation;
-  const hasPassword = data.accounts.some((a) => wayOf(a) === 'password');
-  const everyConnected = connectedHere.size > 0 && data.accounts.every((a) => stateOf(a) === 'connected');
-
-  // The first account that still shows a button to press: not connected (or
-  // connected and asked for again), and ready. -1 when none does.
-  const firstPressable = data.accounts.findIndex(
-    (a) => wayOf(a) === 'sign-in' && !(a.granted && !a.again) && !a.notReady,
-  );
-
-  const card = (a: PersonGrantCard, i: number) => {
-    const state = stateOf(a);
-    const signIn = wayOf(a) === 'sign-in';
-    return (
-      <React.Fragment key={a.ref || `${a.role}:${a.account}`}>
-        {/* During the Alpha, above the first Google button (the owner,
-            2026-10-18): above the first account that still has a button,
-            after any card already connected, and nowhere when none has. */}
-        {i === firstPressable && (a.provider ?? 'google') === 'google' && <AlphaGoogleLine className="mt-6" />}
-        <section
-          aria-labelledby={`grant-account-${i}`}
-          className="mt-4 p-4 border border-gray-200 rounded-lg"
-          data-card-role={roleOf(a)}
-          data-card-way={wayOf(a)}
-          data-card-state={state}
-        >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <h3 id={`grant-account-${i}`} className="text-base font-semibold text-gray-900 break-words">
-              {a.account}
-            </h3>
-            <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${STATE_TONE[state]}`}>
-              {t(STATE_WORDS[state])}
-            </span>
-          </div>
-          <ul className="mt-2 space-y-1 text-sm text-gray-700">
-            {a.migrations.map((m, j) => (
-              <li key={j} className="break-words">
-                {roleOf(a) === 'target' && m.from
-                  ? t('grant.person.migrationFrom', {
-                      where: whence(m.from),
-                      reads: list(m.domains.map((d) => t(cardReadsKey(a, d)))),
-                    })
-                  : t('grant.person.migration', {
-                      where: where(m.to),
-                      reads: list(m.domains.map((d) => t(cardReadsKey(a, d)))),
-                    })}
-                {/* Who else can open the copy, said plainly, not in a fold (the owner's
-                    decisions of 2026-11-26, change 3): the destination is the
-                    organisation's, not one the person connects on this link. */}
-                {roleOf(a) !== 'target' && m.theOrganisationOpensIt && (
-                  <span className="block text-gray-900">
-                    {t('grant.person.theyOpenIt', { who: askedBy, destination: providerName(m.to.provider) })}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-          {a.granted && !a.again ? (
-            <p className="mt-3 flex items-center gap-2 text-sm font-medium text-green-800">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-              {t('grant.person.connected')}
-            </p>
-          ) : a.notReady ? (
-            <p className="mt-3 text-sm text-amber-800">{locale === 'nl' ? a.notReady.reasonNl : a.notReady.reason}</p>
-          ) : signIn && roleOf(a) === 'target' && a.provider === 'cirrux' ? (
-            // Cirrux Drive, the destination's sign-in, offered once the
-            // account's app password is stored (0174 §4.4). The refusals of
-            // its ending are the server's own page, in the person's language.
-            <div data-drive-card="cirrux">
-              {a.again && <p className="mt-3 text-sm text-gray-900">{t('grant.person.again')}</p>}
-              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="flex items-start gap-2 text-sm text-green-900">
-                  <ShieldCheck className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-                  <span>{t('grant.cirrux.drive')}</span>
-                </p>
-              </div>
-              <p className="mt-3 text-sm font-medium text-gray-900 break-words">
-                {t('grant.cirrux.signInAs', { account: a.account })}
-              </p>
-              <button
-                type="button"
-                onClick={() => void connectDrive(a)}
-                disabled={starting !== null}
-                className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-words"
-              >
-                {starting === a.ref
-                  ? t('grant.connecting.cirrux')
-                  : t(a.again ? 'grant.connectAgain.cirrux' : 'grant.continue.cirrux')}
-              </button>
-              {failure?.account === a.ref && (
-                <p role="alert" className="mt-3 text-sm text-amber-800">
-                  {failureSentence(failure.error, locale, t)}
-                </p>
-              )}
-            </div>
-          ) : !signIn ? (
-            <GrantPasswordCard
-              link={link}
-              card={a}
-              askedBy={askedBy}
-              organisation={data.organisation}
-              onAnswer={onPasswordAnswer}
-              connectedHere={connectedHere.has(a.ref)}
-              tries={triesOf(a)}
-            />
-          ) : (
-            <>
-              {/* Connected, and asked for again: a link made while every
-                  account was connected, because a connection can stop
-                  working while its token is still held. */}
-              {a.again && <p className="mt-3 text-sm text-gray-900">{t('grant.person.again')}</p>}
-              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="flex items-start gap-2 text-sm text-green-900">
-                  <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-                  <span>{t(wordsOf(a.provider).readOnly(a.readOnlyAtProvider))}</span>
-                </p>
-              </div>
-              {a.scope !== null && <GrantScope scope={a.scope} provider={(a.provider ?? 'google') as GrantProvider} className="mt-3" />}
-              <p className="mt-3 text-sm font-medium text-gray-900 break-words">
-                {t(wordsOf(a.provider).signInAs, { account: a.account })}
-              </p>
-              {(a.provider ?? 'google') === 'google' && <DoItTogether who={askedBy} className="mt-3" />}
-              <button
-                type="button"
-                onClick={() => void connect(a.account, (a.provider ?? 'google') as GrantProvider)}
-                disabled={starting !== null}
-                className="mt-3 min-h-[44px] px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 break-words"
-              >
-                {starting === a.account
-                  ? t(wordsOf(a.provider).connecting)
-                  : t(a.again ? wordsOf(a.provider).connectAgainAs : wordsOf(a.provider).connectAs, {
-                      account: a.account,
-                    })}
-              </button>
-              {failure?.account === a.account && (
-                <p role="alert" className="mt-3 text-sm text-amber-800">
-                  {failureSentence(failure.error, locale, t)}
-                </p>
-              )}
-            </>
-          )}
-        </section>
-      </React.Fragment>
-    );
-  };
-
-  // Sources first: "is the destination yours?" is easiest with the source named (§4.5).
-  const indexed = data.accounts.map((a, i) => ({ a, i }));
-  const groups = (['source', 'target'] as const)
-    .map((role) => ({ role, cards: indexed.filter(({ a }) => roleOf(a) === role) }))
-    .filter((g) => g.cards.length > 0);
-
-  return (
-    <>
-      <p className="mt-4 text-gray-900">{t('grant.person.asking', { organisation: data.organisation })}</p>
-      {(data.checkedCompany || data.askedBy || data.organisationPhone) && (
-        <dl className="mt-4 p-4 border border-gray-200 rounded-lg grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          {data.checkedCompany && (
-            <>
-              <dt className="text-gray-600">{t('grant.company')}</dt>
-              <dd className="text-gray-900">
-                <span className="block">{data.checkedCompany}</span>
-                <span className="block text-xs text-gray-500">{t('grant.companyChecked')}</span>
-              </dd>
-            </>
-          )}
-          {data.askedBy && (
-            <>
-              <dt className="text-gray-600">{t('grant.askedBy')}</dt>
-              <dd className="text-gray-900 break-all">{data.askedBy}</dd>
-            </>
-          )}
-          {data.organisationPhone && (
-            <>
-              <dt className="text-gray-600">{t('grant.phone')}</dt>
-              <dd className="text-gray-900">
-                <a className="underline" href={`tel:${data.organisationPhone.replace(/[^0-9+]/g, '')}`}>
-                  {data.organisationPhone}
-                </a>
-              </dd>
-            </>
-          )}
-        </dl>
-      )}
-      {/* No phone to call back on, and a password asked (0174 §5.8): ask the
-          one who sent it some other way, before typing anything. */}
-      {hasPassword && !data.organisationPhone && (
-        <p className="mt-2 text-sm text-amber-800" data-no-phone>
-          {t('grant.password.noPhone', { organisation: data.organisation, askedBy })}
-        </p>
-      )}
-      <p className="mt-2 text-sm font-medium text-gray-900">{t('grant.check')}</p>
-      {/* The answer to that question when it is no (0108 T8 (d)), as a
-          migration's page offers it: the report names the person and every
-          migration of theirs. Offered only where a report can reach somebody. */}
-      <ReportThisLink kind="grant" link={link} organisation={data.organisation} next="linkReport.next.grant" />
-      {/* Before the first button, as on the migration's page: a link opened in
-          a chat or mail app's own browser is refused by Google, so this has to
-          be read before pressing (the owner's hand test, 2026-11-24). */}
-      <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
-
-      {groups.map((g) => (
-        <section key={g.role} aria-labelledby={`grant-group-${g.role}`} className="mt-6" data-group={g.role}>
-          <h2 id={`grant-group-${g.role}`} className="text-base font-semibold text-gray-900">
-            {t(g.role === 'source' ? 'grant.group.from' : 'grant.group.to')}
-          </h2>
-          {g.cards.map(({ a, i }) => card(a, i))}
-        </section>
-      ))}
-
-      {everyConnected && (
-        <p role="status" className="mt-6 flex items-center gap-2 text-sm font-medium text-green-800">
-          <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-          {t('grant.person.allConnected')}
-        </p>
-      )}
-      {progressUrl !== null && (
-        <div className="mt-4 p-3 border border-gray-200 rounded-lg text-sm text-gray-900" data-progress-link>
-          <p>{t('grant.person.yourPage')}</p>
-          <p className="mt-2 break-all">
-            <a className="underline" href={progressUrl}>
-              {progressUrl}
-            </a>
-          </p>
-          <p className="mt-2 text-gray-700">{t('grant.person.keepIt')}</p>
-        </div>
-      )}
-
-      <p className="mt-6 text-sm text-gray-600">{t('grant.until', { date: dateTime(data.expiresAt) })}</p>
-      <p className="mt-6 text-sm text-gray-500">
-        {t('grant.disclosure')}{' '}
-        <a className="underline" href={legal.privacy}>
-          {t('acceptance.doc.privacy')}
-        </a>
-        {' · '}
-        <a className="underline" href={legal.terms}>
-          {t('acceptance.doc.terms')}
-        </a>
-      </p>
-      {/* Where each provider's access is withdrawn, once per sign-in provider on the page. */}
-      {/* A destination's sign-in (Cirrux Drive) is withdrawn on the progress page (0174 §4.3). */}
-      {[...new Set(data.accounts.filter((a) => wayOf(a) === 'sign-in' && roleOf(a) === 'source').map((a) => a.provider ?? 'google'))].map((p) => (
-        <p key={p} className="mt-3 text-sm text-gray-500">
-          {t(wordsOf(p).withdraw)}
-        </p>
-      ))}
-      {/* Its own line: the one above lists what a person accepts (0145 T9 (b)). */}
-      <p className="mt-3 text-sm text-gray-500">
-        <AccessibilityLink className="underline" />
-      </p>
-    </>
-  );
 };
 
 const Grant: React.FC = () => {
@@ -708,11 +179,16 @@ const Grant: React.FC = () => {
       document.title = before;
     };
   }, []);
+  // A person's link draws a person's page (0176 T1, T9): `PersonGrant` names
+  // the tab after its step, and the frame takes a person's sizes.
+  const personsSubject = subject.data !== undefined && isPersonSubject(subject.data);
+  const personsPage = subject.data !== undefined ? personsSubject : isPersonsLink(link);
   // The tab's name, as the page's own title says it (the UX sweep, 2026-10-17).
   const title = t('grant.title');
   React.useEffect(() => {
+    if (personsSubject) return;
     document.title = `${title} — Ownpace`;
-  }, [title]);
+  }, [title, personsSubject]);
 
   // A migration's own link: its one provider, once the page has read it.
   const single = {
@@ -744,13 +220,20 @@ const Grant: React.FC = () => {
     }
   };
 
-  return (
-    <main className="max-w-xl mx-auto px-6 py-12">
+  const page = (
+    <main
+      {...(personsPage ? { 'data-persons-page': '' } : {})}
+      className={personsPage ? 'max-w-xl mx-auto px-4 py-8 sm:py-12' : 'max-w-xl mx-auto px-6 py-12'}
+    >
       <LanguageSwitch className="justify-end mb-4" />
-      <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+      {/* A person's link names each step in its own heading (`PersonGrant`),
+          and has none while it loads: the first is the first screen's. */}
+      {!personsSubject && !(personsPage && subject.isPending) && (
+        <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+      )}
 
       {subject.isPending && (
-        <p role="status" className="mt-4 text-sm text-gray-600">
+        <p role="status" className={personsPage ? 'mt-4 text-lg text-gray-900' : 'mt-4 text-sm text-gray-600'}>
           {t('grant.loading')}
         </p>
       )}
@@ -760,17 +243,12 @@ const Grant: React.FC = () => {
         // every refusal here is written to be forwarded to the person who sent
         // the link, and rewording it would lose the half that says what to
         // tell them. An alert, because it replaces the whole page.
-        <p role="alert" className="mt-4 text-sm text-amber-800">
+        <p role="alert" className={personsPage ? 'mt-4 text-lg text-amber-900' : 'mt-4 text-sm text-amber-800'}>
           {linkRefusal(subject.error, locale, t)}
         </p>
       )}
 
-      {subject.data && isPersonSubject(subject.data) && link && (
-        <PersonGrant data={subject.data} link={link} />
-      )}
-      {subject.data && isPersonSubject(subject.data) && link && (
-        <YourNewAddress door="grant" link={link} changes={subject.data.addressChanges} queryKey={['grant', link]} />
-      )}
+      {subject.data && isPersonSubject(subject.data) && link && <PersonGrant data={subject.data} link={link} />}
 
       {subject.data && !isPersonSubject(subject.data) && (
         <>
@@ -922,6 +400,10 @@ const Grant: React.FC = () => {
       </div>
     </main>
   );
+  // Whoever the page names as having sent the link (0176 D14): the member who
+  // made it, else the organisation; nothing yet while the page loads.
+  const who = subject.data && isPersonSubject(subject.data) ? (subject.data.askedBy ?? subject.data.organisation) : '';
+  return personsPage ? <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider> : page;
 };
 
 export default Grant;
