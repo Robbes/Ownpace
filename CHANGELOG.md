@@ -104,8 +104,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   member chooses one or seven. The accessibility statement says all of this. The tester guide
   gains a part for a family member's link, and no longer calls Google's warning *expected*; the
   Google help guide no longer tells a member not to be with them while they sign in; the site
-  says *on their own page*, and its header fits one row at 320 pixels. No table, no migration
-  and no field in an API answer changes.
+  says *on their own page*, and its header fits one row at 320 pixels. The home page gains a
+  short block for a member who migrates for a family member, *Migrating for a family member*:
+  who does what, in four cards (D17 (b)). No table, no migration and no field in an API answer
+  changes.
   **Nederlands:** de pagina die de toegangslink van een persoon opent, vraagt nu één ding per
   scherm: eerst wie het vraagt en waarvoor, met één vraag (*Heeft {who} u zelf over deze link
   verteld?*), waarop *Nee, nog niet* een even goed antwoord is; dan de accounts, wat de persoon
@@ -117,7 +119,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   antwoorden. De twee pagina's van een persoon zeggen *kopiëren*, nooit *migreren*, met grotere
   tekst, meer contrast en grotere knoppen. Waar een lid de link maakt, staat dat het lid het de
   persoon eerst vertelt, en de link werkt standaard dertig dagen. De handleiding voor de Alpha
-  krijgt een deel over de link van een gezinslid, en de kop van de site past op 320 pixels.
+  krijgt een deel over de link van een gezinslid, en de kop van de site past op 320 pixels. De
+  homepage krijgt een kort blok, *Migreren voor een familielid*: wie wat doet, in vier kaarten.
 
 - **Deleting by hand needs no switch any more** (alpha.21; workplan 0173, ADR-0024 amended
   2026-11-25; the owner: *"Manual deleting in by default. I don't think I makes sense then to keep

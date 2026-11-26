@@ -1145,6 +1145,19 @@ function appScreen(locale) {
 }
 
 /**
+ * *Migrating for a family member* (workplan 0176 D17 (b), with step A): who
+ * does what, between the app's page for a person and *Where to*. A heading,
+ * one paragraph and four cards, in words only: it shows no screen of a
+ * person's pages, and `site.unit.test.ts` holds it to what step A builds.
+ */
+function forFamily(locale) {
+  const c = COPY[locale].forFamily;
+  return `<h2>${c.title}</h2>
+<p>${c.lede}</p>
+${cards(c.cards)}`;
+}
+
+/**
  * *Where to* (workplan 0152 T4): the destinations the app moves data into, from
  * the guarded copy in `destinations.mjs`, each with the data types it takes,
  * named as the app names them. The card that is four protocols says which
@@ -1383,6 +1396,7 @@ ${SPRITE}
     .join('')}</ol>
 <p><a href="${urlFor(locale, 'how')}">${c.strip.more} <span aria-hidden="true">→</span></a></p>
 ${appScreen(locale)}
+${forFamily(locale)}
 ${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
 ${cards(c.diff)}
