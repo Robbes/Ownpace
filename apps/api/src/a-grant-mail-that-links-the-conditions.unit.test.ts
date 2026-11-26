@@ -26,12 +26,14 @@
  *
  * It failed before 0139 T4 built it: the mail named no conditions.
  *
- * AND THE TESTER GUIDE, AFTER THEM (0131 T1 (b), 0144 T1; 2026-10-04). The
- * guide tells a tester what to do before they start, so the paragraph's last
- * line is its address, in the mail's language, on the same site. The
- * paragraph is found by its address lines here, not by its first words, so
- * the words can change without this file changing. Those cases failed on
- * cd318823: the mail named no guide.
+ * AND THE TESTER GUIDE (0131 T1 (b), 0144 T1; 2026-10-04). The guide tells
+ * a tester what to do before they start, so it is linked in the mail's
+ * language, on the same site. Those cases failed on cd318823: the mail named
+ * no guide. Since workplan 0177 (the owner's text, D11 (a)) its line stands
+ * after the three steps, *before the person starts*, and before the sentence
+ * that names the organisation; the Alpha's paragraph ends with the
+ * conditions. The paragraph is found by its address lines here, not by its
+ * first words, so the words can change without this file changing.
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
@@ -72,7 +74,7 @@ const GUIDE = {
 /** The two lines, in the mail's language, that the addresses follow. */
 const SAYS = {
   en: { conditions: 'Read the Alpha conditions:', guide: 'Read the guide before you start:' },
-  nl: { conditions: 'Lees de voorwaarden:', guide: 'Lees de handleiding:' },
+  nl: { conditions: 'Lees de voorwaarden:', guide: 'Lees de handleiding voordat u begint:' },
 } as const;
 
 const channel = () =>
@@ -115,13 +117,20 @@ describe('during the alpha, the grant mail links the Alpha conditions', () => {
 
   it.each(['en', 'nl'] as const)('in the alpha paragraph, after its words, in %s', async (locale) => {
     const body = await sent(locale, { OWNPACE_STAGE: 'alpha' });
-    const paragraph = body.split('\n\n').find((p) => p.includes(CONDITIONS.production[locale]));
+    const paragraphs = body.split('\n\n');
+    const paragraph = paragraphs.find((p) => p.includes(CONDITIONS.production[locale]));
     expect(paragraph, 'the alpha paragraph is gone').toBeDefined();
     const lines = paragraph!.split('\n');
-    // The paragraph's words, then the conditions, then the guide.
-    expect(lines.length, 'the links are not in the paragraph with its words').toBeGreaterThan(2);
-    expect(lines.at(-2)).toBe(`${SAYS[locale].conditions} ${CONDITIONS.production[locale]}`);
-    expect(lines.at(-1)).toBe(`${SAYS[locale].guide} ${GUIDE.production[locale]}`);
+    // The paragraph's words, then the conditions, last.
+    expect(lines.length, 'the link is not in the paragraph with its words').toBeGreaterThan(1);
+    expect(lines.at(-1)).toBe(`${SAYS[locale].conditions} ${CONDITIONS.production[locale]}`);
+    // The guide before the person starts: a paragraph of its own, after the
+    // three steps and before the paragraphs that follow them (0177 §8).
+    const guide = paragraphs.indexOf(`${SAYS[locale].guide} ${GUIDE.production[locale]}`);
+    const thirdStep = paragraphs.findIndex((p) => p.startsWith('3. '));
+    expect(guide, 'the guide has no paragraph of its own').toBeGreaterThan(-1);
+    expect(thirdStep).toBeLessThan(guide);
+    expect(guide).toBeLessThan(paragraphs.indexOf(paragraph!));
   });
 });
 
