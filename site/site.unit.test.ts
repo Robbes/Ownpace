@@ -905,7 +905,7 @@ describe('the tester guide is rendered for the alpha only (workplan 0144 T1)', (
  * same name, in both languages; for alpha builds only and outside the nav, as
  * the guide is. Its two addresses are 0172's and stay. The site carries no
  * form (`form-action 'none'`), so the page sends the reader to the app's door,
- * in the page's language. The app links the page from the door and the
+ * `/code`, in the page's language (0177 D9). The app links the page from the door and the
  * giver's page, as *Read more about a recommendation*
  * (`apps/web/src/services/recommendation-page-link.ts`), and that link is a
  * file this build writes.
@@ -936,7 +936,8 @@ describe('the page about a recommendation is rendered for the alpha only (workpl
       const main = html.split('<main')[1]?.split('</main>')[0] ?? '';
       const ids = [...main.matchAll(/<h2 id="([^"]+)"/g)].map((m) => m[1]);
       expect(ids, `the ${locale} page's sections`).toEqual([...SECTIONS[locale]]);
-      expect(main).toMatch(new RegExp(`href="https?://[^"/]+/redeem\\?locale=${locale}"`));
+      // The door of a code, `/code`, in the page's language (0177 D9).
+      expect(main).toMatch(new RegExp(`href="https?://[^"/]+/code\\?locale=${locale}"`));
       expect(main).not.toContain('[[REDEEM]]');
       expect(main).not.toMatch(/<form/);
       const text = main.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
@@ -950,6 +951,19 @@ describe('the page about a recommendation is rendered for the alpha only (workpl
       // No sentence says what a recommendation is not (D1), and the owner decides nothing per request any more (D6).
       expect(text).not.toMatch(/not a key|geen sleutel|we read every request|we lezen elke aanvraag/);
       expect(text).not.toMatch(/warm introduction|warme introductie/);
+    }
+  });
+
+  it('is named for what it is, in its title and description too (0177 D1)', async () => {
+    const pages = await alphaBuild();
+    for (const locale of ['en', 'nl'] as const) {
+      const html = pages.find((p) => p.file === PAGE[locale])!.html;
+      const title = /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? '';
+      const description = /<meta name="description" content="([^"]*)"/.exec(html)?.[1] ?? '';
+      expect(title).toBe(locale === 'en' ? 'A recommendation for the Alpha — Ownpace' : 'Een aanbeveling voor de Alpha — Ownpace');
+      for (const words of [title, description]) {
+        expect(words, `the ${locale} page's head`).not.toMatch(/\b(gifts?|cadeau\w*|places?|plaats|plek)\b/i);
+      }
     }
   });
 
