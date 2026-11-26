@@ -10569,7 +10569,10 @@ components:
         mapping id, no tenant id, no account's address: the Google account a
         migration reads is named by an opaque `ref`, which a withdrawal sends
         back. The one exception is `addressChanges` (workplan 0168 §4.4, D6):
-        the person's own address changes, to confirm or send back.
+        the person's own address changes, to confirm or send back. Since
+        workplan 0176 step B it also names who sent the link (`sender`,
+        never an address) and says per migration whether the organisation
+        can open the copy (`theOrganisationOpensIt`).
       required: [kind, organisation, expiresAt, migrations, accounts, addressChanges]
       properties:
         kind: { type: string, enum: [person] }
@@ -10607,6 +10610,27 @@ components:
                   at: { type: string, format: date-time }
                   what: { type: string, enum: [source, destination] }
                   destination: { type: string, description: "With `what` destination, the destination's kind." }
+              theOrganisationOpensIt:
+                type: boolean
+                description: |
+                  Whether the destination is the organisation's, so whoever set this
+                  up can open the copy there too (workplan 0176 T6, §10), by the rule
+                  the grant page's answer uses. A yes or no, naming nothing. Absent
+                  from a server before alpha.21's step B.
+        sender:
+          nullable: true
+          description: |
+            Who sent the link (workplan 0176 T6; §7, T3), as the grant page names
+            them: the name the member gave, how the person knows them, and their
+            own number. Never an address. A progress link the ending handed over
+            after a sign-in names the member who sent the grant link it was
+            signed in through. Null when no member stands behind the link any
+            more; the page then names the organisation. Absent from a server
+            before alpha.21's step B.
+          allOf: [{ $ref: '#/components/schemas/SenderOnAPage' }]
+        organisationPhone:
+          type: [string, 'null']
+          description: "The organisation's number, which the page shows where the member gave none, saying whose it is (D11)."
         accounts:
           type: array
           items:

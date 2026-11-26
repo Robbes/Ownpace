@@ -10,10 +10,11 @@
  */
 
 import { z } from 'zod';
-import { DISCOVERY_DOMAINS, isSenderRelation, type DiscoveryDomain, type SenderRelation } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 import type { Locale } from '../i18n/strings.ts';
 import { LINK_API_BASE, linkClient as client } from './link-client.ts';
 import { LinkAddressChangesField } from './link-address-service.ts';
+import { SenderSchema } from './sender-schema.ts';
 
 /**
  * Whose sign-in a link's button opens (workplan 0171 §3.2). An API a release
@@ -128,23 +129,6 @@ const Domain = z.enum(DISCOVERY_DOMAINS as unknown as [DiscoveryDomain, ...Disco
  * names the account. A data type this page has no words for fails the parse,
  * as above.
  */
-/**
- * Who sent a person their link, as their pages show them (workplan 0176 §7,
- * T3): the name the member gave, how the person knows them, and their own
- * number, each null when not given. A relation this page has no words for
- * reads as none, rather than failing a page whose question is still worth
- * asking.
- */
-export const SenderSchema = z.object({
-  name: z.string().nullable(),
-  relation: z
-    .string()
-    .nullable()
-    .transform((r): SenderRelation | null => (isSenderRelation(r) ? r : null)),
-  phone: z.string().nullable(),
-});
-export type Sender = z.infer<typeof SenderSchema>;
-
 const PersonSubjectSchema = z.object({
   kind: z.literal('person'),
   organisation: z.string(),

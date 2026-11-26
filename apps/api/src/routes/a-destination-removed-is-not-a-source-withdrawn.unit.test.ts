@@ -75,7 +75,10 @@ const LINK = { tenantId: TENANT, personId: PERSON, linkId: U('51') };
 const REVOKER: TokenRevoker = { revoke: async () => ({ status: 'revoked' }) } as unknown as TokenRevoker;
 
 const personPage = () =>
-  withTenant(driver, TENANT, (db) => readPersonView(db, { tenantId: TENANT, personId: PERSON, expiresAt: expiryFromDays(7) }));
+  // Read through the person's link, as the route reads it (0176 T6 names its sender from it).
+  withTenant(driver, TENANT, (db) =>
+    readPersonView(db, { tenantId: TENANT, personId: PERSON, expiresAt: expiryFromDays(7), linkId: LINK.linkId }),
+  );
 
 async function migrationPage() {
   const { token } = await withTenant(driver, TENANT, (db) =>

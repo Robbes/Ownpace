@@ -26,6 +26,7 @@ import { DISCOVERY_DOMAINS, DOMAIN_STATES, MAPPING_LIFECYCLES, STAGES } from '@o
 import type { DiscoveryDomain, MappingLifecycle, Stage, ViewTime } from '@openmig/shared';
 import { linkClient as client } from './link-client.ts';
 import { LinkAddressChangesField } from './link-address-service.ts';
+import { SenderSchema } from './sender-schema.ts';
 
 const RowSchema = z.object({
   domain: z.enum(DISCOVERY_DOMAINS as unknown as [DiscoveryDomain, ...DiscoveryDomain[]]),
@@ -143,9 +144,18 @@ const PersonViewSchema = z.object({
       account: z.string().nullable(),
       // While a withdrawal holds it: when, and what was taken back.
       stopped: z.object({ at: z.string(), ...WhatStoppedFields }).optional().catch(undefined),
+      // Whether the organisation can open the copy at its destination too
+      // (workplan 0176 T6, step B). Absent from a server before it: no line.
+      theOrganisationOpensIt: z.boolean().optional(),
     }),
   ),
   accounts: z.array(z.object({ ref: z.string(), grant: GrantSchema })),
+  // Who sent the link (workplan 0176 T6, §7): the name the member gave, how
+  // the person knows them and their own number, never an address; and the
+  // organisation's number beside it (D11). Absent from a server before step
+  // B: the page names the organisation, as it did.
+  sender: SenderSchema.nullable().optional(),
+  organisationPhone: z.string().nullable().optional(),
   // The destinations the person connected with their own password (0174
   // §4.3). Absent from a server before alpha.21, read as none.
   destinations: z

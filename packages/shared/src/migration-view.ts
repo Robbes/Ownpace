@@ -34,6 +34,7 @@ import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { PauseReason } from './pause-reason.ts';
 import type { MigrationStatus } from './ports.ts';
 import type { CheckFacts, PhaseFacts } from './progress.ts';
+import type { SenderOnAPage } from './sender.ts';
 import { stageOf, type Stage } from './stage.ts';
 import { timeBeforeStart, type TimeBeforeStart } from './time-before-start.ts';
 import { remainingItemsOf, timeWhileCopying, type PassFacts, type TimeWhileCopying } from './time-while-copying.ts';
@@ -418,6 +419,17 @@ export interface PersonView {
    * they gave. Absent from a server before alpha.21, and read as none.
    */
   readonly destinations?: readonly PersonViewDestination[];
+  /**
+   * Who sent the link (workplan 0176 T6, step B; §7, T3): the name the member
+   * gave, how the person knows them and their own number, each what the
+   * member chose to show the people they send a link to. Never an address:
+   * this page carries none but the person's own new one. Null when no member
+   * stands behind the link any more; the page then names the organisation.
+   * Absent from a server before step B.
+   */
+  readonly sender?: SenderOnAPage | null;
+  /** The organisation's number, for the page to show where the member gave none, said as theirs (D11). */
+  readonly organisationPhone?: string | null;
 }
 
 /**
@@ -461,6 +473,13 @@ export interface PersonViewMigration {
    * access is still given, so this is per migration, not per account.
    */
   readonly stopped?: ViewStopped;
+  /**
+   * Whether the destination is the organisation's, so whoever set this up
+   * can open the copy there too (workplan 0176 T6, §10), by the rule the link
+   * page's answer uses. A yes or no: a state, not content. Absent from a
+   * server before step B.
+   */
+  readonly theOrganisationOpensIt?: boolean;
 }
 
 /** One Google account a person's migrations read. */

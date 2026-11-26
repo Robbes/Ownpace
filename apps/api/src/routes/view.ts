@@ -129,9 +129,9 @@ router.get(
         // A person's page: every migration of theirs, as `person-progress.ts`
         // reads it. The person gone takes their links with them, so a null
         // here is an organisation that is gone.
-        const { tenantId, personId, expiresAt } = req.personLink;
+        const { tenantId, personId, expiresAt, linkId } = req.personLink;
         const view = await withTenantDb(tenantId, pool(), async (db) => {
-          const page = await readPersonView(db, { tenantId, personId, expiresAt });
+          const page = await readPersonView(db, { tenantId, personId, expiresAt, linkId });
           // Their own rows of the address changes, the one exception to
           // counts and states (see the header): to confirm or send back.
           return page && { ...page, addressChanges: await readLinkAddressChanges(db, tenantId, personId) };

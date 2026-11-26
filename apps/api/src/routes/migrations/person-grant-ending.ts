@@ -283,10 +283,12 @@ export async function storePersonGrant(
  * address, or the write failed, which is logged; and a fresh one each time,
  * because the table holds no secret to hand back. A person with two accounts
  * who grants both is given two, both on the owner's list and revocable there.
+ * Each names the grant link it was signed in through (`made_from`, workplan
+ * 0176 T6), so its page names the member who sent that one.
  */
 export async function mintPersonProgressLink(
   source: Pool | LedgerDriver,
-  target: Pick<PersonGrantTarget, 'tenantId' | 'personId'>,
+  target: Pick<PersonGrantTarget, 'tenantId' | 'personId'> & { readonly linkId?: string },
 ): Promise<ProgressPageUrl | null> {
   const base = process.env.WEB_URL?.replace(/\/+$/, '');
   if (!base) return null;
@@ -299,6 +301,9 @@ export async function mintPersonProgressLink(
         // Not a user id: nobody was signed in, as for a migration's.
         createdBy: 'granted-by-link',
         expiresAt: expiryFromDays(DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS),
+        // The grant link signed in through, whose member and relation the
+        // page names (workplan 0176 T6; managed migration 0067).
+        madeFrom: target.linkId ?? null,
       }),
     );
     return progressPageUrl(base, issued.token);

@@ -307,9 +307,10 @@ interface Group {
  * is not asked of them, so the organisation holds what opens it. The same
  * reading the destination's card is made from, so a destination is either a
  * card for the person or this, never both. A destination `targetGrantAsk`
- * cannot read says nothing: no line is better than a wrong one.
+ * cannot read says nothing: no line is better than a wrong one. The progress
+ * page says it by the same rule (`person-progress.ts`, workplan 0176 T6).
  */
-function isTheOrganisationsDestination(
+export function isTheOrganisationsDestination(
   rows: GrantRows,
   includedDomains: Parameters<typeof targetGrantAsk>[0]['includedDomains'],
   grantedByThem: ReadonlySet<string>,

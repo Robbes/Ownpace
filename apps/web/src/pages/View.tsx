@@ -98,7 +98,8 @@ import { useLineSentence } from '../components/MigrationLines.tsx';
 import { TimeBeforeStartLine } from '../components/TimeBeforeStartLine.tsx';
 import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
 import { YourNewAddress } from '../components/YourNewAddress.tsx';
-import { PersonsPageProvider } from '../components/persons-page.tsx';
+import { PersonsPageProvider, usePersonsPage } from '../components/persons-page.tsx';
+import { NumberToCheck, SenderName, whoSent } from '../components/TheSender.tsx';
 
 type T = ReturnType<typeof useT>;
 
@@ -683,6 +684,7 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
   const t = useT();
   const { locale } = useLocale();
   const { list } = useFormatters();
+  const who = usePersonsPage()?.who ?? '';
   const from = providerName(migration.from, 'source', locale);
   // Its own hold where the server says it (alpha.21), else its account's, as before.
   const stopped = useStoppedSentence(migration.stopped ?? stoppedOf(grant), migration.from);
@@ -715,6 +717,14 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
       )}
       {/* A held migration copies nothing, so there is nothing to wait for. */}
       {!stopped && <HowLong time={migration.time} from={migration.from} />}
+      {/* Who else can open the copy (0176 §10, T6): where the destination is
+          the organisation's, in the link page's own sentence. A state, not
+          content; nothing where the person connected it themselves. */}
+      {migration.theOrganisationOpensIt === true && migration.to && who !== '' && (
+        <p className={`mt-2 ${LOOK.sentence}`}>
+          {t('grant.person.theyOpenIt', { who, destination: providerName(migration.to, 'target', locale) })}
+        </p>
+      )}
     </div>
   );
 };
@@ -770,6 +780,8 @@ function canChange(view: MigrationViewPayload | PersonViewPayload): boolean {
  */
 function firstLineOf(view: MigrationViewPayload | PersonViewPayload, t: T, locale: Locale): string {
   const theirs = new Set((isPersonView(view) ? (view.destinations ?? []) : []).map((d) => d.provider));
+  // Whoever sent the link (0176 T6): the member's name on a person's page.
+  const who = isPersonView(view) ? whoSent(view) : view.organisation;
   const readings = readingsOf(view);
   for (const r of readings) {
     if (r.held) continue;
@@ -777,11 +789,11 @@ function firstLineOf(view: MigrationViewPayload | PersonViewPayload, t: T, local
       if (row.lastErrorCategory !== 'auth_expired') continue;
       if (row.failedSide === 'target') {
         if (r.to && theirs.has(r.to)) {
-          return t('view.person.first.renew', { provider: providerName(r.to, 'target', locale), who: view.organisation });
+          return t('view.person.first.renew', { provider: providerName(r.to, 'target', locale), who });
         }
         continue;
       }
-      return t('view.person.first.renew', { provider: providerName(r.from, 'source', locale), who: view.organisation });
+      return t('view.person.first.renew', { provider: providerName(r.from, 'source', locale), who });
     }
   }
   if (readings.length > 0 && readings.every((r) => r.held)) return t('view.person.first.stopped');
@@ -1031,7 +1043,10 @@ const View: React.FC = () => {
     window.scrollTo({ top: 0, left: 0, behavior: motionWelcome() ? 'smooth' : 'instant' });
   }, [shownId]);
 
-  const who = person?.organisation ?? one?.organisation ?? '';
+  // Whoever sent the link (0176 T6, §7): the name the member gave on a
+  // person's page, else the organisation, as before; a migration's own page
+  // names the organisation.
+  const who = person ? whoSent(person) : (one?.organisation ?? '');
   // When the numbers are from, and that they refresh (T6.4): in no live
   // region, so nothing is read out again; none once nothing can change.
   const refreshLine = data && canChange(data) && (
@@ -1084,10 +1099,24 @@ const View: React.FC = () => {
 
         {person && link && names && (
           <>
-            <p className="mt-3 text-lg text-gray-900">{t('view.person.who', { who: person.organisation })}</p>
+            <p className="mt-3 text-lg text-gray-900">{t('view.person.who', { who })}</p>
             {refreshLine}
             <PersonProgress link={link} view={person} names={names} onStop={(account) => openStop(account)} />
             <YourNewAddress door="view" link={link} changes={person.addressChanges} queryKey={['view', link]} />
+            {/* Who sent the link (0176 T6, §7): the name and how the reader
+                knows them, and a number to check (D11). Never an address:
+                this page carries none. */}
+            {person.sender && (
+              <div data-sender className="mt-8 border-t border-gray-300 pt-6">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-lg">
+                  <dt className="text-gray-800">{t('grant.person.sender')}</dt>
+                  <dd className="text-gray-900 break-words">
+                    <SenderName facts={person} />
+                  </dd>
+                </dl>
+                <NumberToCheck facts={person} className={`mt-3 ${LOOK.sentence}`} />
+              </div>
+            )}
             <p className={`mt-8 ${LOOK.small}`}>{t('view.until', { date: dateTime(person.expiresAt) })}</p>
             {/* Not "only numbers" when the page shows the person's new address
                 (0168 §4.4): the one thing on it that is not a count or a state. */}
@@ -1184,7 +1213,8 @@ const View: React.FC = () => {
     </main>
   );
   // Both progress pages are a person's own (0176 §6): whoever the page names
-  // as having sent the link is the organisation until T3 gives it a sender (§10).
+  // as having sent the link is the member's name since step B (T6, §10), and
+  // the organisation where there is none.
   return <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider>;
 };
 
