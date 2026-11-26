@@ -10409,6 +10409,14 @@ components:
                         provider: { type: string }
                         account: { type: string, nullable: true }
                     granted: { type: boolean, description: 'This card''s side of the migration has a way in.' }
+                    theOrganisationOpensIt:
+                      type: boolean
+                      description: |
+                        The destination is the organisation's (its own password on the
+                        account, not one the person gives on the link nor one they
+                        connected themselves), so whoever set this up can open the copy
+                        there too, and the page says so (the owner's decisions of
+                        2026-11-26). Always false on a destination's own card.
         expiresAt: { type: string, format: date-time }
         addressChanges:
           type: array

@@ -164,6 +164,9 @@ const PersonSubjectSchema = z.object({
               // Where it comes from, which a destination's card names (0174 §4.1).
               from: z.object({ provider: z.string(), account: z.string().nullable() }).optional(),
               granted: z.boolean(),
+              // The organisation can open the copy too (the owner's decisions of
+              // 2026-11-26, change 3). Absent from a server before alpha.21: no line.
+              theOrganisationOpensIt: z.boolean().optional().default(false),
             }),
           )
           .min(1),

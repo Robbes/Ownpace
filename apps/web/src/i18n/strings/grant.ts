@@ -106,6 +106,10 @@ export const en = {
   'grant.person.asking':
     '{organisation} is moving your email, calendar and files to a new provider, and needs your permission to read what you currently hold. Each account below asks once.',
   'grant.person.migration': 'To {where}: {reads}.',
+  // Said plainly under a source's migration into a destination the organisation
+  // connected (the owner's decisions of 2026-11-26, change 3). {who} is whoever
+  // the page already names as having set it up.
+  'grant.person.theyOpenIt': '{who} can open the copy at {destination} too.',
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Continue with Google as {account}',
   'grant.person.connected': 'Connected. Nothing more is needed for this account.',
@@ -310,6 +314,7 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.person.asking':
     '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',
   'grant.person.migration': 'Naar {where}: {reads}.',
+  'grant.person.theyOpenIt': '{who} kan de kopie bij {destination} ook openen.',
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Doorgaan met Google als {account}',
   'grant.person.connected': 'Verbonden. Voor dit account hoeft u niets meer te doen.',

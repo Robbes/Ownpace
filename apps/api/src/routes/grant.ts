@@ -417,7 +417,14 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
           : { domains: a.ask.domains, scope: null, readOnlyAtProvider: false, notReady: null }
         : { domains: [], scope: null, readOnlyAtProvider: false, notReady: reasonPair(a.ask.reason) }),
       // For a source, where each goes; for a destination, where each comes from.
-      migrations: a.migrations.map((m) => ({ domains: m.domains, to: m.to, from: m.from, granted: m.granted })),
+      // And whether the organisation can open the copy too (change 3 of the owner's decisions of 2026-11-26).
+      migrations: a.migrations.map((m) => ({
+        domains: m.domains,
+        to: m.to,
+        from: m.from,
+        granted: m.granted,
+        theOrganisationOpensIt: m.destinationIsTheOrganisations,
+      })),
     })),
     expiresAt: link.expiresAt.toISOString(),
     addressChanges,

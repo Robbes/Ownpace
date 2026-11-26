@@ -454,6 +454,14 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
                       where: where(m.to),
                       reads: list(m.domains.map((d) => t(cardReadsKey(a, d)))),
                     })}
+                {/* Who else can open the copy, said plainly, not in a fold (the owner's
+                    decisions of 2026-11-26, change 3): the destination is the
+                    organisation's, not one the person connects on this link. */}
+                {roleOf(a) !== 'target' && m.theOrganisationOpensIt && (
+                  <span className="block text-gray-900">
+                    {t('grant.person.theyOpenIt', { who: askedBy, destination: providerName(m.to.provider) })}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

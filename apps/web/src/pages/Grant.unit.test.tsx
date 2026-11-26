@@ -472,6 +472,45 @@ describe("a person's link", () => {
     expect(screen.getByText('Twee applicaties, één aanmelding.')).toBeInTheDocument();
     expect(screen.getByText('Verbonden. Voor dit account hoeft u niets meer te doen.')).toBeInTheDocument();
   });
+
+  // The owner's decisions of 2026-11-26, change 3.
+  describe('who can open the copy', () => {
+    const withTheirs = () => {
+      const subject = structuredClone(PERSON);
+      const work = subject.accounts[1]!;
+      (work as { migrations: unknown[] }).migrations = [{ ...work.migrations[0]!, theOrganisationOpensIt: true }];
+      return subject;
+    };
+
+    it('says plainly, not in a fold, that whoever set it up can open the copy at a destination the organisation connected', async () => {
+      readMock.mockResolvedValue(withTheirs());
+      renderPage();
+      const line = await screen.findByText('owner@example.org can open the copy at Soverin too.');
+      expect(line).toBeVisible();
+      expect(line.closest('details')).toBeNull();
+      // Only under that migration.
+      expect(screen.getAllByText(/can open the copy at/)).toHaveLength(1);
+    });
+
+    it('says nothing where the person connects the destination themselves, or the server does not say', async () => {
+      renderPage();
+      await screen.findByRole('heading', { level: 3, name: 'anna@work.example' });
+      expect(screen.queryByText(/can open the copy at/)).not.toBeInTheDocument();
+    });
+
+    it('names the organisation where the page knows no one who asked', async () => {
+      readMock.mockResolvedValue({ ...withTheirs(), askedBy: null });
+      renderPage();
+      expect(await screen.findByText('Acme Legal can open the copy at Soverin too.')).toBeInTheDocument();
+    });
+
+    it('in Dutch', async () => {
+      window.localStorage.setItem('ownpace.locale', 'nl');
+      readMock.mockResolvedValue(withTheirs());
+      renderPage();
+      expect(await screen.findByText('owner@example.org kan de kopie bij Soverin ook openen.')).toBeInTheDocument();
+    });
+  });
 });
 
 /**
