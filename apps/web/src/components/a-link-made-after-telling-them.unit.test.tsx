@@ -22,7 +22,15 @@
  *    (*This is the link I told you about*), what is copied and where to, and
  *    until when, with no greeting written for the member and no urgency
  *    (R2). The member may change it; *Copy message* copies what is in the
- *    box, the link with it.
+ *    box, the link with it;
+ *  - **how the page speaks to them** (§11, T7, D8): *Dutch, with u*,
+ *    *Dutch, with je*, or *English*, offered as it was chosen for this person
+ *    before, else in the member's own language with *u*. It goes with the
+ *    link, and the message is in it: the person's language, and *je* where
+ *    the pages say *je*. With *je*, one line says the privacy text's rule for
+ *    a child under 16; nobody's age is asked;
+ *  - and **a sheet to print** for the person (D15 (a)): everything the link
+ *    says, on its one page.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -88,7 +96,9 @@ const ISSUED = {
   copies: { domains: ['email', 'calendar'], to: ['soverin'] },
 };
 
-function renderSection(opts: { locale?: 'en' | 'nl'; links?: unknown[]; asksGoogle?: boolean } = {}) {
+function renderSection(
+  opts: { locale?: 'en' | 'nl'; links?: unknown[]; asksGoogle?: boolean; voice?: 'nl-u' | 'nl-je' | 'en' | null } = {},
+) {
   window.localStorage.setItem('ownpace.locale', opts.locale ?? 'en');
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -101,6 +111,7 @@ function renderSection(opts: { locale?: 'en' | 'nl'; links?: unknown[]; asksGoog
             links={(opts.links ?? []) as never}
             loadFailed={false}
             asksGoogle={opts.asksGoogle ?? false}
+            personVoice={opts.voice ?? null}
           />
         </MemoryRouter>
       </LocaleProvider>
@@ -178,7 +189,7 @@ describe('who you are to them (D7)', () => {
     await userEvent.selectOptions(await screen.findByLabelText('Who are you to Anna?'), 'daughter');
     await userEvent.click(tick());
     await userEvent.click(make());
-    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: 'daughter' }));
+    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: 'daughter', voice: 'en' }));
   });
 
   it('not said is none', async () => {
@@ -186,7 +197,7 @@ describe('who you are to them (D7)', () => {
     await screen.findByLabelText('Who are you to Anna?');
     await userEvent.click(tick());
     await userEvent.click(make());
-    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: null }));
+    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: null, voice: 'en' }));
   });
 
   it('is offered again as you chose it last for this person', async () => {
@@ -294,3 +305,80 @@ describe('with the link, a message to send (§12, §15)', () => {
     expect(written).toEqual(['Mum, this is it.']);
   });
 });
+
+describe('how the page speaks to them (§11, T7, D8)', () => {
+  const voiceSelect = () => screen.findByLabelText('How does the page speak to Anna?');
+
+  it('offers the three, in §15’s words', async () => {
+    renderSection();
+    expect(within(await voiceSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Dutch, with u',
+      'Dutch, with je',
+      'English',
+    ]);
+  });
+
+  it('as it was chosen for this person, else in your own language with u', async () => {
+    const chosen = renderSection({ voice: 'nl-je' });
+    expect(await voiceSelect()).toHaveValue('nl-je');
+    chosen.unmount();
+    const english = renderSection();
+    expect(await voiceSelect()).toHaveValue('en');
+    english.unmount();
+    renderSection({ locale: 'nl' });
+    expect(await screen.findByLabelText('Hoe spreekt de pagina Anna aan?')).toHaveValue('nl-u');
+  });
+
+  it('goes with the link', async () => {
+    renderSection();
+    await userEvent.selectOptions(await voiceSelect(), 'nl-je');
+    await userEvent.click(tick());
+    await userEvent.click(make());
+    await waitFor(() => expect(issueMock).toHaveBeenCalledWith('p-anna', 'grant', 30, { relation: null, voice: 'nl-je' }));
+  });
+
+  it('and the message is in it: Dutch with je, as §15 has it, from a screen in English', async () => {
+    renderSection({ voice: 'nl-je' });
+    await voiceSelect();
+    await userEvent.click(tick());
+    await userEvent.click(make());
+    const box = (await screen.findByLabelText('A message to send with it')) as HTMLTextAreaElement;
+    expect(box.value).toMatch(
+      /^Dit is de link waarover ik je vertelde\. Je komt op een pagina van Ownpace\. Daar geef je toestemming om je e-mail en agenda te kopiëren naar Soverin\. Er is geen haast: de link werkt tot .+\. Zullen we het samen doen\? Bel me als je wilt beginnen\.\n\nhttps:\/\/app\.example\/grant\/p\.link-2\.sekrit$/,
+    );
+  });
+
+  it('and English, from a screen in Dutch, for a person whose pages are in English', async () => {
+    renderSection({ locale: 'nl', voice: 'en' });
+    await userEvent.click(await screen.findByRole('checkbox', { name: /Ik heb Anna verteld/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Toegangslink maken/ }));
+    const box = (await screen.findByLabelText('Een bericht om mee te sturen')) as HTMLTextAreaElement;
+    expect(box.value).toMatch(/^This is the link I told you about\. .+ to copy your email and calendar to Soverin\. /);
+  });
+
+  it('with je, one line says the rule for a child under 16; with u or English, none', async () => {
+    renderSection();
+    const select = await voiceSelect();
+    const line = 'Is Anna under 16? Then a parent completes the link together with Anna.';
+    expect(screen.queryByText(line)).not.toBeInTheDocument();
+    await userEvent.selectOptions(select, 'nl-je');
+    expect(screen.getByText(line)).toBeInTheDocument();
+    await userEvent.selectOptions(select, 'nl-u');
+    expect(screen.queryByText(line)).not.toBeInTheDocument();
+  });
+});
+
+describe('a sheet to print for them (D15 (a))', () => {
+  it('opens everything the link says, on its one page, beside the message', async () => {
+    renderSection();
+    await voiceSelectReady();
+    await userEvent.click(tick());
+    await userEvent.click(make());
+    const sheet = await screen.findByRole('link', { name: /Print a sheet for Anna/ });
+    expect(sheet).toHaveAttribute('href', 'https://app.example/grant/p.link-2.sekrit/all');
+    expect(sheet).toHaveAttribute('target', '_blank');
+  });
+});
+
+/** The form, once it has asked for your own row. */
+const voiceSelectReady = () => screen.findByLabelText('How does the page speak to Anna?');
