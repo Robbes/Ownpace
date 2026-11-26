@@ -38,8 +38,9 @@
 import React from 'react';
 import type { PauseReason } from '@openmig/shared';
 import { useT, useFormatters } from '../i18n/index.tsx';
-import { PAUSE_KEY, PAUSE_WHY_KEY } from '../i18n/pause-key.ts';
+import { PAUSE_KEY, PAUSE_WHY_KEY, PERSON_PAUSE_KEY, PERSON_PAUSE_WHY_KEY } from '../i18n/pause-key.ts';
 import { Hint } from './Hint.tsx';
+import { usePersonsPage } from './persons-page.tsx';
 
 export const PausedBecause: React.FC<{
   reason: PauseReason;
@@ -48,6 +49,10 @@ export const PausedBecause: React.FC<{
 }> = ({ reason, variant = 'inline' }) => {
   const t = useT();
   const { dateTime, number } = useFormatters();
+  // A person's own page says its own words, and no price (workplan 0176 D14, T6.3).
+  const personsPage = usePersonsPage();
+  const keyOf = personsPage ? PERSON_PAUSE_KEY : PAUSE_KEY;
+  const whyOf = personsPage ? PERSON_PAUSE_WHY_KEY : PAUSE_WHY_KEY;
   // Decimal, like the published table: 1 TB = 1000 GB.
   const size = (gb: number): string => (gb >= 1000 ? `${number(gb / 1000)} TB` : `${number(gb)} GB`);
 
@@ -57,7 +62,12 @@ export const PausedBecause: React.FC<{
       // An operator's own words REPLACE the default rather than joining it:
       // two sentences saying nearly the same thing is how a notice stops
       // being read.
-      return reason.message ?? t(PAUSE_KEY[reason.kind]);
+      return reason.message ?? t(keyOf[reason.kind]);
+    }
+    if (reason.kind === 'data-ceiling' && personsPage) {
+      // The reader has no account, no tier and no Billing page: copying waits
+      // for whoever sent the link, and nothing is lost. No amount, no package.
+      return t(keyOf[reason.kind], { who: personsPage.who });
     }
     if (reason.kind === 'data-ceiling') {
       // What waits, then both ways on with their prices: ADR-0014's hold is
@@ -82,9 +92,9 @@ export const PausedBecause: React.FC<{
       // had to invent — see PauseReason.windowResetsAt. The one sentence with
       // no entry in PAUSE_KEY, because it is the same reason said differently
       // rather than a reason of its own.
-      return t('pause.ceiling.unknown', { provider: reason.provider });
+      return t(personsPage ? 'view.person.pause.ceiling.unknown' : 'pause.ceiling.unknown', { provider: reason.provider });
     }
-    return t(PAUSE_KEY[reason.kind], {
+    return t(keyOf[reason.kind], {
       provider: reason.provider,
       resets: dateTime(reason.windowResetsAt),
     });
@@ -93,7 +103,7 @@ export const PausedBecause: React.FC<{
   const body = (
     <Hint
       text={sentence}
-      why={t(PAUSE_WHY_KEY[reason.kind])}
+      why={t(whyOf[reason.kind], personsPage ? { who: personsPage.who } : undefined)}
       tone="caution"
       className={variant === 'banner' ? 'mt-1' : 'mt-0.5'}
     />
@@ -101,7 +111,7 @@ export const PausedBecause: React.FC<{
 
   if (variant === 'inline') {
     return (
-      <div role="note" className="w-full text-amber-800">
+      <div role="note" className={`w-full ${personsPage ? 'text-amber-900' : 'text-amber-800'}`}>
         {body}
       </div>
     );

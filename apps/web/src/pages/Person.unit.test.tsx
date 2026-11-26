@@ -439,7 +439,8 @@ describe("a person's grant link, on their page", () => {
     await answered();
     const section = await screen.findByRole('region', { name: 'For Anna Jansen' });
     await userEvent.click(within(section).getByRole('button', { name: 'Create grant link' }));
-    expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 'grant', 7);
+    // Thirty days first for a person's link (2026-11-26, workplan 0176 D13 (a)).
+    expect(personLinkApi.issue).toHaveBeenCalledWith('p-anna', 'grant', 30);
     expect(await within(section).findByDisplayValue('https://app.example/grant/p.l-1.secret')).toBeInTheDocument();
     expect(within(section).queryByText(/asks them to connect each one again/)).not.toBeInTheDocument();
   });

@@ -152,15 +152,27 @@ describe('a migration’s link: Continue with Google goes to Google’s own page
   });
 });
 
+/**
+ * To Google's button on a person's link, which since 2026-11-26 stands on the
+ * last of its steps (workplan 0176 T1): *Yes, that is right*, then *Next*.
+ */
+async function toGoogleButton(locale: 'en' | 'nl' = 'en'): Promise<HTMLElement> {
+  await userEvent.click(await screen.findByRole('button', { name: locale === 'nl' ? 'Ja, dat klopt' : 'Yes, that is right' }));
+  await userEvent.click(await screen.findByRole('button', { name: locale === 'nl' ? 'Verder' : 'Next' }));
+  return screen.findByRole('button', { name: locale === 'nl' ? 'Inloggen met Google' : 'Sign in with Google' });
+}
+
 describe('a person’s link: each account’s button goes to Google’s own page only', () => {
   beforeEach(() => {
     readMock.mockResolvedValue(PERSON);
+    // The first screen's answer is kept for the tab (0176 §5.1); each case starts unanswered.
+    window.sessionStorage.clear();
   });
 
   it('follows Google’s consent page for the account pressed, as parsed', async () => {
     authorizeMock.mockResolvedValue({ url: GOOGLE });
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' }));
+    await userEvent.click(await toGoogleButton());
     await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'google', 'anna@work.example'));
     expect(assignMock).toHaveBeenCalledWith(new URL(GOOGLE).href);
   });
@@ -168,17 +180,19 @@ describe('a person’s link: each account’s button goes to Google’s own page
   it.each(REFUSED)('opens nothing for %s, says so at the account, and gives the button back', async (_why, url) => {
     authorizeMock.mockResolvedValue({ url });
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' }));
+    // *Sign in with Google*, on the account's last step (2026-11-26, workplan 0176 T1, §15),
+    // where each card had *Continue with Google as {account}*.
+    await userEvent.click(await toGoogleButton());
     expect(await screen.findByRole('alert')).toHaveTextContent(sentence('en'));
     expect(assignMock).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Continue with Google as anna@work.example' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Sign in with Google' })).toBeEnabled();
   });
 
   it('says it in Dutch for a Dutch reader', async () => {
     window.localStorage.setItem('ownpace.locale', 'nl');
     authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com.evil.example/' });
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Doorgaan met Google als anna@work.example' }));
+    await userEvent.click(await toGoogleButton('nl'));
     expect(await screen.findByRole('alert')).toHaveTextContent(sentence('nl'));
     expect(assignMock).not.toHaveBeenCalled();
   });

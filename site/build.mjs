@@ -506,6 +506,23 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
   header.site a.lang { margin-left: auto; }
   details.menu { display: block; }
 }
+/* The narrowest phone, 320 pixels, or a screen of 1280 at 400% (WCAG 1.4.10):
+   the name, the other language and the menu did not fit one row, so the menu's
+   arrow dropped to a second line and, on the English pages, the row ran 3
+   pixels off the screen ("Nederlands" is the longer word). Here the mark steps
+   aside, which says nothing a screen reader hears (its alt is empty), and the
+   gaps close up (0176 T15). Up to 24rem, because the English row needs about
+   360 pixels with the mark. */
+@media (max-width: 24rem) {
+  header.site .wrap { gap: 0.5rem; }
+  header.site .brand img { display: none; }
+  /* Whatever font the system draws, the menu's word and its arrow stay on
+     one line, and the row keeps room for a wide font: with DejaVu Sans, as a
+     Linux browser may draw the system font, the English row needed 284 of its
+     280 pixels, so the button folded and stood above the header's top. */
+  header.site a.lang { padding: 0.15rem 0.5rem; }
+  details.menu > summary { padding: 0.3rem 0.55rem; white-space: nowrap; }
+}
 
 .draft {
   background: #ffe9a8; color: #5b4600; border-radius: 8px; padding: 0.75rem 1rem;
@@ -1128,6 +1145,19 @@ function appScreen(locale) {
 }
 
 /**
+ * *Migrating for a family member* (workplan 0176 D17 (b), with step A): who
+ * does what, between the app's page for a person and *Where to*. A heading,
+ * one paragraph and four cards, in words only: it shows no screen of a
+ * person's pages, and `site.unit.test.ts` holds it to what step A builds.
+ */
+function forFamily(locale) {
+  const c = COPY[locale].forFamily;
+  return `<h2>${c.title}</h2>
+<p>${c.lede}</p>
+${cards(c.cards)}`;
+}
+
+/**
  * *Where to* (workplan 0152 T4): the destinations the app moves data into, from
  * the guarded copy in `destinations.mjs`, each with the data types it takes,
  * named as the app names them. The card that is four protocols says which
@@ -1366,6 +1396,7 @@ ${SPRITE}
     .join('')}</ol>
 <p><a href="${urlFor(locale, 'how')}">${c.strip.more} <span aria-hidden="true">→</span></a></p>
 ${appScreen(locale)}
+${forFamily(locale)}
 ${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
 ${cards(c.diff)}

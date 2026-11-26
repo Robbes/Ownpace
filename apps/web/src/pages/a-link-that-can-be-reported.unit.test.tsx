@@ -6,8 +6,9 @@
  * What is asserted is what the person reads before anything is sent (where it
  * goes, and that it is not to the organisation that asked; what goes with it;
  * what the address is for), what is sent, and what they are told afterwards:
- * on the grant page that nothing is read unless they allow it at Google (so
- * they need not continue), on the progress page that
+ * on the grant page that nothing is read unless they allow it (so they need
+ * not continue; it names no provider, as a link can ask Google, Microsoft or
+ * Dropbox: the owner, 2026-11-26, workplan 0176 A5), on the progress page that
  * withdrawing stops the copying, while there is access to withdraw. And that
  * neither page offers a report that can reach nobody.
  */
@@ -117,11 +118,12 @@ describe('on the grant page', () => {
     expect(screen.getByText('Your report goes to the Ownpace team, not to Acme Legal.')).toBeInTheDocument();
     // What the note carries, from the rows (workplan 0130 T6): the organisation,
     // the migration, who made the link, the two accounts and the access.
+    // In a person's words: *the copying*, where it said *the migration* (2026-11-26, workplan 0176 D1, T2).
     expect(
       screen.getByText(
-        'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, ' +
-          'the state of the migration; the address of whoever made the link; the account the migration ' +
-          'copies from and the account it copies to; and whether you have given access.',
+        'Sent with it, from our records: which link this is; the organisation and the copying it belongs to, ' +
+          'and how far it is; the address of whoever made the link; the account it copies from and the ' +
+          'account it copies to; and whether you have given access.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Only for us to answer your report.')).toBeInTheDocument();
@@ -169,9 +171,8 @@ describe('on the grant page', () => {
     expect(
       await screen.findByText('Sent. Your report is number 41001, and we will reply to reporter@example.invalid.'),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('Nothing is read unless you allow it at Google.'),
-    ).toBeInTheDocument();
+    // No provider named (2026-11-26, workplan 0176 A5): it said "at Google" on every link.
+    expect(screen.getByText('Nothing is read unless you allow it.')).toBeInTheDocument();
     // The button that was pressed is gone, so the answer has the focus, and is read out.
     expect(screen.getByRole('status')).toHaveFocus();
   });
@@ -210,6 +211,12 @@ describe('on the grant page', () => {
     await user.click(await screen.findByRole('button', { name: 'Deze link melden' }));
     expect(screen.getByText('Uw melding gaat naar het Ownpace-supportteam, niet naar Acme Legal.')).toBeInTheDocument();
     expect(screen.getByLabelText('Uw e-mailadres (niet verplicht)')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Waarom twijfelt u aan deze link?'), 'Ik ken ze niet.');
+    await user.click(screen.getByRole('button', { name: 'Melding versturen' }));
+    expect(await screen.findByText(/Uw melding heeft nummer 41001/)).toBeInTheDocument();
+    // No provider named, in Dutch either (2026-11-26, workplan 0176 A5).
+    expect(screen.getByText('Er wordt niets gelezen zonder uw toestemming.')).toBeInTheDocument();
   });
 });
 
@@ -222,7 +229,8 @@ describe('on the progress page', () => {
 
     expect(sendMock).toHaveBeenCalledWith('view', 'abc.def', expect.anything());
     expect(await screen.findByText(/Your report is number 41001/)).toBeInTheDocument();
-    expect(screen.getByText('To stop the copying now, withdraw the access above.')).toBeInTheDocument();
+    // The button's own name (2026-11-26, workplan 0176 D2).
+    expect(screen.getByText('To stop the copying now, press Stop copying above.')).toBeInTheDocument();
   });
 
   it('does not point at withdrawing when there is nothing to withdraw', async () => {

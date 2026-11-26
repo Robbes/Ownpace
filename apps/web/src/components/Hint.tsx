@@ -17,6 +17,7 @@
 import React from 'react';
 import { useT, type StringKey } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
+import { usePersonsPage } from './persons-page.tsx';
 
 export type FoldLabel = 'why' | 'how' | 'more';
 
@@ -45,24 +46,37 @@ export const Hint: React.FC<{
   id?: string;
 }> = ({ text, why, label = 'why', tone = 'muted', className = 'mt-1', open, id }) => {
   const t = useT();
-  const toneClass = {
-    muted: 'text-gray-500',
-    caution: 'text-amber-800',
-    info: 'text-blue-900',
-    note: 'text-yellow-800',
-    body: 'text-gray-700',
-  }[tone];
-  const foldClass = tone === 'note' ? 'text-yellow-800' : 'text-gray-500';
+  // On a person's own page a sentence is 18 pixels and 7 to 1, and the fold a
+  // target a finger finds (workplan 0176 T9); the member's screens are unchanged.
+  const personsPage = usePersonsPage() !== null;
+  const toneClass = personsPage
+    ? { muted: 'text-gray-700', caution: 'text-amber-900', info: 'text-blue-900', note: 'text-yellow-900', body: 'text-gray-900' }[tone]
+    : {
+        muted: 'text-gray-500',
+        caution: 'text-amber-800',
+        info: 'text-blue-900',
+        note: 'text-yellow-800',
+        body: 'text-gray-700',
+      }[tone];
+  const foldClass = personsPage
+    ? tone === 'note'
+      ? 'text-yellow-900'
+      : 'text-gray-800'
+    : tone === 'note'
+      ? 'text-yellow-800'
+      : 'text-gray-500';
+  const textSize = personsPage ? 'text-lg' : 'text-sm';
+  const summarySize = personsPage ? 'inline-flex min-h-[44px] min-w-[44px] items-center underline' : '';
   return (
     <div className={className}>
       {text && (
-        <p id={id} className={`text-sm ${toneClass}`}>
+        <p id={id} className={`${textSize} ${toneClass}`}>
           {text}
         </p>
       )}
       {why && (
-        <details className={`${text ? 'mt-1 ' : ''}text-sm`} open={open}>
-          <summary className={`cursor-pointer select-none ${foldClass}`}>
+        <details className={`${text ? 'mt-1 ' : ''}${textSize}`} open={open}>
+          <summary className={`cursor-pointer select-none ${summarySize} ${foldClass}`}>
             {t(`fold.${label}` as StringKey)}
           </summary>
           <p className={`mt-1 ${foldClass}`}>{why}</p>

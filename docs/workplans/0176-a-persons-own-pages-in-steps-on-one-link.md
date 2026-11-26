@@ -4,6 +4,46 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's read of the block for families, and one word.** The owner: *"Families
+blot: ok. Use familielid (gezinslid is to limited to one household)"*. The block stands as built.
+Step A's new Dutch says *familielid*: the tester guide's part, now *Als een familielid een link
+krijgt* with the id `familielid-link`, its sentence under *Als Google opnieuw vraagt*, step A's
+changelog line, and §22.3's draft. So do the guide's two older sentences, under *Voordat u begint*
+and *Wat wij wissen*. The legal texts (`site/legal/privacy.nl.md`, `alpha.nl.md`, `terms.nl.md`)
+keep *gezinslid* until their next version, with the lawyer (`GLOSSARY.md`).
+
+**2026-11-26: step A, built as one draft pull request**
+(`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-a`), on §21.4's scope with the
+answers to D12 to D14. Part 4 of §23.1, the website and documents with the accessibility
+statement (T15, T9.9), was built beside it and merged in at the meet. E2E ran on `26c0573`
+and is green: managed, and self-host on Postgres and on PGlite.
+
+- **T1:** a person's link asks one thing per screen (`PersonGrant.tsx`): who asks, with the
+  question and *No, not yet*; the accounts, where there is more than one; *Have this ready*;
+  *What you will see at {provider}*, with D12 (a)'s warning in our own words during the Alpha;
+  and *No, rather not*. Each step is a history entry with its own `h1`, focus, tab title and
+  *Step n of m*. The answer is kept for the tab, under the link's id. A migration's own link
+  is unchanged.
+- **T2:** *kopiëren* on a person's two pages (D1), in the server's ending after a sign-in and in
+  the refusals a person's link meets; each names the provider signed in to. D14 (a) through
+  `persons-page.tsx`: the member's screens keep their words.
+- **T5 and T6, first halves:** *Stop copying* opens its question as a screen, with two answers of
+  one size, then what the provider answered, per provider. The progress page says first whether
+  anything is needed, shows no price, and refreshes once a minute.
+- **T9:** the UI smoke measures text size, contrast and targets at 390 and 320 pixels.
+- **D13 (a):** the line where the link is made, and thirty days first.
+
+- **At the meet:** part 4 merged in; `scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts`
+  holds the tester guide's three sentences equal to the link page's, and refuses what T15 took
+  out; `docs/grant-links.md` was read against the pages and corrected where it differed.
+
+Each test §21.4 names was written first and seen failing on `main`; the pull request records
+it, with one table of the new Dutch sentences, both parts', for the owner's read (§6). The
+owner read it and answered *"Step A (#2180): ok"*: every sentence stands, and the five open
+questions went as advised. By the fifth, the line after a report names no provider any more
+(`linkReport.next.grant`). D17 (b)'s block for families on the home page joins the same pull
+request, and the owner reads its Dutch before it is marked ready. Still the owner's: T0 and T12.
+
 **2026-11-26, the owner's answers to the website's decisions (T16).** Put to the owner as P16 to
 P18, and answered the same day: *"P16: a"*, *"P17: b, …"* and *"P18: keep now"*. Two went as
 advised; D17 did not (§18).
@@ -1975,23 +2015,23 @@ page, and the mail that lets a member in links it too
 is the one the owner reads, as for the rest of the guide (`alpha-handleiding.md:2-9`). A
 draft, under *Zo begint u*, after *Als u Google koppelt*:
 
-> ### Als een gezinslid een link krijgt {#gezinslid-link}
+> ### Als een familielid een link krijgt {#familielid-link}
 >
-> Is het account van een gezinslid? Vraag dan niet om het wachtwoord. U maakt een
-> toegangslink, en uw gezinslid geeft zelf toestemming.
+> Is het account van een familielid? Vraag dan niet om het wachtwoord. U maakt een
+> toegangslink, en uw familielid geeft zelf toestemming.
 >
 > 1. **Vertel het eerst zelf.** Bel, of zeg het als u elkaar ziet: er komt een link van u, en
->    waarvoor die is. De pagina vraagt uw gezinslid of u dat hebt gedaan. Is het antwoord nee,
+>    waarvoor die is. De pagina vraagt uw familielid of u dat hebt gedaan. Is het antwoord nee,
 >    dan wacht de pagina.
 > 2. **Maak de link.** Open de persoon bij *Migraties* en kies *Toegangslink maken*. Stuur de
 >    link zelf, zoals u die persoon altijd bereikt. Wij sturen hem nooit.
-> 3. **Doe de stap bij Google het liefst samen:** aan de telefoon, of aan tafel. Uw gezinslid
+> 3. **Doe de stap bij Google het liefst samen:** aan de telefoon, of aan tafel. Uw familielid
 >    typt het eigen wachtwoord zelf. U hoeft het niet te weten, en u vraagt er niet om.
 > 4. **Laat Google de verbinding niet toe?** Dan staat het adres nog niet op de lijst van
->    Google. Mail het ons, en wacht op ons antwoord. Daarna opent uw gezinslid de link opnieuw.
+>    Google. Mail het ons, en wacht op ons antwoord. Daarna opent uw familielid de link opnieuw.
 >
-> Daarna heeft uw gezinslid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
-> gezinslid het ook stoppen.
+> Daarna heeft uw familielid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
+> familielid het ook stoppen.
 
 In English, with the id `family-link`: *When a family member gets a link*, and the same five
 things in the same order.
@@ -2005,7 +2045,7 @@ of the guide keeps *migreren*: it speaks to the member.
 D13 is answered (a), so the member's screen says *tell first* too, in one line. The guide
 says it with its reasons. It is the page a tester is asked to read before they start.
 
-***Als Google opnieuw vraagt* gains one paragraph:** *Is het het account van een gezinslid?
+***Als Google opnieuw vraagt* gains one paragraph:** *Is het het account van een familielid?
 Maak dan een nieuwe toegangslink voor die persoon, en vertel het weer eerst.* Step C changes
 it: the one link then asks again by itself (D4).
 

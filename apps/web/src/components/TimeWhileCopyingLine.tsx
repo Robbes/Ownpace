@@ -11,6 +11,7 @@
 import React from 'react';
 import type { TimeWhileCopying } from '@openmig/shared';
 import { useT } from '../i18n/index.tsx';
+import { usePersonsPage } from './persons-page.tsx';
 
 export const TimeWhileCopyingLine: React.FC<{
   time: TimeWhileCopying;
@@ -19,13 +20,19 @@ export const TimeWhileCopyingLine: React.FC<{
   className?: string;
 }> = ({ time, provider, className = 'text-sm text-gray-700' }) => {
   const t = useT();
+  // On a person's own page the time says no *ronde* (workplan 0176 D14 (a)):
+  // the range alone, and before three passes that it is not known yet.
+  const personsPage = usePersonsPage() !== null;
   let sentence: string;
   if (time.kind === 'afterThreePasses') {
-    sentence = t('timeLeft.afterThreePasses', { n: time.passesSoFar });
+    sentence = personsPage ? t('view.person.time.notYet') : t('timeLeft.afterThreePasses', { n: time.passesSoFar });
   } else {
     const vars = { low: time.low, high: time.high, n: time.passes };
-    const range =
-      time.low === 0
+    const range = personsPage
+      ? time.low === 0
+        ? t(time.unit === 'days' ? 'view.person.time.upToDays' : 'view.person.time.upToHours', vars)
+        : t(time.unit === 'days' ? 'view.person.time.days' : 'view.person.time.hours', vars)
+      : time.low === 0
         ? t(time.unit === 'days' ? 'timeLeft.copying.upToDays' : 'timeLeft.copying.upToHours', vars)
         : t(time.unit === 'days' ? 'timeLeft.copying.days' : 'timeLeft.copying.hours', vars);
     sentence = time.slowed ? `${t('timeLeft.slowedBy', { provider })} ${range}` : range;

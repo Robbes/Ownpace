@@ -15,6 +15,7 @@
  * why showing both on a mismatch is the whole point rather than a nicety.
  */
 import React from 'react';
+import { usePersonsPage } from './persons-page.tsx';
 import { operatingBaseUrl } from '../services/edition.ts';
 import {
   uiBuild,
@@ -46,6 +47,8 @@ const BuildStamp: React.FC = () => {
     };
   }, []);
 
+  // 16 pixels and 7 to 1 on a person's own page (workplan 0176 T9); hooks before the return below.
+  const personsPage = usePersonsPage() !== null;
   const text = describeBuild(ui, server);
   // An unstamped build renders NOTHING rather than a placeholder. A stamp that
   // says `v0.0.0` when nobody stamped it is a wrong answer wearing the clothes
@@ -57,7 +60,10 @@ const BuildStamp: React.FC = () => {
     .join('\n');
 
   return (
-    <p className="mt-3 text-xs leading-tight text-gray-500 select-text" title={full || undefined}>
+    <p
+      className={`mt-3 leading-tight select-text ${personsPage ? 'text-base text-gray-700' : 'text-xs text-gray-500'}`}
+      title={full || undefined}
+    >
       {text}
     </p>
   );

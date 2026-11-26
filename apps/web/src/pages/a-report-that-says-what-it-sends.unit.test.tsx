@@ -314,10 +314,12 @@ describe('where it goes, said above Send', () => {
 });
 
 describe('the link form says what it already sends', () => {
+  // *The copying*, where it said *the migration*: the form is on a person's own pages
+  // (2026-11-26, workplan 0176 D1, T2).
   it.each([
-    ['en', EN, ['organisation', 'migration', 'account', 'made the link', 'access']],
-    ['nl', NL, ['organisatie', 'migratie', 'account', 'link heeft gemaakt', 'toegang']],
-  ] as const)('the organisation, the migration, the two accounts and who made the link (%s)', (_locale, L, words) => {
+    ['en', EN, ['organisation', 'copying', 'account', 'made the link', 'access']],
+    ['nl', NL, ['organisatie', 'kopiëren', 'account', 'link heeft gemaakt', 'toegang']],
+  ] as const)('the organisation, the copying, the two accounts and who made the link (%s)', (_locale, L, words) => {
     for (const word of words) expect(L['linkReport.sentWith']).toContain(word);
   });
 });

@@ -221,6 +221,7 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
       ? grantResultPage(
           {
             ok: true,
+            provider: 'microsoft',
             permission: decided.permission,
             ...(decided.progressUrl ? { progressUrl: decided.progressUrl } : {}),
             ...(decided.more ? { more: decided.more } : {}),

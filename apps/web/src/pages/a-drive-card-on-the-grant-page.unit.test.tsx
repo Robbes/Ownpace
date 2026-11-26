@@ -124,37 +124,47 @@ afterEach(() => {
   globalThis.localStorage.removeItem('ownpace.locale');
 });
 
-const driveCard = async () => {
-  await screen.findAllByRole('heading', { level: 3, name: ACCOUNT });
-  const el = document.querySelector('[data-drive-card="cirrux"]');
-  expect(el, 'the Drive card is drawn').not.toBeNull();
-  return el as HTMLElement;
-};
+/**
+ * The Drive account on a person's link, which since 2026-11-26 asks one thing
+ * at a time (workplan 0176 T1): on the accounts screen beside the connected
+ * password card, then its own *Have this ready*, then *What you will see at
+ * Cirrux* with Cirrux's button. The card said all of it at once, with
+ * *Connect Cirrux Drive*.
+ */
+const CONNECT: Readonly<Record<'en' | 'nl', string>> = { en: `Connect ${ACCOUNT}`, nl: `${ACCOUNT} verbinden` };
+
+async function toDriveButton(locale: 'en' | 'nl' = 'en'): Promise<HTMLElement> {
+  await userEvent.click(await screen.findByRole('button', { name: CONNECT[locale] }));
+  await userEvent.click(await screen.findByRole('button', { name: locale === 'nl' ? 'Verder' : 'Next' }));
+  return screen.findByRole('button', { name: locale === 'nl' ? 'Inloggen met Cirrux' : 'Sign in with Cirrux' });
+}
 
 describe('the Cirrux Drive card (0174 §4.4)', () => {
   it('stands beside the connected password card, in the destinations, and says what it is', async () => {
     renderPage();
-    const el = await driveCard();
-    expect(el.closest('[data-group]')?.getAttribute('data-group')).toBe('target');
-    expect(el.closest('section')?.getAttribute('data-card-state')).toBe('waiting');
-    expect(el).toHaveTextContent('Your files go to Cirrux Drive, which takes your own Cirrux sign-in rather than the app password.');
-    expect(el).toHaveTextContent(`Sign in to Cirrux with the account ${ACCOUNT} belongs to.`);
-    expect(screen.getByRole('button', { name: 'Connect Cirrux Drive' })).toBeEnabled();
+    await screen.findByRole('button', { name: CONNECT.en });
+    const drive = document.querySelector('[data-card-way="sign-in"]') as HTMLElement;
+    expect(drive.closest('[data-group]')?.getAttribute('data-group')).toBe('target');
+    expect(drive.getAttribute('data-card-state')).toBe('waiting');
+    expect(document.querySelector('[data-card-way="password"]')?.getAttribute('data-card-state')).toBe('connected');
+    const button = await toDriveButton();
+    expect(document.body).toHaveTextContent('Your files go to Cirrux Drive, which takes your own Cirrux sign-in rather than the app password.');
+    expect(document.body).toHaveTextContent(`Sign in to Cirrux with the account ${ACCOUNT} belongs to.`);
+    expect(button).toBeEnabled();
   });
 
   it('says it in Dutch, with verbinden', async () => {
     renderPage('nl');
-    const el = await driveCard();
-    expect(el).toHaveTextContent('Uw bestanden gaan naar Cirrux Drive');
-    expect(screen.getByRole('button', { name: 'Cirrux Drive verbinden' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: CONNECT.nl })).toBeInTheDocument();
+    await toDriveButton('nl');
+    expect(document.body).toHaveTextContent('Uw bestanden gaan naar Cirrux Drive');
   });
 
   it('calls the Drive door with the card’s ref and the page’s language, and follows Cirrux’s own page', async () => {
     const url = `https://${CONSENT_HOSTS.cirrux}/oauth/authorize?state=s&code_challenge=c`;
     driveMock.mockResolvedValue({ url });
     renderPage('nl');
-    await driveCard();
-    await userEvent.click(screen.getByRole('button', { name: 'Cirrux Drive verbinden' }));
+    await userEvent.click(await toDriveButton('nl'));
     await waitFor(() => expect(driveMock).toHaveBeenCalledWith('p.abc.def', 'ref-drive', 'nl'));
     expect(authorizeMock).not.toHaveBeenCalled();
     expect(assignMock).toHaveBeenCalledWith(url);
@@ -163,8 +173,7 @@ describe('the Cirrux Drive card (0174 §4.4)', () => {
   it('follows no address at another host, and says so', async () => {
     driveMock.mockResolvedValue({ url: `https://${CONSENT_HOSTS.cirrux}.example.invalid/oauth/authorize?x=1` });
     renderPage();
-    await driveCard();
-    await userEvent.click(screen.getByRole('button', { name: 'Connect Cirrux Drive' }));
+    await userEvent.click(await toDriveButton());
     expect(await screen.findByRole('alert')).toHaveTextContent(/Cirrux/);
     expect(assignMock).not.toHaveBeenCalled();
   });
@@ -178,8 +187,7 @@ describe('the Cirrux Drive card (0174 §4.4)', () => {
       }),
     );
     renderPage(locale);
-    await driveCard();
-    await userEvent.click(screen.getByRole('button', { name: locale === 'nl' ? 'Cirrux Drive verbinden' : 'Connect Cirrux Drive' }));
+    await userEvent.click(await toDriveButton(locale));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       locale === 'nl' ? 'Dit Cirrux-account heeft nog geen app-wachtwoord.' : 'This Cirrux account has no app password yet.',
     );

@@ -413,7 +413,22 @@ describe("a person's link", () => {
 
   beforeEach(() => {
     readMock.mockResolvedValue(PERSON);
+    // The first screen's answer is kept for the tab (0176 §5.1); each case starts unanswered.
+    window.sessionStorage.clear();
   });
+
+  /**
+   * Since 2026-11-26 a person's link asks one thing at a time (workplan 0176
+   * T1): with one account connected it opens on the accounts, where each
+   * waiting account has *Connect {account}*; then *Have this ready*, *Next*,
+   * and *Sign in with Google* on the account's last step. The cards said it
+   * all on one page, each with *Continue with Google as {account}*.
+   */
+  async function toGoogleButton(account: string): Promise<HTMLElement> {
+    await userEvent.click(await screen.findByRole('button', { name: `Connect ${account}` }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Next' }));
+    return screen.findByRole('button', { name: 'Sign in with Google' });
+  }
 
   it('offers Report this link, for the person’s own link (0108 T8 (d))', async () => {
     reportAvailableMock.mockResolvedValue(true);
@@ -431,7 +446,8 @@ describe("a person's link", () => {
     expect(screen.getByRole('heading', { level: 3, name: 'anna@work.example' })).toBeInTheDocument();
     expect(screen.getByText('To anna, Nextcloud at cloud.example.org: your calendars and their events.')).toBeInTheDocument();
     expect(screen.getByText('To anna@soverin.net, Soverin: your contacts.')).toBeInTheDocument();
-    expect(screen.getByText(/is moving your email, calendar and files to a new provider/)).toBeInTheDocument();
+    // Who asks and for what is the first screen's (2026-11-26, workplan 0176 T1, §5.1): a link
+    // with an account connected opens on the accounts, which do not say it again.
   });
 
   it('offers no button for a connected account, and says why an account cannot be asked', async () => {
@@ -441,7 +457,8 @@ describe("a person's link", () => {
     expect(screen.queryByRole('button', { name: /as anna@gmail\.com/ })).not.toBeInTheDocument();
     expect(screen.getByText('Two applications, one sign-in.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /as anna@old\.example/ })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Continue with Google as/ })).toHaveLength(1);
+    // *Connect {account}* on the accounts screen (2026-11-26, workplan 0176 T1, §5.3).
+    expect(screen.getAllByRole('button', { name: /^Connect / }).map((b) => b.textContent)).toEqual(['Connect anna@work.example']);
   });
 
   it('offers a connected account again when the link asks for it, and says why (managed migration 0036)', async () => {
@@ -449,18 +466,21 @@ describe("a person's link", () => {
     readMock.mockResolvedValue({ ...PERSON, accounts: [{ ...connected, again: true }, ...rest] });
     authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?z=3' });
     renderPage();
+    // Said on the first screen, which an account asked again opens on, naming who asks
+    // (2026-11-26, workplan 0176 T1, §5.1); the button is the account's own, on its last step.
     expect(
-      await screen.findByText(/^This account was connected before\. Whoever sent this link asks you to connect again/),
+      await screen.findByText('This account was connected before. owner@example.org asks you to connect it again.'),
     ).toBeInTheDocument();
     expect(screen.queryByText('Connected. Nothing more is needed for this account.')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Connect again with Google as anna@gmail.com' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, that is right' }));
+    await userEvent.click(await toGoogleButton('anna@gmail.com'));
     await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'google', 'anna@gmail.com'));
   });
 
   it('asks for the account whose button was pressed, and follows the URL the server built', async () => {
     authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?y=2' });
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' }));
+    await userEvent.click(await toGoogleButton('anna@work.example'));
     await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en', 'google', 'anna@work.example'));
     expect(assignMock).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?y=2');
   });
@@ -468,7 +488,8 @@ describe("a person's link", () => {
   it('is in Dutch for a Dutch reader, the refusal too', async () => {
     window.localStorage.setItem('ownpace.locale', 'nl');
     renderPage();
-    expect(await screen.findByRole('button', { name: 'Doorgaan met Google als anna@work.example' })).toBeInTheDocument();
+    // *{account} verbinden* on the accounts screen (2026-11-26, workplan 0176 T1, §5.3).
+    expect(await screen.findByRole('button', { name: 'anna@work.example verbinden' })).toBeInTheDocument();
     expect(screen.getByText('Twee applicaties, één aanmelding.')).toBeInTheDocument();
     expect(screen.getByText('Verbonden. Voor dit account hoeft u niets meer te doen.')).toBeInTheDocument();
   });
@@ -518,31 +539,33 @@ describe("a person's link", () => {
       'Google shows a warning screen next, because this service is new. You can do this step together with owner@example.org: on the phone, or at the table.';
     afterEach(() => vi.unstubAllEnvs());
 
-    it('says it right before each Google button that can be pressed, naming who set it up', async () => {
+    // On a person's link the line stands on a Google account's *Have this ready*, the step
+    // before Google's screens are told (2026-11-26, workplan 0176 T1, §5.4), where it stood
+    // above each Google button: *Do this together with {who} if you can*.
+    it('says it on the Google account’s Have this ready, naming who set it up', async () => {
       vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
       renderPage();
-      const button = await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' });
-      const lines = screen.getAllByText(TOGETHER);
-      // One Google card has a button: the connected one and the one not ready have none.
+      await userEvent.click(await screen.findByRole('button', { name: 'Connect anna@work.example' }));
+      await screen.findByRole('heading', { level: 1, name: 'Have this ready' });
+      const lines = screen.getAllByText('Do this together with owner@example.org if you can: on the phone, or at the table.');
       expect(lines).toHaveLength(1);
-      expect(lines[0]!.nextElementSibling).toBe(button);
       expect(lines[0]!.textContent).not.toMatch(/\bhelp\b/i);
     });
 
     it('says nothing once the alpha is over', async () => {
       vi.stubEnv('VITE_OWNPACE_STAGE', 'beta');
       renderPage();
-      await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' });
-      expect(screen.queryByText(/together with/)).not.toBeInTheDocument();
+      await userEvent.click(await screen.findByRole('button', { name: 'Connect anna@work.example' }));
+      await screen.findByRole('heading', { level: 1, name: 'Have this ready' });
+      expect(screen.queryByText(/together with .* if you can/)).not.toBeInTheDocument();
     });
 
     it('in Dutch, with no request for help in it', async () => {
       vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
       window.localStorage.setItem('ownpace.locale', 'nl');
       renderPage();
-      const line = await screen.findByText(
-        'Google toont straks een waarschuwing, omdat deze dienst nieuw is. U kunt deze stap samen met owner@example.org doen: aan de telefoon, of aan tafel.',
-      );
+      await userEvent.click(await screen.findByRole('button', { name: 'anna@work.example verbinden' }));
+      const line = await screen.findByText('Doe dit het liefst samen met owner@example.org: aan de telefoon, of aan tafel.');
       expect(line.textContent).not.toMatch(/hulp|hoi/i);
     });
 

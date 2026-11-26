@@ -77,6 +77,51 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **A person's own pages: one thing at a time, in their own words** (alpha.21; workplan 0176
+  step A, with D1, D2, D12 (a), D13 (a) and D14 (a)). The page a person's grant link opens now
+  asks one thing per screen. First who asks and for what, with one question: *Did {who} tell you
+  about this link themselves?* *No, not yet* is as good an answer, and leads to a calm screen
+  that says the page can wait. The answer is kept in the browser tab only, under the link's id
+  and never its secret, and is sent nowhere. Then the accounts where the link holds more than
+  one, then what to have ready, then what the provider will show, told before it comes: during
+  the Alpha, Google's warning in our own words, quoting nothing of Google's, and what to do when
+  Google does not allow the connection. Only that last screen holds the provider's button,
+  *Sign in with Google*, with *No, rather not* beside it. Each step has its own heading, takes
+  the focus, names the tab, says *Step n of m*, and is a step in the browser's history, so Back
+  goes back one. The progress page says first whether anything is needed (a connection to renew,
+  a stop, else *You do not have to do anything now*), names each account by its own provider
+  (it said Google for a Microsoft or Dropbox account), shows no price where a pause waits at the
+  data ceiling, and refreshes itself once a minute while anything can change, keeping the
+  numbers and saying when they are from if the server cannot be reached. *Withdraw access* is
+  now *Stop copying*, as wide as the column and not red, and its question is a screen of its
+  own with two answers of one size; afterwards the page says what the provider answered, and
+  where to finish it by hand when it did not confirm. A person's two pages say *kopiëren* in
+  Dutch, never *migreren* (the member's screens keep theirs), and so do the ending after a
+  sign-in and the refusals a person's link can meet. On those two pages sentences are 18 pixels
+  and at 7 to 1, nothing is under 16 pixels, main buttons are 60 pixels high and every other
+  target 44 by 44, and the focus is a 2-pixel outline. Where a member makes a person's grant
+  link, one line says to tell the person first, and the link works thirty days unless the
+  member chooses one or seven. The accessibility statement says all of this. The tester guide
+  gains a part for a family member's link, and no longer calls Google's warning *expected*; the
+  Google help guide no longer tells a member not to be with them while they sign in; the site
+  says *on their own page*, and its header fits one row at 320 pixels. The home page gains a
+  short block for a member who migrates for a family member, *Migrating for a family member*:
+  who does what, in four cards (D17 (b)). No table, no migration and no field in an API answer
+  changes.
+  **Nederlands:** de pagina die de toegangslink van een persoon opent, vraagt nu één ding per
+  scherm: eerst wie het vraagt en waarvoor, met één vraag (*Heeft {who} u zelf over deze link
+  verteld?*), waarop *Nee, nog niet* een even goed antwoord is; dan de accounts, wat de persoon
+  klaar moet leggen, en wat die straks bij de aanbieder ziet. Alleen het laatste scherm heeft de knop van de
+  aanbieder. Elke stap heeft een eigen kop, krijgt de focus en is een stap in de geschiedenis van
+  de browser. De voortgangspagina zegt eerst of er iets nodig is, noemt elk account bij de naam
+  van zijn eigen aanbieder, toont geen prijs, en ververst zichzelf elke minuut. *Toegang
+  intrekken* heet nu *Kopiëren stoppen*, met een vraag op een eigen scherm en twee even grote
+  antwoorden. De twee pagina's van een persoon zeggen *kopiëren*, nooit *migreren*, met grotere
+  tekst, meer contrast en grotere knoppen. Waar een lid de link maakt, staat dat het lid het de
+  persoon eerst vertelt, en de link werkt standaard dertig dagen. De handleiding voor de Alpha
+  krijgt een deel over de link van een familielid, en de kop van de site past op 320 pixels. De
+  homepage krijgt een kort blok, *Migreren voor een familielid*: wie wat doet, in vier kaarten.
+
 - **Deleting by hand needs no switch any more** (alpha.21; workplan 0173, ADR-0024 amended
   2026-11-25; the owner: *"Manual deleting in by default. I don't think I makes sense then to keep
   the feature for turning it off."*). Every migration, old and new, and every upgraded appliance
