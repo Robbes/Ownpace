@@ -19,7 +19,7 @@ import { eq, and, or, sql } from 'drizzle-orm';
 import * as schema from '@openmig/managed/schema-managed';
 import { PgLedger } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
-import type { TenantId } from '@openmig/shared';
+import { senderNameFrom, senderOnAPage, senderPhoneFrom, type TenantId } from '@openmig/shared';
 import {
   countActiveOwners,
   demotesLastOwner,
@@ -208,12 +208,21 @@ router.get(
           joinedAt: schema.tenantMember.joinedAt,
           createdAt: schema.tenantMember.createdAt,
           updatedAt: schema.tenantMember.updatedAt,
+          // How a person's page names each as its sender (workplan 0176 T3):
+          // what each member said of themselves, read through the same rule.
+          displayName: schema.tenantMember.displayName,
+          phone: schema.tenantMember.phone,
         })
         .from(schema.tenantMember)
         .where(eq(schema.tenantMember.tenantId, tenantId));
       });
 
-      res.json({ members });
+      res.json({
+        members: members.map((m) => {
+          const shown = senderOnAPage({ name: m.displayName, relation: null, phone: m.phone });
+          return { ...m, displayName: shown.name, phone: shown.phone };
+        }),
+      });
     } catch (error) {
       serverFault(res, 'list_failed', 'listing the members', error);
     }
@@ -417,6 +426,82 @@ router.post(
       serverFault(res, 'resend_failed', 'sending this invitation again', error);
     }
   },
+);
+
+/**
+ * The body of `PUT …/members/me`: the name and the number a member shows the
+ * people they send a person's link to. Each optional: absent leaves it, empty
+ * or null clears it. Nothing else, so a body cannot name another member.
+ */
+const SenderOfMyselfSchema = z
+  .object({
+    displayName: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
+  })
+  .strict();
+
+/**
+ * PUT /api/tenants/:tenantId/members/me
+ *
+ * WHAT A MEMBER SAYS OF THEMSELVES on a person's page (workplan 0176 §7, T3;
+ * D11): their name as the people they send a link to know them, and their
+ * own number. Their own row only, the signed-in member's, and never another
+ * member's: it is what they say about themselves, so no role gives it to
+ * anybody else. Each value is held to its shape (`senderNameFrom`,
+ * `senderPhoneFrom`), and a refusal is a code the page words in its own
+ * language, with the English beside it, as `owner_or_admin_only` is.
+ * Answers what is stored now.
+ */
+router.put(
+  '/me',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId;
+      const userId = req.userId;
+      if (!tenantId || !userId) {
+        return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found in authentication context' });
+      }
+      const parsed = SenderOfMyselfSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Send { displayName, phone }: each a string, null or left out.',
+        });
+      }
+      const set: { displayName?: string | null; phone?: string | null } = {};
+      if (parsed.data.displayName !== undefined) {
+        const name = senderNameFrom(parsed.data.displayName);
+        if (!name.ok) return res.status(400).json({ error: name.code, message: name.reason });
+        set.displayName = name.name;
+      }
+      if (parsed.data.phone !== undefined) {
+        const phone = senderPhoneFrom(parsed.data.phone);
+        if (!phone.ok) return res.status(400).json({ error: phone.code, message: phone.reason });
+        set.phone = phone.phone;
+      }
+
+      const rows = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+        const mine = and(eq(schema.tenantMember.tenantId, tenantId), eq(schema.tenantMember.userId, userId));
+        if (Object.keys(set).length > 0) {
+          await db
+            .update(schema.tenantMember)
+            .set({ ...set, updatedAt: new Date() })
+            .where(mine);
+        }
+        return db
+          .select({ displayName: schema.tenantMember.displayName, phone: schema.tenantMember.phone })
+          .from(schema.tenantMember)
+          .where(mine);
+      });
+      const row = rows[0];
+      if (!row) return res.status(404).json(MEMBER_NOT_FOUND.body);
+      const shown = senderOnAPage({ name: row.displayName, relation: null, phone: row.phone });
+      res.json({ displayName: shown.name, phone: shown.phone });
+    } catch (error) {
+      serverFault(res, 'sender_update_failed', 'saving your name and number', error);
+    }
+  }
 );
 
 /**

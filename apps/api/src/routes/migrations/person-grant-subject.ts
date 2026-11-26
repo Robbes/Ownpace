@@ -60,7 +60,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import {
@@ -74,8 +74,10 @@ import {
   DISCOVERY_DOMAINS,
   GRANTED_TARGET_FACES,
   secretFieldKeys,
+  senderOnAPage,
   twoClientsAt,
   type Bilingual,
+  type SenderOnAPage,
   type DiscoveryDomain,
   type WizardTargetType,
 } from '@openmig/shared';
@@ -593,6 +595,90 @@ export async function readPersonGrantSubject(
   });
 
   return { organisation, organisationPhone, accounts };
+}
+
+/**
+ * WHO SENT A PERSON'S LINK, AS THEIR PAGE NAMES THEM (workplan 0176 §7, T3 and
+ * T6; D7, D11).
+ *
+ * The member who made the link: their sign-in address (`askedBy`, as before),
+ * and the sender as the page may show them, the name they gave and their own
+ * number, through the writer's own verdicts (`senderOnAPage`), with how the
+ * person knows them as the link says it.
+ *
+ * A progress link the ending handed over after a sign-in was made by nobody
+ * (`created_by` is `granted-by-link`). It speaks for the grant link the person
+ * signed in through (`made_from`, managed migration 0067), so the page names
+ * that link's member, with the relation chosen there. A grant link says the
+ * relation its member chose, or none when they chose none. A progress link a
+ * member made names that member, with the newest relation the same member
+ * chose for this person: the progress section does not ask it again, and who
+ * they are to the person did not change.
+ *
+ * Both null when no member stands behind the link any more (removed, or a
+ * page made before 0067 from a grant): the page then names the organisation,
+ * as it did.
+ */
+export async function readPersonLinkSender(
+  db: PgDatabase,
+  tenantId: string,
+  linkId: string,
+): Promise<{ readonly askedBy: string | null; readonly sender: SenderOnAPage | null }> {
+  const none = { askedBy: null, sender: null } as const;
+  const [link] = await db
+    .select({
+      personId: personLink.personId,
+      purpose: personLink.purpose,
+      createdBy: personLink.createdBy,
+      relation: personLink.relation,
+      madeFrom: personLink.madeFrom,
+    })
+    .from(personLink)
+    .where(and(eq(personLink.id, linkId), eq(personLink.tenantId, tenantId)));
+  if (!link) return none;
+
+  // The link that speaks: the grant link a page was made from, or this one.
+  let speaker: { readonly createdBy: string; readonly relation: string | null } = link;
+  if (link.madeFrom !== null) {
+    const [from] = await db
+      .select({ createdBy: personLink.createdBy, relation: personLink.relation })
+      .from(personLink)
+      .where(and(eq(personLink.id, link.madeFrom), eq(personLink.tenantId, tenantId)));
+    if (!from) return none;
+    speaker = from;
+  }
+
+  const [member] = await db
+    .select({ email: tenantMember.email, name: tenantMember.displayName, phone: tenantMember.phone })
+    .from(tenantMember)
+    .where(and(eq(tenantMember.tenantId, tenantId), eq(tenantMember.userId, speaker.createdBy)));
+  if (!member) return none;
+
+  // A grant link says what its member chose, none included. Only a progress
+  // link a member made, whose section asks nothing, borrows their newest.
+  let relation = speaker.relation;
+  if (relation === null && link.purpose === 'view' && link.madeFrom === null) {
+    const [newest] = await db
+      .select({ relation: personLink.relation })
+      .from(personLink)
+      .where(
+        and(
+          eq(personLink.tenantId, tenantId),
+          eq(personLink.personId, link.personId),
+          eq(personLink.createdBy, speaker.createdBy),
+          isNotNull(personLink.relation),
+        ),
+      )
+      .orderBy(desc(personLink.createdAt))
+      .limit(1);
+    relation = newest?.relation ?? null;
+  }
+
+  const email = member.email.trim();
+  return {
+    askedBy: email === '' ? null : email,
+    sender: senderOnAPage({ name: member.name, relation, phone: member.phone }),
+  };
 }
 
 /**

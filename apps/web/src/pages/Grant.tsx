@@ -117,6 +117,7 @@ import AlphaGoogleLine from '../components/AlphaGoogleLine.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import { PersonsPageProvider } from '../components/persons-page.tsx';
+import { whoSent } from '../components/TheSender.tsx';
 import { PersonGrant } from './PersonGrant.tsx';
 import { GrantScope, NotTheProvider, failureSentence, providerName, readsKey, wordsOf } from './grant-parts.tsx';
 
@@ -400,9 +401,10 @@ const Grant: React.FC = () => {
       </div>
     </main>
   );
-  // Whoever the page names as having sent the link (0176 D14): the member who
-  // made it, else the organisation; nothing yet while the page loads.
-  const who = subject.data && isPersonSubject(subject.data) ? (subject.data.askedBy ?? subject.data.organisation) : '';
+  // Whoever the page names as having sent the link (0176 D14, §7): the name
+  // the member gave, else their address, else the organisation; nothing yet
+  // while the page loads.
+  const who = subject.data && isPersonSubject(subject.data) ? whoSent(subject.data) : '';
   return personsPage ? <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider> : page;
 };
 

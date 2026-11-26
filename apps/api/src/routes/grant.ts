@@ -27,6 +27,13 @@
  * anything about other mappings, or anything about the organisation beyond its
  * name.
  *
+ * Since workplan 0176 step B (T3) a person's link also says **who that member
+ * is to them**: `sender`, the name the member gave as the people they send a
+ * link to know them, how the person knows them (a fixed list, D7), and their
+ * own number (D11), each the member's own to give and each held to a shape
+ * (`@openmig/shared`'s `sender.ts`). `askedBy` stays the address beside it, so
+ * a page a release behind still reads it.
+ *
  * ## From is a condition, not a label
  *
  * Since T8 (b) (the owner, 2026-09-23: *"bind to the account the page already
@@ -127,7 +134,7 @@ import {
 } from './migrations/grant-subject.ts';
 import {
   readPersonGrantSubject,
-  readPersonLinkAskedBy,
+  readPersonLinkSender,
   type PersonGrantSubject,
 } from './migrations/person-grant-subject.ts';
 import { sameNamedAccount } from './migrations/signed-in-account.ts';
@@ -373,8 +380,10 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
   if (await refusedAsClosed(res, link.tenantId, pool())) return;
   const subject = await readPersonSubject(link);
   if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT) });
-  const { askedBy, checkedCompany, addressChanges } = await withTenantDb(link.tenantId, pool(), async (db) => ({
-    askedBy: await readPersonLinkAskedBy(db, link.tenantId, link.linkId),
+  const { sent, checkedCompany, addressChanges } = await withTenantDb(link.tenantId, pool(), async (db) => ({
+    // Who sent it (workplan 0176 §7, T3): the member's address, as before,
+    // and the name, relation and own number the page shows of them.
+    sent: await readPersonLinkSender(db, link.tenantId, link.linkId),
     checkedCompany: await readCheckedCompany(db, link.tenantId),
     // Their own rows of the address changes, to confirm or send back here
     // (0168 §4.4, D6): the rows linked to this person, and nobody else's.
@@ -389,7 +398,10 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
     kind: 'person',
     organisation: subject.organisation,
     checkedCompany,
-    askedBy,
+    askedBy: sent.askedBy,
+    // The name the member gave, how the person knows them, and their own
+    // number; the page shows the organisation's where they gave none (D11).
+    sender: sent.sender,
     organisationPhone: subject.organisationPhone,
     accounts: subject.accounts.map((a, i) => ({
       // The card's name on the page and in the password route (workplan 0174

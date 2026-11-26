@@ -57,6 +57,7 @@ import {
 } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger/db';
 import type { Pool } from 'pg';
+import type { SenderRelation } from '@openmig/shared';
 import { personLink } from './schema-managed.ts';
 
 /** `p.<id>.<secret>`: the only shape a person's link URL carries. */
@@ -91,6 +92,13 @@ export type PersonLinkSummary = MappingLinkSummary;
  * nothing stores it, and re-issue is the remedy for a lost one. `asksAgain`
  * is for a grant link made while every account of theirs is connected: the
  * migrations it asks to connect again.
+ *
+ * `relation` is how the person knows the member who makes it, as the member
+ * chose it (workplan 0176 T3, D7; managed migration 0067). `madeFrom` is for
+ * a progress link the ending hands over after a sign-in: the grant link it
+ * was signed in through, whose member and relation its page names (T6). The
+ * migration holds both: the list, and a progress link of the same
+ * organisation.
  */
 export async function issuePersonLink(
   db: PgDatabase,
@@ -101,6 +109,8 @@ export async function issuePersonLink(
     createdBy: string;
     expiresAt: Date;
     asksAgain?: readonly string[] | null;
+    relation?: SenderRelation | null;
+    madeFrom?: string | null;
   },
 ): Promise<{ id: string; token: string; expiresAt: Date }> {
   const id = randomUUID();
@@ -114,6 +124,8 @@ export async function issuePersonLink(
     createdBy: input.createdBy,
     expiresAt: input.expiresAt,
     asksAgain: input.purpose === 'grant' && input.asksAgain ? [...input.asksAgain] : null,
+    relation: input.relation ?? null,
+    madeFrom: input.purpose === 'view' ? (input.madeFrom ?? null) : null,
   });
   return { id, token: `p.${id}.${secret}`, expiresAt: input.expiresAt };
 }

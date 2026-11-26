@@ -62,7 +62,7 @@ import {
   type MappingLinkPurpose,
 } from '@openmig/ledger';
 import { listPersonLinks, readPerson, revokePersonLink } from '@openmig/managed';
-import { PERSON_NOT_FOUND, log } from '@openmig/shared';
+import { PERSON_NOT_FOUND, SENDER_RELATIONS, log } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -92,11 +92,17 @@ const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * differ by design (ADR-0035): a grant link's 1, 7 or 30 days on a progress
  * link would re-impose the credential's window on the page meant to outlive
  * it. `purpose` defaults to `'grant'`.
+ *
+ * `relation` is how the person knows the member who makes the link, chosen by
+ * that member about themselves from a fixed list (workplan 0176 §7, T3, D7),
+ * or none: free text under Ownpace's name is where an impersonator would
+ * write *your bank*. Anything else is refused, and no link is made.
  */
 const IssueSchema = z
   .object({
     purpose: z.enum(MAPPING_LINK_PURPOSES).optional(),
     expiryDays: z.number().int().optional(),
+    relation: z.enum(SENDER_RELATIONS).nullable().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.expiryDays === undefined) return;
@@ -186,7 +192,9 @@ router.post(
         const offered = MAPPING_LINK_PURPOSES.map((p) => `${p}: ${MAPPING_LINK_LIFETIMES[p].days.join(', ')}`).join('; ');
         return void res.status(400).json({
           error: 'invalid_body',
-          reason: `Send { purpose, expiryDays }. The expiries offered, in days, are — ${offered}.`,
+          reason:
+            `Send { purpose, expiryDays, relation }. The expiries offered, in days, are — ${offered}. ` +
+            `A relation is one of ${SENDER_RELATIONS.join(', ')}, or null.`,
         });
       }
       const purpose: MappingLinkPurpose = parsed.data.purpose ?? 'grant';
@@ -224,6 +232,7 @@ router.post(
           createdBy: req.userId ?? 'unknown',
           expiresAt: expiryFromDays(days),
           asksAgain,
+          relation: parsed.data.relation ?? null,
         }),
       );
       if (outcome.kind === 'at_the_limit') {

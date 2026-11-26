@@ -1167,6 +1167,10 @@ paths:
     get:
       tags: [Tenants]
       summary: List members
+      description: |
+        Each member with its role and status, and since workplan 0176 step B
+        (T3) the name and number each said of themselves for the people they
+        send a person's link to (`displayName`, `phone`; null when not given).
       responses:
         '200':
           description: The tenant's members.
@@ -1220,6 +1224,53 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /api/tenants/{tenantId}/members/me:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    put:
+      tags: [Tenants]
+      summary: Your name and number on a person's page
+      description: |
+        What you say of yourself to the people you send a person's link to
+        (workplan 0176 §7, T3; D11): your name as they know you, and your own
+        number. Your own row only, whatever your role. Each optional: left out
+        is left as it is; empty or null clears it. A name takes letters,
+        spaces and `' - .`, at most 60 characters, and no web address; a
+        number takes digits, spaces and `+ ( ) - . /`, with 6 to 15 digits.
+        Answers what is stored now.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                displayName: { type: [string, 'null'] }
+                phone: { type: [string, 'null'] }
+      responses:
+        '200':
+          description: What is stored now.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [displayName, phone]
+                additionalProperties: false
+                properties:
+                  displayName: { type: [string, 'null'] }
+                  phone: { type: [string, 'null'] }
+        '400':
+          description: |
+            `sender_name_refused` or `sender_phone_refused`, with the English
+            in `message`, which the page says in its own language; or a body
+            with anything else in it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: 'You are no member of this organisation.' }
 
   /api/tenants/{tenantId}/members/{memberId}:
     parameters:
@@ -6668,6 +6719,14 @@ paths:
               properties:
                 purpose: { type: string, enum: [grant, view], default: grant }
                 expiryDays: { type: integer, enum: [1, 7, 30, 90, 180] }
+                relation:
+                  type: [string, 'null']
+                  enum: [daughter, son, child, granddaughter, grandson, grandchild, partner, brother, sister, father, mother, family, acquaintance, colleague, null]
+                  description: |
+                    How the person knows you, chosen by you about yourself from
+                    a fixed list (workplan 0176 §7, T3, D7), or none. The
+                    person's pages say it after your name. Anything else is
+                    refused with `400`, and no link is made.
       responses:
         '201':
           description: The link, said once.
@@ -6685,7 +6744,7 @@ paths:
                   asksAgain:
                     type: boolean
                     description: A grant link made while every account of the person's was connected, which asks each again.
-        '400': { description: '`purpose` or `expiryDays` was not one of the offered values.' }
+        '400': { description: '`purpose`, `expiryDays` or `relation` was not one of the offered values.' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404':
@@ -10301,6 +10360,25 @@ components:
           description: When its data is removed from the service; null when the close's own row could not say.
       required: [error, message, reason, closedAt, purgeAfter]
 
+    SenderOnAPage:
+      type: object
+      description: |
+        The member who sent a person their link, as the person's pages show
+        them (workplan 0176 §7; D7, D11). Each value is what the member said
+        of themselves, read through the rule it was written under, and null
+        when not given.
+      required: [name, relation, phone]
+      properties:
+        name:
+          type: [string, 'null']
+          description: The name the member gave, as the people they send a link to know them.
+        relation:
+          type: [string, 'null']
+          enum: [daughter, son, child, granddaughter, grandson, grandchild, partner, brother, sister, father, mother, family, acquaintance, colleague, null]
+          description: How the person knows them, from the fixed list (D7).
+        phone:
+          type: [string, 'null']
+          description: The member's own number, shown as a number to check (D11).
     PersonGrantPage:
       type: object
       description: |
@@ -10315,7 +10393,20 @@ components:
         kind: { type: string, enum: [person] }
         organisation: { type: string }
         checkedCompany: { type: string, nullable: true }
-        askedBy: { type: string, nullable: true }
+        askedBy:
+          type: string
+          nullable: true
+          description: The sign-in address of the member who made the link; null when they are no member any more.
+        sender:
+          nullable: true
+          description: |
+            Who that member is, as the page shows them (workplan 0176 §7, T3):
+            the name they gave, how the person knows them, and their own
+            number, each null when not given. Null when no member stands
+            behind the link. The page shows `organisationPhone` where the
+            member gave no number, and says whose it is (D11). Absent from a
+            server before alpha.21's step B.
+          allOf: [{ $ref: '#/components/schemas/SenderOnAPage' }]
         organisationPhone: { type: string, nullable: true }
         accounts:
           type: array

@@ -98,6 +98,16 @@ const MAIL_OUTCOME_TONE: Record<InvitationMailOutcome, string> = {
 };
 
 /**
+ * A refusal of your name or number (workplan 0176 T3), by its code, in the
+ * reader's language: the server sends the code with the English beside it,
+ * as `owner_or_admin_only`. Null for any other failure.
+ */
+const SENDER_REFUSALS: Readonly<Record<string, StringKey>> = {
+  sender_name_refused: 'tenants.sender.name.refused',
+  sender_phone_refused: 'tenants.sender.phone.refused',
+};
+
+/**
  * The server's own words for a failed request, verbatim (the prose boundary:
  * "Cannot demote the last owner" is a finding, not a frame). The dictionary
  * fallback covers transport failures that never reached the server.
@@ -110,6 +120,11 @@ function errorText(err: unknown, fallback: string): string {
 
 const Tenants: React.FC = () => {
   const t = useT();
+  const senderRefusal = (err: unknown): string | null => {
+    const code = (err as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+    const key = typeof code === 'string' ? SENDER_REFUSALS[code] : undefined;
+    return key ? t(key) : null;
+  };
   const { dateTime } = useFormatters();
   const queryClient = useQueryClient();
   const { user, tenantId } = useAuthStore();
@@ -147,6 +162,13 @@ const Tenants: React.FC = () => {
   const [phoneBusy, setPhoneBusy] = React.useState(false);
   const [phoneError, setPhoneError] = React.useState<string | null>(null);
   const [phoneSaved, setPhoneSaved] = React.useState(false);
+  // What you say of yourself on a person's page (workplan 0176 T3): null
+  // while you have not typed, so each field shows what is stored.
+  const [senderName, setSenderName] = React.useState<string | null>(null);
+  const [senderPhone, setSenderPhone] = React.useState<string | null>(null);
+  const [senderBusy, setSenderBusy] = React.useState(false);
+  const [senderError, setSenderError] = React.useState<string | null>(null);
+  const [senderSaved, setSenderSaved] = React.useState(false);
 
   const tenantQuery = useQuery({
     queryKey: ['tenant', tenantId],
@@ -277,6 +299,29 @@ const Tenants: React.FC = () => {
   const members = membersQuery.data ?? [];
   // A const binding so the rename button's closure keeps the narrowing below.
   const tenant = tenantQuery.data;
+  // Your own row: what a person's page shows of you (0176 T3).
+  const mine = members.find((m) => m.userId === user?.id);
+
+  const saveSender = async () => {
+    setSenderBusy(true);
+    setSenderError(null);
+    setSenderSaved(false);
+    try {
+      const stored = await memberApi.setMine(tenantId, {
+        displayName: (senderName ?? mine?.displayName ?? '').trim(),
+        phone: (senderPhone ?? mine?.phone ?? '').trim(),
+      });
+      // What the server stored, which may differ in spacing from what was typed.
+      setSenderName(stored.displayName ?? '');
+      setSenderPhone(stored.phone ?? '');
+      setSenderSaved(true);
+      await refetchMembers();
+    } catch (err) {
+      setSenderError(senderRefusal(err) ?? errorText(err, t('common.requestFailed')));
+    } finally {
+      setSenderBusy(false);
+    }
+  };
 
   /**
    * The organisation's phone number as the grant page would show it: through
@@ -430,6 +475,71 @@ const Tenants: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* What you say of yourself on a person's page (workplan 0176 §7, T3;
+          D11): your name as the people you send a link to know you, and
+          your own number. Yours only, whatever your role. */}
+      {mine && (
+        <section aria-labelledby="sender-heading" className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 id="sender-heading" className="text-lg font-semibold text-gray-900 mb-1">
+            {t('tenants.sender.heading')}
+          </h2>
+          <p className="text-sm text-gray-600 mb-3">{t('tenants.sender.intro')}</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label htmlFor="sender-name" className="block text-sm font-medium text-gray-700">
+                {t('tenants.sender.name')}
+              </label>
+              <p className="mt-0.5 text-xs text-gray-500">{t('tenants.sender.name.hint')}</p>
+              <input
+                id="sender-name"
+                autoComplete="name"
+                maxLength={60}
+                value={senderName ?? mine.displayName ?? ''}
+                onChange={(e) => {
+                  setSenderName(e.target.value);
+                  setSenderSaved(false);
+                }}
+                className="mt-2 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 w-72 max-w-full"
+              />
+            </div>
+            <div>
+              <label htmlFor="sender-phone" className="block text-sm font-medium text-gray-700">
+                {t('tenants.sender.phone')}
+              </label>
+              <p className="mt-0.5 text-xs text-gray-500">{t('tenants.sender.phone.hint')}</p>
+              <input
+                id="sender-phone"
+                type="tel"
+                autoComplete="tel"
+                value={senderPhone ?? mine.phone ?? ''}
+                onChange={(e) => {
+                  setSenderPhone(e.target.value);
+                  setSenderSaved(false);
+                }}
+                className="mt-2 px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+              />
+            </div>
+            <button
+              onClick={saveSender}
+              disabled={senderBusy}
+              className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {t('tenants.sender.save')}
+            </button>
+            {senderSaved && (
+              <p role="status" className="w-full text-sm text-green-700">
+                {t('tenants.sender.saved')}
+              </p>
+            )}
+            {senderError && (
+              <p role="alert" className="w-full text-sm text-amber-700">
+                {senderError}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Email summaries (workplan 0030 T4) */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
