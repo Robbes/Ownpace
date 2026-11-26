@@ -4,6 +4,8 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's read of the twins:** *"#2188: ok, account: yes"*. The twins stand, and the two failure lines say *account* for *omgeving*, the owner's word, in both voices (`view.failure.sourceRefused`, `view.failure.formatRefused`).
+
 **2026-11-26: step B's informal Dutch, as a draft** (§23.2, *Beside it: the informal Dutch*;
 branch `claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-b-informal`, one draft pull
 request). The *je* twin of step A's Dutch, which the owner read (*"Step A (#2180): ok"*). A

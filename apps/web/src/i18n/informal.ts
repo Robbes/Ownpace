@@ -60,10 +60,10 @@ export const NL_JE: Readonly<Partial<Record<StringKey, string>>> = {
     'Sommige items zijn niet gekopieerd door de instellingen van deze kopie, niet door je accounts.',
   'view.failure.internalAddress':
     'Deze dienst maakt geen verbinding met het adres dat voor een van je accounts is opgegeven. Wie dit heeft ingesteld kan het aanpassen.',
-  'view.failure.sourceRefused': 'Je oude omgeving gaf sommige items niet vrij. Deze gingen niet naar je nieuwe omgeving.',
+  'view.failure.sourceRefused': 'Je oude account gaf sommige items niet vrij. Deze gingen niet naar je nieuwe account.',
   'view.failure.targetRefused': 'Je nieuwe account kon sommige items niet in ontvangst nemen.',
   'view.failure.formatRefused':
-    'Je nieuwe omgeving accepteert bepaalde bestandstypen niet. Wie dit uitvoert kan de indeling mogelijk aanpassen.',
+    'Je nieuwe account accepteert bepaalde bestandstypen niet. Wie dit uitvoert kan de indeling mogelijk aanpassen.',
   'view.failure.side.source': 'Het ging om je oude account.',
   'view.failure.side.target': 'Het ging om je nieuwe account.',
   'view.readOnly': 'Deze pagina toont alleen aantallen; er staat niets uit je account op.',

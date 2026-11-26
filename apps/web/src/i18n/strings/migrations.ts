@@ -702,10 +702,10 @@ export const nl: Record<keyof typeof en, string> = {
   'view.failure.internalAddress':
     'Deze dienst maakt geen verbinding met het adres dat voor een van uw accounts is opgegeven. Wie dit heeft ingesteld kan het aanpassen.',
   'view.failure.sourceRefused':
-    'Uw oude omgeving gaf sommige items niet vrij. Deze gingen niet naar uw nieuwe omgeving.',
+    'Uw oude account gaf sommige items niet vrij. Deze gingen niet naar uw nieuwe account.',
   'view.failure.targetRefused': 'Uw nieuwe account kon sommige items niet in ontvangst nemen.',
   'view.failure.formatRefused':
-    'Uw nieuwe omgeving accepteert bepaalde bestandstypen niet. Wie dit uitvoert kan de indeling mogelijk aanpassen.',
+    'Uw nieuwe account accepteert bepaalde bestandstypen niet. Wie dit uitvoert kan de indeling mogelijk aanpassen.',
   'view.failure.network': 'Een server was niet bereikbaar. Dat is meestal van korte duur, er wordt opnieuw geprobeerd.',
   'view.failure.unknown': 'Iets ging mis wat het systeem nog niet kent. Wie dit uitvoert kan er mogelijk meer over zien.',
   'view.failure.side.source': 'Het ging om uw oude account.',
