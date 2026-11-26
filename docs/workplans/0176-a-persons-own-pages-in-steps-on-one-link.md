@@ -4,6 +4,9 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's read of #2189's Dutch:** *"#2189: ok"*. Every drafted sentence
+stands, and *Everything on one page* stays without the password card, as advised.
+
 **2026-11-26: step B, the two parts beside the main line that are not the informal Dutch,
 built as one draft pull request** (`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-b-beside`),
 on §23.2's rows for D15 (a) and D16 (a), branched from step A's head. No migration, and no file
@@ -36,8 +39,7 @@ of the main line's: `Grant.tsx` and `PersonGrant.tsx` are not opened.
   link to the same sentences on one page*). The keys exist; the main line writes no words for
   either. A sentence it adds to a step fails the one page's test until the one page says it too.
 - **Still the owner's:** set `OWNPACE_COUNTRY` in each stack's `.env` before its next deploy,
-  and rebuild the web image: unset, live's home page names no country from then on. The owner
-  reads the Dutch of this part, in one table in the pull request.
+  and rebuild the web image: unset, live's home page names no country from then on.
 
 **2026-11-26, the owner's read of the block for families, and one word.** The owner: *"Families
 blot: ok. Use familielid (gezinslid is to limited to one household)"*. The block stands as built.
