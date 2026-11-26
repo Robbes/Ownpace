@@ -119,7 +119,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   antwoorden. De twee pagina's van een persoon zeggen *kopiëren*, nooit *migreren*, met grotere
   tekst, meer contrast en grotere knoppen. Waar een lid de link maakt, staat dat het lid het de
   persoon eerst vertelt, en de link werkt standaard dertig dagen. De handleiding voor de Alpha
-  krijgt een deel over de link van een gezinslid, en de kop van de site past op 320 pixels. De
+  krijgt een deel over de link van een familielid, en de kop van de site past op 320 pixels. De
   homepage krijgt een kort blok, *Migreren voor een familielid*: wie wat doet, in vier kaarten.
 
 - **Deleting by hand needs no switch any more** (alpha.21; workplan 0173, ADR-0024 amended

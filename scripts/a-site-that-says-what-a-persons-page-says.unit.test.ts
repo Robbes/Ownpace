@@ -24,6 +24,12 @@
  *    `grant.person.see.goOn` and `grant.person.see.ticks`. As
  *    `the-alpha-said-to-a-visitor.unit.test.ts` holds the visitor's line, the
  *    site imports nothing, so its words are a copy held here.
+ * 4. **The Dutch part says *familielid*, never *gezinslid*** (the owner,
+ *    2026-11-26: *"Use familielid (gezinslid is to limited to one
+ *    household)"*), as the home page's block for families does, and its id
+ *    follows: `familielid-link`. The two older sentences of the guide on the
+ *    list of test users, and the legal texts, are not step A's, and keep
+ *    their word until their own next version (`GLOSSARY.md`).
  *
  * The guides wrap their lines, so whitespace is made single before
  * comparing; each guide's header comment quotes the sentences too, so
@@ -80,7 +86,7 @@ describe('the site says nothing the link page took back (0176 T15, points 1, 5, 
 describe('the tester guide has a part for a family member’s link (T15 point 2)', () => {
   const PART: Readonly<Record<Locale, { readonly under: string; readonly id: string }>> = {
     en: { under: '## How to start {#how-to-start}', id: '{#family-link}' },
-    nl: { under: '## Zo begint u {#zo-begint-u}', id: '{#gezinslid-link}' },
+    nl: { under: '## Zo begint u {#zo-begint-u}', id: '{#familielid-link}' },
   };
 
   it.each(['en', 'nl'] as const)('%s: under How to start, with its own id, and six sections still', (locale) => {
@@ -93,6 +99,24 @@ describe('the tester guide has a part for a family member’s link (T15 point 2)
     const next = text.indexOf(' ## ', under + PART[locale].under.length);
     expect(next === -1 || part < next).toBe(true);
     expect(read(GUIDE[locale]).match(/^## /gm)).toHaveLength(6);
+  });
+});
+
+describe('the Dutch part says familielid, never gezinslid (the owner, 2026-11-26; point 4)', () => {
+  const text = prose(read(GUIDE.nl));
+  const start = text.indexOf('### Als een familielid een link krijgt {#familielid-link}');
+  const part = start === -1 ? '' : text.slice(start, text.indexOf(' ### ', start + 1));
+
+  it('its heading, and every sentence under it', () => {
+    expect(start, 'the part, under its heading').toBeGreaterThanOrEqual(0);
+    expect(part).toContain('Is het account van een familielid?');
+    expect(part).toContain('Daar kan uw familielid het ook stoppen.');
+    expect(part.toLowerCase()).not.toContain('gezinslid');
+  });
+
+  it('and the sentence step A gave Als Google opnieuw vraagt', () => {
+    expect(text).toContain('Is het het account van een familielid?');
+    expect(text).not.toContain('Is het het account van een gezinslid?');
   });
 });
 

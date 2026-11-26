@@ -4,6 +4,13 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's read of the block for families, and one word.** The owner: *"Families
+blot: ok. Use familielid (gezinslid is to limited to one household)"*. The block stands as built.
+Step A's new Dutch says *familielid*: the tester guide's part, now *Als een familielid een link
+krijgt* with the id `familielid-link`, its sentence under *Als Google opnieuw vraagt*, step A's
+changelog line, and §22.3's draft. The legal texts (`site/legal/privacy.nl.md`, `alpha.nl.md`,
+`terms.nl.md`) keep *gezinslid* until their next version, with the lawyer (`GLOSSARY.md`).
+
 **2026-11-26: step A, built as one draft pull request**
 (`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-a`), on §21.4's scope with the
 answers to D12 to D14. Part 4 of §23.1, the website and documents with the accessibility
@@ -2007,23 +2014,23 @@ page, and the mail that lets a member in links it too
 is the one the owner reads, as for the rest of the guide (`alpha-handleiding.md:2-9`). A
 draft, under *Zo begint u*, after *Als u Google koppelt*:
 
-> ### Als een gezinslid een link krijgt {#gezinslid-link}
+> ### Als een familielid een link krijgt {#familielid-link}
 >
-> Is het account van een gezinslid? Vraag dan niet om het wachtwoord. U maakt een
-> toegangslink, en uw gezinslid geeft zelf toestemming.
+> Is het account van een familielid? Vraag dan niet om het wachtwoord. U maakt een
+> toegangslink, en uw familielid geeft zelf toestemming.
 >
 > 1. **Vertel het eerst zelf.** Bel, of zeg het als u elkaar ziet: er komt een link van u, en
->    waarvoor die is. De pagina vraagt uw gezinslid of u dat hebt gedaan. Is het antwoord nee,
+>    waarvoor die is. De pagina vraagt uw familielid of u dat hebt gedaan. Is het antwoord nee,
 >    dan wacht de pagina.
 > 2. **Maak de link.** Open de persoon bij *Migraties* en kies *Toegangslink maken*. Stuur de
 >    link zelf, zoals u die persoon altijd bereikt. Wij sturen hem nooit.
-> 3. **Doe de stap bij Google het liefst samen:** aan de telefoon, of aan tafel. Uw gezinslid
+> 3. **Doe de stap bij Google het liefst samen:** aan de telefoon, of aan tafel. Uw familielid
 >    typt het eigen wachtwoord zelf. U hoeft het niet te weten, en u vraagt er niet om.
 > 4. **Laat Google de verbinding niet toe?** Dan staat het adres nog niet op de lijst van
->    Google. Mail het ons, en wacht op ons antwoord. Daarna opent uw gezinslid de link opnieuw.
+>    Google. Mail het ons, en wacht op ons antwoord. Daarna opent uw familielid de link opnieuw.
 >
-> Daarna heeft uw gezinslid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
-> gezinslid het ook stoppen.
+> Daarna heeft uw familielid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
+> familielid het ook stoppen.
 
 In English, with the id `family-link`: *When a family member gets a link*, and the same five
 things in the same order.
@@ -2037,7 +2044,7 @@ of the guide keeps *migreren*: it speaks to the member.
 D13 is answered (a), so the member's screen says *tell first* too, in one line. The guide
 says it with its reasons. It is the page a tester is asked to read before they start.
 
-***Als Google opnieuw vraagt* gains one paragraph:** *Is het het account van een gezinslid?
+***Als Google opnieuw vraagt* gains one paragraph:** *Is het het account van een familielid?
 Maak dan een nieuwe toegangslink voor die persoon, en vertel het weer eerst.* Step C changes
 it: the one link then asks again by itself (D4).
 

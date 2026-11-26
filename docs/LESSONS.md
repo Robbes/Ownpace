@@ -722,6 +722,10 @@ reading a file drops off its entry by itself.
 
 - [a-warning-the-check-keeps](../scripts/a-warning-the-check-keeps.unit.test.ts) — A WARNING THAT PROMISED A CHECK MAIL NEVER HAD (workplan 0144 T4, 0149 T6).
 
+### `apps/web/src/i18n/GLOSSARY.md`
+
+- [a-site-that-says-what-a-persons-page-says](../scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts) — THE SITE SAYS WHAT A PERSON'S PAGE SAYS (workplan 0176 T15, with step A).
+
 ### `apps/web/src/i18n/i18n.unit.test.tsx`
 
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
@@ -5930,6 +5934,7 @@ THE SITE SAYS WHAT A PERSON'S PAGE SAYS (workplan 0176 T15, with step A).
 
 Reads:
 
+- `apps/web/src/i18n/GLOSSARY.md`
 - `docs/guides/en/google.md`
 - `docs/guides/nl/google.md`
 - `scripts/the-alpha-said-to-a-visitor.unit.test.ts`

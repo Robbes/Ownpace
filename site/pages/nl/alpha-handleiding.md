@@ -126,23 +126,23 @@ vraagt een vinkje heeft. Voor e-mail, agenda's en contacten beschrijft Google ee
 toestemming dan Ownpace gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in uw
 account.
 
-### Als een gezinslid een link krijgt {#gezinslid-link}
+### Als een familielid een link krijgt {#familielid-link}
 
-Is het account van een gezinslid? Vraag dan niet om het wachtwoord. U maakt een toegangslink, en
-uw gezinslid geeft zelf toestemming.
+Is het account van een familielid? Vraag dan niet om het wachtwoord. U maakt een toegangslink, en
+uw familielid geeft zelf toestemming.
 
 1. **Vertel het eerst zelf.** Bel, of zeg het als u elkaar ziet: er komt een link van u, en
-   waarvoor die is. De pagina vraagt uw gezinslid of u dat hebt gedaan. Is het antwoord nee, dan
+   waarvoor die is. De pagina vraagt uw familielid of u dat hebt gedaan. Is het antwoord nee, dan
    wacht de pagina.
 2. **Maak de link.** Open de persoon bij *Migraties* en kies *Toegangslink maken*. Stuur de link
    zelf, zoals u die persoon altijd bereikt. Wij sturen hem nooit.
-3. **Doe de stap bij Google het liefst samen:** aan de telefoon, of aan tafel. Uw gezinslid typt
+3. **Doe de stap bij Google het liefst samen:** aan de telefoon, of aan tafel. Uw familielid typt
    het eigen wachtwoord zelf. U hoeft het niet te weten, en u vraagt er niet om.
 4. **Laat Google de verbinding niet toe?** Dan staat het adres nog niet op de lijst van Google.
-   Mail het ons, en wacht op ons antwoord. Daarna opent uw gezinslid de link opnieuw.
+   Mail het ons, en wacht op ons antwoord. Daarna opent uw familielid de link opnieuw.
 
-Daarna heeft uw gezinslid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
-gezinslid het ook stoppen.
+Daarna heeft uw familielid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
+familielid het ook stoppen.
 
 ### Als Google opnieuw vraagt {#google-opnieuw}
 
@@ -151,7 +151,7 @@ ongeveer zeven dagen. Ga dan naar *Accounts*. Kies bij dat account *Opnieuw verb
 *Verbinden met Google*, en dan *Controleren en vervangen*. De migratie gaat verder waar ze
 stopte. Er gaat niets verloren.
 
-Is het het account van een gezinslid? Maak dan een nieuwe toegangslink voor die persoon, en
+Is het het account van een familielid? Maak dan een nieuwe toegangslink voor die persoon, en
 vertel het weer eerst.
 
 ## Wat experimenteel is {#wat-experimenteel-is}
