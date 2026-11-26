@@ -139,7 +139,7 @@ pages**, their link page and their progress page, **say *je*** to a person
 the member chose it for: *Dutch, with je*. Unset is *u*. The member's own
 screens stay *u*.
 
-The *je* lives in the informal layer, `strings/informal.ts`: the twin of
+The *je* lives in the informal layer, `informal.ts`: the twin of
 each sentence those pages say to the reader with *u* or *uw*, and nothing
 else. A sentence with no *u* in it has no twin (*Leg dit klaar*). A twin is
 its sentence turned: *u* becomes *je*, and *uw* becomes *je*, with *jouw*

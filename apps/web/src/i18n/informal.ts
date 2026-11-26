@@ -14,9 +14,11 @@
  *
  * **Not an area.** It defines no key of its own: each key is a Dutch area's,
  * and the page reads this first when the register is informal, then the
- * Dutch. So it is not composed into `../strings.ts`
- * (`../one-area-per-key.unit.test.ts` leaves it out), and it is the
- * dictionary, not a speaker of it (`../a-word-nobody-says.unit.test.ts`).
+ * Dutch. So it is not composed into `strings.ts`, and it stands beside
+ * `strings/` rather than in it, where `one-area-per-key.unit.test.ts` reads
+ * every file as an area with both languages. It is the dictionary, not a
+ * speaker of it: `a-word-nobody-says.unit.test.ts` does not count a key as
+ * said because it has a twin here.
  *
  * **How a twin is made (§15's pattern).** *U* becomes *je*, and *uw* becomes
  * *je*; *jouw* only where it carries stress, as in a contrast (*van jouw oude
@@ -26,21 +28,21 @@
  * a *u* that means two people is *jullie* (*als u elkaar ziet* → *als jullie
  * elkaar zien*). Nothing else in a sentence changes, so the owner reads the
  * same sentence twice, and a twin stays the twin of its sentence:
- * `../every-u-has-its-je.unit.test.ts` holds both to that.
+ * `every-u-has-its-je.unit.test.ts` holds both to that.
  *
  * **A draft until T7's main line.** Nothing reads this yet. The main line
  * stores the register per person, sends it with the link's answer, and has
- * `../index.tsx` read this first for a person whose register is *je*, and
- * `../active-locale.ts` too, which words the answers a report can meet. The
+ * `index.tsx` read this first for a person whose register is *je*, and
+ * `active-locale.ts` too, which words the answers a report can meet. The
  * server's own sentences on these pages, and its endings after a sign-in,
  * are the main line's as well. The Dutch below is step A's, which the owner
  * read on 2026-11-26 (*"Step A (#2180): ok"*), turned to *je*; the owner
  * reads the twins in their pull request.
  */
 
-import type { StringKey } from '../strings.ts';
+import type { StringKey } from './strings.ts';
 
-export const nl: Readonly<Partial<Record<StringKey, string>>> = {
+export const NL_JE: Readonly<Partial<Record<StringKey, string>>> = {
   // A link that could not be read (app.ts).
   'link.unreachable': 'Deze pagina kon de server niet bereiken. Controleer je verbinding en probeer het opnieuw.',
   'link.unreadable':

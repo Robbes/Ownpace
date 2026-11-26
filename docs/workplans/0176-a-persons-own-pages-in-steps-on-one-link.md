@@ -8,7 +8,7 @@
 branch `claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-b-informal`, one draft pull
 request). The *je* twin of step A's Dutch, which the owner read (*"Step A (#2180): ok"*). A
 person's two pages say 289 keys. 124 of them say *u* or *uw* to the reader, and each has its twin
-in `apps/web/src/i18n/strings/informal.ts`. The other 165 need none.
+in `apps/web/src/i18n/informal.ts`. The other 165 need none.
 
 - **Nothing reads the layer yet.** T7's main line stores the register, sends it with the link's
   answer, and reads the layer first (`index.tsx`, and `active-locale.ts` for the answers a

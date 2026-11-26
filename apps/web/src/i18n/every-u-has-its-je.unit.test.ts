@@ -7,7 +7,7 @@
  * that says *je* in one sentence and *u* in the next reads as a page somebody
  * else wrote. So every Dutch sentence a person's link page and progress page
  * say to the reader with *u* or *uw* has its *je* twin in the informal layer
- * (`strings/informal.ts`), the layer holds nothing else, no twin says *u* or
+ * (`informal.ts`), the layer holds nothing else, no twin says *u* or
  * *uw* to the reader, and no formal sentence of those pages says *je*.
  *
  * WHICH SENTENCES. The keys a person's two pages say are read from the code
@@ -39,11 +39,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { STRINGS } from './strings.ts';
 import { DOMAIN_STRING_KEY } from './domain-words.ts';
-import { nl as informal } from './strings/informal.ts';
+import { NL_JE } from './informal.ts';
 
 const en = STRINGS.en as Record<string, string>;
 const nl = STRINGS.nl as Record<string, string>;
-const twins = informal as Record<string, string>;
+const twins = NL_JE as Record<string, string>;
 const KEYS = Object.keys(en);
 
 /**
