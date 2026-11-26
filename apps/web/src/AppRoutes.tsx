@@ -27,6 +27,7 @@ import ConfirmMapping from './pages/ConfirmMapping.tsx';
 import Tenants from './pages/Tenants.tsx';
 import Login from './pages/Login.tsx';
 import RequestAccess from './pages/RequestAccess.tsx';
+import CodeDoor from './pages/CodeDoor.tsx';
 import Grant from './pages/Grant.tsx';
 import PersonGrantOnePage, { ONE_PAGE_ROUTE } from './pages/PersonGrantOnePage.tsx';
 import View from './pages/View.tsx';
@@ -214,13 +215,25 @@ const AppRoutes: React.FC = () => {
           </ManagedOnly>
         }
       />
-      {/* The address a gift card prints (workplan 0172): the same door, with
-          the gift code's field open. Public for the door's reason. */}
+      {/* The door of a code (workplan 0177 T1): the address a card prints,
+          `/code`, which reads the same in both languages (D9), and a link's,
+          with the code after a `#` (D2). Public for the request page's
+          reason: the person has no account yet. */}
+      <Route
+        path="/code"
+        element={
+          <ManagedOnly>
+            <CodeDoor />
+          </ManagedOnly>
+        }
+      />
+      {/* The address cards printed before 0177 (workplan 0172), and the
+          site's link until it says `/code`: the same door. */}
       <Route
         path="/redeem"
         element={
           <ManagedOnly>
-            <RequestAccess giftDoor />
+            <CodeDoor />
           </ManagedOnly>
         }
       />
@@ -501,7 +514,7 @@ const AppRoutes: React.FC = () => {
             </ManagedOnly>
           }
         />
-        {/* Give Ownpace (workplan 0172): a member's own gift. Managed only —
+        {/* Recommend someone (workplans 0172, 0177): a member's own card. Managed only —
             the appliance has nobody to let in. */}
         <Route
           path="give"
