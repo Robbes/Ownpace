@@ -511,6 +511,49 @@ describe("a person's link", () => {
       expect(await screen.findByText('owner@example.org kan de kopie bij Soverin ook openen.')).toBeInTheDocument();
     });
   });
+
+  // The owner's decisions of 2026-11-26, change 4.
+  describe('do it together, during the alpha', () => {
+    const TOGETHER =
+      'Google shows a warning screen next, because this service is new. You can do this step together with owner@example.org: on the phone, or at the table.';
+    afterEach(() => vi.unstubAllEnvs());
+
+    it('says it right before each Google button that can be pressed, naming who set it up', async () => {
+      vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
+      renderPage();
+      const button = await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' });
+      const lines = screen.getAllByText(TOGETHER);
+      // One Google card has a button: the connected one and the one not ready have none.
+      expect(lines).toHaveLength(1);
+      expect(lines[0]!.nextElementSibling).toBe(button);
+      expect(lines[0]!.textContent).not.toMatch(/\bhelp\b/i);
+    });
+
+    it('says nothing once the alpha is over', async () => {
+      vi.stubEnv('VITE_OWNPACE_STAGE', 'beta');
+      renderPage();
+      await screen.findByRole('button', { name: 'Continue with Google as anna@work.example' });
+      expect(screen.queryByText(/together with/)).not.toBeInTheDocument();
+    });
+
+    it('in Dutch, with no request for help in it', async () => {
+      vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
+      window.localStorage.setItem('ownpace.locale', 'nl');
+      renderPage();
+      const line = await screen.findByText(
+        'Google toont straks een waarschuwing, omdat deze dienst nieuw is. U kunt deze stap samen met owner@example.org doen: aan de telefoon, of aan tafel.',
+      );
+      expect(line.textContent).not.toMatch(/hulp|hoi/i);
+    });
+
+    it('on a migration’s own link too, before its button', async () => {
+      vi.stubEnv('VITE_OWNPACE_STAGE', 'alpha');
+      readMock.mockResolvedValue(SUBJECT);
+      renderPage();
+      const line = await screen.findByText(TOGETHER);
+      expect(line.nextElementSibling).toBe(screen.getByRole('button', { name: 'Continue with Google' }));
+    });
+  });
 });
 
 /**

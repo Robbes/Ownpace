@@ -110,6 +110,12 @@ export const en = {
   // connected (the owner's decisions of 2026-11-26, change 3). {who} is whoever
   // the page already names as having set it up.
   'grant.person.theyOpenIt': '{who} can open the copy at {destination} too.',
+  // Before a Google button, while Google still warns about the unverified app
+  // (the Alpha; the owner's decisions of 2026-11-26, change 4). An invitation
+  // to sit together with whoever set it up, never a request for help sent by
+  // message: that is the shape of a known scam.
+  'grant.together':
+    'Google shows a warning screen next, because this service is new. You can do this step together with {who}: on the phone, or at the table.',
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Continue with Google as {account}',
   'grant.person.connected': 'Connected. Nothing more is needed for this account.',
@@ -315,6 +321,8 @@ export const nl: Record<keyof typeof en, string> = {
     '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',
   'grant.person.migration': 'Naar {where}: {reads}.',
   'grant.person.theyOpenIt': '{who} kan de kopie bij {destination} ook openen.',
+  'grant.together':
+    'Google toont straks een waarschuwing, omdat deze dienst nieuw is. U kunt deze stap samen met {who} doen: aan de telefoon, of aan tafel.',
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Doorgaan met Google als {account}',
   'grant.person.connected': 'Verbonden. Voor dit account hoeft u niets meer te doen.',

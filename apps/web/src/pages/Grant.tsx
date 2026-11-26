@@ -157,6 +157,22 @@ interface ProviderWords {
   readonly readsFile: StringKey;
 }
 
+/**
+ * DO IT TOGETHER, DURING THE ALPHA (the owner's decisions of 2026-11-26,
+ * change 4). While Google still shows its warning screen for the app it has
+ * not verified, which is the Alpha (`isAlpha`, the rule `AlphaGoogleLine`
+ * keeps for the same screen), one plain line before a Google button invites
+ * the person to take the step together with whoever set it up, on the phone
+ * or at the table. Named as the page already names them (`askedBy`, else
+ * the organisation). Calm and short, and never a request for help by
+ * message, which is the shape of a known scam.
+ */
+const DoItTogether: React.FC<{ who: string; className?: string }> = ({ who, className }) => {
+  const t = useT();
+  if (!isAlpha()) return null;
+  return <p className={`${className ?? ''} text-sm text-gray-900`}>{t('grant.together', { who })}</p>;
+};
+
 const PROVIDER_WORDS: Readonly<Record<'google' | 'microsoft' | 'dropbox', ProviderWords>> = {
   google: {
     name: 'Google',
@@ -224,6 +240,7 @@ import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
 import AlphaGoogleLine from '../components/AlphaGoogleLine.tsx';
+import { isAlpha } from '../components/AlphaNote.tsx';
 import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import { SOURCE_CARDS, TARGET_CARDS } from '../components/front-door-cards.ts';
 import { scopeWordKeys } from '../i18n/google-scope-words.ts';
@@ -529,6 +546,7 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
               <p className="mt-3 text-sm font-medium text-gray-900 break-words">
                 {t(wordsOf(a.provider).signInAs, { account: a.account })}
               </p>
+              {(a.provider ?? 'google') === 'google' && <DoItTogether who={askedBy} className="mt-3" />}
               <button
                 type="button"
                 onClick={() => void connect(a.account, (a.provider ?? 'google') as GrantProvider)}
@@ -855,6 +873,9 @@ const Grant: React.FC = () => {
           {/* During the Alpha, the guide's section on connecting Google,
               right above the button (the owner, 2026-10-18). */}
           {(subject.data.provider ?? 'google') === 'google' && <AlphaGoogleLine className="mt-3" />}
+          {(subject.data.provider ?? 'google') === 'google' && (
+            <DoItTogether who={subject.data.askedBy ?? subject.data.organisation} className="mt-3" />
+          )}
 
           <button
             type="button"
