@@ -4,6 +4,38 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26: step B's main line, built as one draft pull request**
+(`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-b`), on §23.2's first row, in its
+order, and carrying #2188 (the informal Dutch, merged into it at T7, as decided) and #2189's two
+places (merged on `main`).
+
+- **T3 (managed migration 0067):** a member's name and number (`tenant_member.display_name`,
+  `.phone`, `PUT /api/tenants/{id}/members/me`, *Team & organisation → When you send someone a
+  link*), the link's relation from the glossary's fixed list, and `person_link.made_from`, the
+  grant link a progress link was handed over from. Both pages say *Pat, your daughter* under
+  *Sender*, the address under the name, and a number to check, saying whose (D11). The nine
+  sentences that described the sender name them (`a-sender-named-not-described`).
+- **T6, step B:** the progress page's answer carries `sender`, `organisationPhone` and, per
+  migration, `theOrganisationOpensIt`; the page names the sender at its foot and says *Pat can
+  open the copy at Soverin too.* where it is so. `askedBy` stays a string beside `sender`, for an
+  API a release behind.
+- **T8:** the tick before the button, who the member is to them, the member's name asked once,
+  the Alpha's two lines for a Google account, thirty days first, how the page speaks to them,
+  and with the link a message in the person's voice and *Print a sheet for …* (the one page).
+- **T7 (managed migration 0068):** `person.voice` (`nl-u`, `nl-je`, `en`), chosen where the link
+  is made; both pages answer `language` and `register`; `InTheirVoice` reads the informal layer
+  first, and offers the language until the reader picks another. The server's sentences on a
+  person's link have their twins (`nlJe`), and the endings after a sign-in theirs
+  (`GRANT_ENDING_JE`); two guards read them (`every-server-u-has-its-je`,
+  `a-persons-link-says-je-where-their-pages-do`).
+- **T10 and T15, step B:** the tester guide's part for a family member's link, in both languages,
+  names the form and what the page shows of the sender; `docs/grant-links.md` follows; the
+  changelog. **The privacy text is not changed:** §14 asks the owner first whether a change in
+  place under 1.0 still holds. The sentences proposed for it are in the pull request, for the
+  owner and the lawyer.
+- **Still the owner's:** reading the new Dutch (the pull request's table), the privacy question,
+  and E2E, which the maintainer dispatches.
+
 **2026-11-26, the owner's read of #2189's Dutch:** *"#2189: ok"*. Every drafted sentence
 stands, and *Everything on one page* stays without the password card, as advised.
 
