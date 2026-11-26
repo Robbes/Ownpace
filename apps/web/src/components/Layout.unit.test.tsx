@@ -354,6 +354,13 @@ describe('the header on per-mapping routes (T3)', () => {
     renderLayout('/docs');
     expect(within(screen.getByRole('banner')).getByRole('heading', { level: 1, name: 'Help' })).toBeInTheDocument();
   });
+
+  // Recommend someone and the operator's Gifts draw their own h1 (workplans 0172, 0177).
+  it.each(['/give', '/gifts'])('is not a second h1 on %s either', (path) => {
+    authState.user = { name: 'A', email: 'a@acme.test', role: 'owner' };
+    renderLayout(path);
+    expect(within(screen.getByRole('banner')).queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
 });
 
 describe('the Ownpace mark, and the language switch, in the sidebar', () => {
