@@ -36,7 +36,14 @@ import type { ProgressPageUrl } from './progress-page-url.ts';
 /** What the ending page shows: a refusal and what is true of the link, or the grant. */
 export type LinkEndingPage =
   | { readonly status: number; readonly ok: false; readonly reason: Bilingual | string; readonly link?: 'works' | 'unused' }
-  | { readonly status: 200; readonly ok: true; readonly permission: RecordedPermission; readonly progressUrl?: ProgressPageUrl };
+  | {
+      readonly status: 200;
+      readonly ok: true;
+      readonly permission: RecordedPermission;
+      readonly progressUrl?: ProgressPageUrl;
+      /** A person's link with accounts left to connect (`grantResultPage`'s `more`). */
+      readonly more?: { readonly left: number; readonly backUrl: string };
+    };
 
 /** What is the provider's own in an ending. */
 export interface LinkEndingProvider {
@@ -156,5 +163,26 @@ export async function decideLinkEnding(
   const progressUrl = pending.personLink
     ? await effects.afterPerson(pending.personLink, 'granted' in stored ? stored.granted : [])
     : await effects.afterMigration(pending.link!);
-  return progressUrl ? { status: 200, ok: true, permission, progressUrl } : { status: 200, ok: true, permission };
+  const more = moreToConnect(pending.personLink, stored);
+  return {
+    status: 200,
+    ok: true,
+    permission,
+    ...(progressUrl ? { progressUrl } : {}),
+    ...(more ? { more } : {}),
+  };
+}
+
+/**
+ * What a person's ending says is left (the owner's decisions of 2026-11-26):
+ * the accounts on the link still to connect, and the grant page to go back
+ * to, while the link is not spent. None for a migration's link, a spent one,
+ * or a deployment that names no web address.
+ */
+export function moreToConnect(
+  personLink: { readonly backUrl?: string } | undefined,
+  stored: { readonly ok: true } & Partial<{ readonly left: number; readonly linkSpent: boolean }>,
+): { readonly left: number; readonly backUrl: string } | undefined {
+  if (!personLink?.backUrl || stored.linkSpent || !stored.left || stored.left <= 0) return undefined;
+  return { left: stored.left, backUrl: personLink.backUrl };
 }

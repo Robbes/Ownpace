@@ -174,6 +174,13 @@ export const en = {
   'access.tierHint':
     'A guess is fine. The package follows what actually runs, so this is not binding.',
   'access.tierUnsure': 'Not sure yet',
+  // Each package by its name in the page's language (the owner's decisions of
+  // 2026-11-26); the form still sends ADR-0014's English name.
+  'access.tier.free': 'Free',
+  'access.tier.small': 'Small',
+  'access.tier.medium': 'Medium',
+  'access.tier.large': 'Large',
+  'access.tier.extraLarge': 'Extra large',
   'access.submit': 'Send request',
   'access.submitNeeds': 'Fill in your email address first.',
   'access.sending': 'Sending…',
@@ -308,6 +315,11 @@ export const nl: Record<keyof typeof en, string> = {
   'access.tierHint':
     'Een inschatting volstaat; het pakket volgt wat werkelijk draait, dus dit is niet bindend.',
   'access.tierUnsure': 'Nog niet zeker',
+  'access.tier.free': 'Gratis',
+  'access.tier.small': 'Klein',
+  'access.tier.medium': 'Middel',
+  'access.tier.large': 'Groot',
+  'access.tier.extraLarge': 'Extra groot',
   'access.submit': 'Aanvraag versturen',
   'access.submitNeeds': 'Vul eerst uw e-mailadres in.',
   'access.sending': 'Versturen…',

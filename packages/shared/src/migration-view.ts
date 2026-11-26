@@ -162,8 +162,27 @@ export interface MigrationView {
 /** See `MigrationView.grant`. */
 export type ViewGrant =
   | { readonly state: 'granted' }
-  | { readonly state: 'withdrawn'; readonly withdrawnAt: string }
+  | ({ readonly state: 'withdrawn'; readonly withdrawnAt: string } & WhatStopped)
   | { readonly state: 'none' };
+
+/**
+ * WHAT A WITHDRAWAL STOPPED (the owner's decisions of 2026-11-26, change 1).
+ *
+ * `grant_withdrawn_at` holds a migration whichever side was taken back: the
+ * source's access (`withdraw-grant.ts`, a person's *Withdraw access*) or a
+ * destination's password (`withdrawPersonDestination`, 0174 §4.3). The page
+ * says different things for the two: *you withdrew the access you gave* is
+ * untrue when the person only removed a destination's password. `source`
+ * when the source's access went; `destination`, with the destination's kind,
+ * when its password did. Absent from a server before alpha.21, which read
+ * every hold as the source's, and read so.
+ */
+export type WhatStopped =
+  | { readonly what?: 'source' }
+  | { readonly what: 'destination'; readonly destination: string };
+
+/** A held migration: when, and what was taken back (see `WhatStopped`). */
+export type ViewStopped = { readonly at: string } & WhatStopped;
 
 /**
  * What the page says about the grant, from the two columns that decide it.
@@ -172,11 +191,15 @@ export type ViewGrant =
  * stands, nothing reads the account (`grantWithdrawnRefusal`), so offering to
  * withdraw it again would offer something that is already true.
  */
-export function viewGrantFor(row: {
-  readonly sourceSecretRef: string | null;
-  readonly grantWithdrawnAt: Date | null;
-}): ViewGrant {
-  if (row.grantWithdrawnAt) return { state: 'withdrawn', withdrawnAt: row.grantWithdrawnAt.toISOString() };
+export function viewGrantFor(
+  row: {
+    readonly sourceSecretRef: string | null;
+    readonly grantWithdrawnAt: Date | null;
+  },
+  /** What the withdrawal took back, where it is known (`WhatStopped`). */
+  stopped: WhatStopped = {},
+): ViewGrant {
+  if (row.grantWithdrawnAt) return { state: 'withdrawn', withdrawnAt: row.grantWithdrawnAt.toISOString(), ...stopped };
   return row.sourceSecretRef ? { state: 'granted' } : { state: 'none' };
 }
 
@@ -430,6 +453,14 @@ export interface PersonViewMigration {
   readonly time?: ViewTime;
   /** The `ref` of the account it reads, or null when it reads none through a link. */
   readonly account: string | null;
+  /**
+   * Present while a withdrawal holds it (`grant_withdrawn_at`): when, and
+   * whether the source's access or a destination's password was taken back
+   * (the owner's decisions of 2026-11-26, change 1). A migration into a
+   * destination whose password was removed is held while its account's
+   * access is still given, so this is per migration, not per account.
+   */
+  readonly stopped?: ViewStopped;
 }
 
 /** One Google account a person's migrations read. */

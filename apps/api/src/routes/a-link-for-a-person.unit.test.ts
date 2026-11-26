@@ -362,6 +362,8 @@ describe('the page a person’s link opens', () => {
         // Where it comes from, which a destination's card names (workplan 0174 §4.1).
         from: { provider: 'google', account: 'anna@gmail.com' },
         granted: false,
+        // The owner's own Nextcloud: they can open the copy too (the owner's decisions of 2026-11-26).
+        theOrganisationOpensIt: true,
       },
       {
         domains: ['contact'],
@@ -369,6 +371,8 @@ describe('the page a person’s link opens', () => {
         // Where it comes from, which a destination's card names (workplan 0174 §4.1).
         from: { provider: 'google', account: 'anna@gmail.com' },
         granted: false,
+        // The owner's own Nextcloud: they can open the copy too (the owner's decisions of 2026-11-26).
+        theOrganisationOpensIt: true,
       },
     ]);
     expect(accounts[1]).toMatchObject({ granted: false, domains: ['email'] });

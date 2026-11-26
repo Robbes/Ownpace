@@ -188,7 +188,7 @@ export const en = {
   // operator's chips, and every count says what it counts.
   'view.title': 'Your migration',
   'view.loading': 'One moment…',
-  'view.who': '{organisation} is migrating your account / content to a new provider.',
+  'view.who': '{organisation} is migrating your email, calendar and files to a new provider.',
   'view.state.active': 'Your things are being migrated across now.',
   'view.state.paused': 'Copying is on hold at the moment.',
   'view.state.cutover': 'Your new account is now the one in use.',
@@ -234,6 +234,11 @@ export const en = {
   // Taking the access back (workplan 0108 T8 (c)). The same reader and the same
   // words as the grant page: "access", given and withdrawn, second person.
   'view.state.withdrawn': 'Migrating stopped: on {date} you withdrew the access you gave.',
+  // A destination's password removed on the progress page (0174 §4.3) holds
+  // the migrations into it; it is not the source's access taken back (the
+  // owner's decisions of 2026-11-26, change 1, in the owner's words).
+  'view.state.destinationRemoved':
+    'The password for {destination} was removed on {date}, so copying into it waits. Your {source} account was not touched, and nothing was deleted. Whoever set this up can send you a new link.',
   'view.grant.title': 'The access you gave',
   'view.grant.body': '{organisation} reads your Google account for this migration because you allowed it.',
   'view.grant.whatHappens': 'Withdrawing stops the migrating. What was already copied over stays where it was copied to.',
@@ -623,7 +628,7 @@ export const nl: Record<keyof typeof en, string> = {
   'answer.unreachable': 'De dienst was niet bereikbaar. Controleer uw verbinding en probeer het opnieuw.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
-  'view.who': '{organisation} migreert uw account naar een nieuwe aanbieder.',
+  'view.who': '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder.',
   'view.state.active': 'De migratie is actief.',
   'view.state.paused': 'Het migreren ligt op dit moment stil.',
   'view.state.cutover': 'U bent overgestapt naar uw nieuwe omgeving.',
@@ -663,6 +668,8 @@ export const nl: Record<keyof typeof en, string> = {
   'view.until': 'Deze pagina werkt tot {date}.',
   'view.readOnly': 'Deze pagina toont alleen aantallen; er staat niets uit uw account op.',
   'view.state.withdrawn': 'Het migreren is gestopt: op {date} trok u de gegeven toegang in.',
+  'view.state.destinationRemoved':
+    'Het wachtwoord voor {destination} is op {date} verwijderd, dus het kopiëren wacht. Aan uw {source}-account is niets veranderd, en er is niets gewist. Wie dit voor u heeft ingesteld, kan u een nieuwe link sturen.',
   'view.grant.title': 'De toegang die u gaf',
   'view.grant.body': '{organisation} leest voor deze migratie uw Google-account, omdat u dat toestond.',
   'view.grant.whatHappens': 'Intrekken stopt de migratie. Wat al gemigreerd was, blijft waar het nu staat.',
@@ -705,7 +712,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Uw verbinding met Cirrux Drive is hier ook verwijderd. Cirrux Mail toont de apps die u toestond onder Settings → Security; daar kunt u die ook beëindigen.',
   'state.lifecycle.active': 'Actief',
   'state.lifecycle.paused': 'Gepauzeerd',
-  'state.lifecycle.cutover': 'Overgestapt',
+  'state.lifecycle.cutover': 'Bezig met overstappen',
   'state.lifecycle.done': 'Afgerond',
   'state.lifecycle.continuous': 'Doorlopend',
   'state.stage.not_started': 'Nog niet gestart',

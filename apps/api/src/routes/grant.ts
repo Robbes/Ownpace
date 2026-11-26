@@ -417,11 +417,30 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
           : { domains: a.ask.domains, scope: null, readOnlyAtProvider: false, notReady: null }
         : { domains: [], scope: null, readOnlyAtProvider: false, notReady: reasonPair(a.ask.reason) }),
       // For a source, where each goes; for a destination, where each comes from.
-      migrations: a.migrations.map((m) => ({ domains: m.domains, to: m.to, from: m.from, granted: m.granted })),
+      // And whether the organisation can open the copy too (change 3 of the owner's decisions of 2026-11-26).
+      migrations: a.migrations.map((m) => ({
+        domains: m.domains,
+        to: m.to,
+        from: m.from,
+        granted: m.granted,
+        theOrganisationOpensIt: m.destinationIsTheOrganisations,
+      })),
     })),
     expiresAt: link.expiresAt.toISOString(),
     addressChanges,
   });
+}
+
+/**
+ * The person's grant page, for the ending to go back to when more accounts
+ * are left to connect (the owner's decisions of 2026-11-26): the web address
+ * this link opens, from the link the authorize call came through. None when
+ * the deployment names no web address; the ending then offers no button.
+ */
+function grantPageBack(req: PersonLinkRequest): { backUrl?: string } {
+  const base = process.env.WEB_URL?.replace(/\/+$/, '');
+  const token = req.params.link;
+  return base && typeof token === 'string' && token !== '' ? { backUrl: `${base}/grant/${encodeURIComponent(token)}` } : {};
 }
 
 /**
@@ -501,6 +520,7 @@ async function authorizeForAPerson(
       personId: link.personId,
       account: account.account,
       mappingIds: account.migrations.map((m) => m.mappingId),
+      ...grantPageBack(req),
     },
     locale,
   });

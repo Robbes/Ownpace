@@ -45,6 +45,7 @@ import { Link, useSearchParams } from 'react-router';
 import { useMutation } from '@tanstack/react-query';
 import apiClient from '../services/api.ts';
 import { useT, useLocale } from '../i18n/index.tsx';
+import type { StringKey } from '../i18n/index.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import AlphaNote, { isAlpha } from '../components/AlphaNote.tsx';
 import SupportLine from '../components/SupportLine.tsx';
@@ -65,6 +66,15 @@ import { linkRefusal } from '../services/link-refusal.ts';
  * BILLED is derived from what actually runs (ADR-0014) and never from this.
  */
 const TIERS = ['Free', 'Small', 'Medium', 'Large', 'Extra large'] as const;
+
+/** Each tier's name on the page, in its language (the owner's decisions of 2026-11-26). */
+const TIER_NAME: Record<(typeof TIERS)[number], StringKey> = {
+  Free: 'access.tier.free',
+  Small: 'access.tier.small',
+  Medium: 'access.tier.medium',
+  Large: 'access.tier.large',
+  'Extra large': 'access.tier.extraLarge',
+};
 
 /**
  * THE TRAP (workplan 0093 T2d). A field a bot fills and a person never meets:
@@ -356,9 +366,11 @@ const RequestAccess: React.FC<{ readonly giftDoor?: boolean }> = ({ giftDoor = f
               className={field}
             >
               <option value="">{t('access.tierUnsure')}</option>
+              {/* Named in the page's language; the value is the English name the
+                  server stores and `?tier=` carries (the owner's decisions of 2026-11-26). */}
               {TIERS.map((name) => (
                 <option key={name} value={name}>
-                  {name}
+                  {t(TIER_NAME[name])}
                 </option>
               ))}
             </select>
