@@ -4,6 +4,24 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26: step B's informal Dutch, as a draft** (§23.2, *Beside it: the informal Dutch*;
+branch `claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-b-informal`, one draft pull
+request). The *je* twin of step A's Dutch, which the owner read (*"Step A (#2180): ok"*). A
+person's two pages say 289 keys. 124 of them say *u* or *uw* to the reader, and each has its twin
+in `apps/web/src/i18n/strings/informal.ts`. The other 165 need none.
+
+- **Nothing reads the layer yet.** T7's main line stores the register, sends it with the link's
+  answer, and reads the layer first (`index.tsx`, and `active-locale.ts` for the answers a
+  report can meet).
+- **The guard,** `apps/web/src/i18n/every-u-has-its-je.unit.test.ts`, reads the keys from the
+  code that draws the two pages. A new sentence there needs its twin at once. It holds each twin
+  to its sentence with only the pronouns turned, so a twin cannot go stale.
+- **The glossary's *Register*** says where *je* holds, and how a twin is made.
+- **Not here, as §23.2 says:** T3's and T8's new sentences, and the server's own (the endings, and
+  the refusals a person's link meets), which the main line twins in its own files.
+
+The owner reads the twins in the pull request. Still the owner's: T0 and T12.
+
 **2026-11-26, the owner's read of the block for families, and one word.** The owner: *"Families
 blot: ok. Use familielid (gezinslid is to limited to one household)"*. The block stands as built.
 Step A's new Dutch says *familielid*: the tester guide's part, now *Als een familielid een link
