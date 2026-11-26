@@ -127,7 +127,7 @@ const GiftCard: React.FC<{
         <h2 className="text-2xl font-bold text-gray-900 break-words">{title}</h2>
       </div>
       {/* The giver's own message, large: the one sentence a careful reader trusts (§6). */}
-      {message.trim() && <p className="whitespace-pre-line text-xl italic text-gray-900">{message.trim()}</p>}
+      {message.trim() && <p className="gift-message whitespace-pre-line text-xl italic text-gray-900">{message.trim()}</p>}
       <p className={CARD_SENTENCE}>{cardWord(locale, 'card.what')}</p>
       <p className={CARD_SENTENCE}>{cardWord(locale, 'card.alpha')}</p>
       <p className={CARD_SENTENCE}>{cardWord(locale, 'code.cost')}</p>
