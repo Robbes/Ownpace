@@ -435,35 +435,49 @@ export const OPERATOR_STRINGS = {
   'support.test.badge': 'Test',
   'support.test.migration':
     'A test migration: it copies only the items whose own title contains its marker, and is never finished. Its marker:',
-  // ---- Gifts (workplan 0172): the mark on the access queue, and the
-  // operator's own screen. The giver's screen and the card are in
-  // `strings/gifts.ts`, in both languages.
+  // ---- Recommendations (workplans 0172 and 0177): the mark on the access
+  // queue, the owner's line above it, and the operator's own screen, which
+  // keeps the name *Gifts*: a paid code joins it after the Alpha (0177 §13).
+  // The giver's screen, the card and the door are in `strings/gifts.ts`, in
+  // both languages. Drafts for the owner's read (0177 §20.6).
   'nav.gifts': 'Gifts',
-  'accessQueue.giftFrom': 'Gift from {giver}',
-  'accessQueue.giftFromNobody': 'Gift from a member who has since left',
+  'accessQueue.giftFrom': 'Recommended by {giver}',
+  'accessQueue.giftFromNobody': 'Recommended by a member who has since left',
+  // A request a code let in at the door (0177 D6): nobody decided it.
+  'accessQueue.letInByRecommendation': 'Let in with a recommendation, at the door. Nobody decided it.',
   'gifts.title': 'Gifts',
   'gifts.subtitle':
-    'Places in the Alpha given by people already in it. A redeemed gift is an access request, and you still decide each one in the access queue.',
+    'Recommendations made by people already in the Alpha. A code lets its person in at once, and you are mailed for each one.',
   'gifts.count.title': 'Who the Alpha has let in',
-  'gifts.count.granted': 'Requests granted',
-  'gifts.count.open': 'Requests waiting',
-  'gifts.count.openFromGifts': 'Of those, with a gift',
-  'gifts.count.unused': 'Gifts not yet used',
-  'gifts.count.noCap':
-    'Nothing refuses a grant past a number: the limit on how many people the Alpha lets in is yours to keep.',
-  'gifts.rule.title': 'Gifts per person',
-  'gifts.rule.help': 'How many gifts each person may give. 0 stops new gifts; unused ones keep working.',
+  // The two counts of 0177 §20.1, with their ceilings, and the cards not used yet.
+  'gifts.count.byOwner': 'People you let in: {n} of {max}',
+  'gifts.count.byRecommendation': 'People let in by a recommendation: {n} of {max}',
+  'gifts.count.unused': 'Cards not used yet: {n}',
+  // Said beside a count at its ceiling or past it, so that it stands out in words and not by colour alone.
+  'gifts.count.atCeiling': 'The number is reached.',
+  // Under the counts: what each ceiling does. Which of the two is said is the
+  // owner's D17 (`OWNERS_CEILING_REFUSES` in `Gifts.tsx`).
+  'gifts.count.rule':
+    'At its number a recommendation lets nobody in, and no new card is made. Nothing refuses your own yes past yours.',
+  'gifts.count.ruleRefused':
+    'At its number a recommendation lets nobody in, and no new card is made. At yours, a grant is refused until you raise it.',
+  'gifts.count.google':
+    'These count people. Google’s list of test users counts addresses, and ends at 100: each family member’s address and your own test addresses are on it too.',
+  'gifts.ceiling.owner': 'The most people you let in',
+  'gifts.ceiling.recommendation': 'The most people let in by a recommendation',
+  'gifts.rule.title': 'Recommendations per person',
+  'gifts.rule.help': 'How many people each person may recommend. 0 stops new cards; unused ones keep working.',
   'gifts.rule.save': 'Save',
   'gifts.allowance.title': 'For one person',
   'gifts.allowance.help':
     'A number for one person, by the address they sign in with, over the number for everyone. Leave the number empty to take theirs away.',
   'gifts.allowance.email': 'Address',
-  'gifts.allowance.gifts': 'Gifts',
+  'gifts.allowance.gifts': 'Recommendations',
   'gifts.allowance.note': 'Why (for you)',
   'gifts.allowance.save': 'Set',
   'gifts.allowance.none': 'Nobody has a number of their own.',
-  'gifts.list.title': 'Every gift',
-  'gifts.list.empty': 'No gift has been made yet.',
+  'gifts.list.title': 'Every card',
+  'gifts.list.empty': 'No card has been made yet.',
   'gifts.list.from': 'From {giver}',
   'gifts.list.fromNobody': 'From a member who has since left',
   'gifts.list.made': 'Made {date}, valid until {until}',
@@ -471,7 +485,7 @@ export const OPERATOR_STRINGS = {
   'gifts.list.requestGone': 'Its request is no longer kept',
   'gifts.list.revoke': 'Revoke',
   'gifts.state.unused': 'Unused',
-  'gifts.state.redeemed': 'Redeemed',
+  'gifts.state.redeemed': 'Used',
   'gifts.state.revoked': 'Revoked',
   'gifts.state.expired': 'Expired',
   'gifts.saved': 'Saved.',

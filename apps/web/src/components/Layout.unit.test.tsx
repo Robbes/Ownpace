@@ -524,11 +524,11 @@ describe("a member's menu", () => {
       .getAllByRole('link')
       .map((a) => a.textContent?.trim() ?? '');
 
-  it('is Migrations, Needs you, Accounts, Help, Team, Give Ownpace and Billing, in that order', () => {
+  it('is Migrations, Needs you, Accounts, Help, Team, Recommend someone and Billing, in that order', () => {
     authState.user = { name: 'Anna', email: 'anna@example.org', role: 'owner' };
     renderLayout('/mappings');
-    // Give Ownpace (workplan 0172): every member may give their gift.
-    expect(linkNames()).toEqual(['Migrations', 'Needs you', 'Accounts', 'Help', 'Team', 'Give Ownpace', 'Billing']);
+    // Recommend someone (workplans 0172, 0177): every member may recommend one person.
+    expect(linkNames()).toEqual(['Migrations', 'Needs you', 'Accounts', 'Help', 'Team', 'Recommend someone', 'Billing']);
   });
 
   it('has no Dashboard, no Connections, and no Attention any more', () => {

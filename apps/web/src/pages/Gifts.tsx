@@ -1,23 +1,32 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * The operator's gifts (workplan 0172 §3.5), in English only (ADR-0013 as
- * amended 2026-10-11: `operator-strings.ts`, inside `EnglishOnly`).
+ * The operator's gifts (workplans 0172 §3.5 and 0177 T16, §20), in English
+ * only (ADR-0013 as amended 2026-10-11: `operator-strings.ts`, inside
+ * `EnglishOnly`). The screen keeps the name *Gifts*: a paid code joins it
+ * after the Alpha (0177 §13). What is on it today is the free kind, a
+ * recommendation, which lets its person in at once (0177 D6).
  *
- * Three things the owner asked to see and do without a deploy:
+ * What the owner asked to see and set without a deploy:
  *
- *  - **How many people the Alpha has let in**, beside the requests waiting and
- *    the gifts not yet used, because the owner keeps the Alpha to their own
- *    number by hand: *"We start with Max 50 allowed users by myself."* Nothing
- *    refuses a grant past a number, and the screen says so rather than
- *    implying a cap.
- *  - **The limit**: gifts per person for everyone, and a number for one
+ *  - **The Alpha's two ceilings** (D16): *"alpha limited to 50 people I let
+ *    in, en 50 max someone invites (each let in user 1 invite)."* Two counts,
+ *    each with its number (§20.1): the people the owner let in, and the
+ *    people let in by a recommendation; and the cards not used yet, which
+ *    are places promised. A count at its number or past it stands out, in
+ *    words too. Two fields set the numbers (§20.2). Under them, what each
+ *    number does, and that both count people while Google's list of test
+ *    users counts addresses (§20.5).
+ *  - **The number each person may recommend**, for everyone and for one
  *    person by the address they sign in with.
- *  - **Every gift**, whose it is, what became of it, and *Revoke* on an
+ *  - **Every card**, whose it is, what became of it, and *Revoke* on an
  *    unused one.
  *
- * Like the access queue, nothing here authorises anything: managed migration
- * 0065's policies are the rule, so a typed URL by somebody else shows nothing
- * and changes nothing.
+ * Whether the owner's own number refuses a grant is the owner's D17, still
+ * open; until it is answered it is only shown, and the sentence under the
+ * counts says so. That choice is `OWNERS_CEILING_REFUSES`, below, and the
+ * server's own is the back's (0177 §19). Nothing here authorises anything:
+ * managed migration 0065's policies are the rule, so a typed URL by somebody
+ * else shows nothing and changes nothing.
  */
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -25,13 +34,25 @@ import { Gift as GiftIcon } from 'lucide-react';
 import { useOperatorT, useFormatters } from '../i18n/index.tsx';
 import type { OperatorKey } from '../i18n/operator-strings.ts';
 import { serverMessage } from '../services/api.ts';
+import { CeilingLine } from '../components/CeilingLine.tsx';
 import {
   listAllGifts,
   revokeAnyGift,
   setGiftAllowance,
-  setGiftsPerPerson,
+  setRuleNumber,
   type GiftState,
+  type RuleNumber,
 } from '../services/gifts.ts';
+
+/**
+ * THE OWNER'S D17, UNTIL IT IS ANSWERED (0177 §15.3): does the owner's own
+ * number refuse a 51st yes, or is it only shown? Until the owner answers, it
+ * is only shown, which both answers need anyway. An answer of (a) turns this
+ * to `true`, with the server's refusal of a grant (§19): then the sentence
+ * under the counts says that a grant is refused until the number is raised.
+ */
+const OWNERS_CEILING_REFUSES = false;
+
 
 const STATE_KEY = {
   unused: 'gifts.state.unused',
@@ -40,6 +61,68 @@ const STATE_KEY = {
   expired: 'gifts.state.expired',
 } as const satisfies Record<GiftState, OperatorKey>;
 
+/**
+ * One number of the rule's row (0177 §20.2): a whole number, nought or more,
+ * set through `PUT /api/gifts/operator/rule`, one field at a time. The
+ * current number is the field's placeholder; nothing is sent until Save.
+ */
+const RuleField: React.FC<{
+  readonly which: RuleNumber;
+  readonly label: string;
+  readonly current: number;
+  readonly onSaved: () => void;
+  readonly hiddenLabel?: boolean;
+}> = ({ which, label, current, onSaved, hiddenLabel = false }) => {
+  const t = useOperatorT();
+  const [value, setValue] = useState('');
+  const id = React.useId();
+  const save = useMutation({
+    mutationFn: () => setRuleNumber(which, Number(value)),
+    onSuccess: () => {
+      setValue('');
+      onSaved();
+    },
+  });
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate();
+      }}
+    >
+      <div>
+        <label htmlFor={id} className={hiddenLabel ? 'sr-only' : 'block text-xs text-gray-700'}>
+          {label}
+        </label>
+        <input
+          id={id}
+          type="number"
+          min={0}
+          step={1}
+          placeholder={String(current)}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="w-24 rounded-md border border-gray-500 px-3 py-2 text-sm"
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={save.isPending || !/^\d+$/.test(value)}
+        className="rounded-md bg-site-teal px-3 py-2 text-sm font-medium text-white hover:bg-site-teal/90 disabled:opacity-50"
+      >
+        {t('gifts.rule.save')}
+      </button>
+      {save.isSuccess && <span className="text-sm text-gray-600">{t('gifts.saved')}</span>}
+      {save.isError && (
+        <span role="alert" className="text-sm text-red-600">
+          {serverMessage(save.error)}
+        </span>
+      )}
+    </form>
+  );
+};
+
 const Gifts: React.FC = () => {
   const t = useOperatorT();
   const { dateTime } = useFormatters();
@@ -47,18 +130,10 @@ const Gifts: React.FC = () => {
   const all = useQuery({ queryKey: ['gifts', 'operator'], queryFn: listAllGifts });
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['gifts', 'operator'] });
 
-  const [perPerson, setPerPerson] = useState<string>('');
   const [email, setEmail] = useState('');
   const [gifts, setGifts] = useState('');
   const [note, setNote] = useState('');
 
-  const rule = useMutation({
-    mutationFn: () => setGiftsPerPerson(Number(perPerson)),
-    onSuccess: () => {
-      setPerPerson('');
-      refresh();
-    },
-  });
   const allowance = useMutation({
     mutationFn: () => setGiftAllowance(email.trim(), gifts.trim() === '' ? null : Number(gifts), note.trim() || undefined),
     onSuccess: () => {
@@ -92,24 +167,28 @@ const Gifts: React.FC = () => {
       )}
 
       {data && (
-        <section className="space-y-2">
+        <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
           <h2 className="text-lg font-semibold text-gray-900">{t('gifts.count.title')}</h2>
-          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {(
-              [
-                ['gifts.count.granted', data.alpha.granted],
-                ['gifts.count.open', data.alpha.open],
-                ['gifts.count.openFromGifts', data.alpha.openFromGifts],
-                ['gifts.count.unused', data.alpha.unusedGifts],
-              ] as const
-            ).map(([key, n]) => (
-              <div key={key} className="rounded-lg border border-gray-200 bg-white p-4">
-                <dt className="text-xs text-gray-600">{t(key)}</dt>
-                <dd className="text-2xl font-bold text-gray-900">{n}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="text-xs text-gray-500">{t('gifts.count.noCap')}</p>
+          <div className="space-y-2 text-sm">
+            <CeilingLine words={t('gifts.count.byOwner', { n: data.alpha.byOwner, max: data.alpha.ownerCeiling })} n={data.alpha.byOwner} max={data.alpha.ownerCeiling} />
+            <CeilingLine
+              words={t('gifts.count.byRecommendation', { n: data.alpha.byRecommendation, max: data.alpha.recommendationCeiling })}
+              n={data.alpha.byRecommendation}
+              max={data.alpha.recommendationCeiling}
+            />
+            <p className="text-gray-900">{t('gifts.count.unused', { n: data.alpha.unusedGifts })}</p>
+          </div>
+          <p className="text-sm text-gray-700">{t(OWNERS_CEILING_REFUSES ? 'gifts.count.ruleRefused' : 'gifts.count.rule')}</p>
+          <p className="text-sm text-gray-700">{t('gifts.count.google')}</p>
+          <div className="flex flex-wrap gap-6 pt-1">
+            <RuleField which="ownerCeiling" label={t('gifts.ceiling.owner')} current={data.alpha.ownerCeiling} onSaved={refresh} />
+            <RuleField
+              which="recommendationCeiling"
+              label={t('gifts.ceiling.recommendation')}
+              current={data.alpha.recommendationCeiling}
+              onSaved={refresh}
+            />
+          </div>
         </section>
       )}
 
@@ -117,36 +196,7 @@ const Gifts: React.FC = () => {
         <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
           <h2 className="text-lg font-semibold text-gray-900">{t('gifts.rule.title')}</h2>
           <p className="text-sm text-gray-600">{t('gifts.rule.help')}</p>
-          <form
-            className="flex flex-wrap items-center gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              rule.mutate();
-            }}
-          >
-            <label htmlFor="gifts-per-person" className="sr-only">
-              {t('gifts.rule.title')}
-            </label>
-            <input
-              id="gifts-per-person"
-              type="number"
-              min={0}
-              max={20}
-              placeholder={String(data.giftsPerPerson)}
-              value={perPerson}
-              onChange={(e) => setPerPerson(e.target.value)}
-              className={`${field} w-24`}
-            />
-            <button type="submit" disabled={rule.isPending || perPerson === ''} className={button}>
-              {t('gifts.rule.save')}
-            </button>
-            {rule.isSuccess && <span className="text-sm text-gray-600">{t('gifts.saved')}</span>}
-            {rule.isError && (
-              <span role="alert" className="text-sm text-red-600">
-                {serverMessage(rule.error)}
-              </span>
-            )}
-          </form>
+          <RuleField which="giftsPerPerson" label={t('gifts.rule.title')} hiddenLabel current={data.giftsPerPerson} onSaved={refresh} />
 
           <h3 className="pt-2 font-semibold text-gray-900">{t('gifts.allowance.title')}</h3>
           <p className="text-sm text-gray-600">{t('gifts.allowance.help')}</p>

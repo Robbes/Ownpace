@@ -32,6 +32,17 @@
  * Declined requests are not deleted and cannot be: nobody, operator included,
  * has DELETE on that table. The queue is a record of what was asked and what
  * was decided, and a screen that offered to erase one would be lying about it.
+ *
+ * **How many people the owner has let in** (workplan 0177 T16, §20.4): *People
+ * you let in: n of max*, above the requests, read from the operator's gifts
+ * answer (§19), which counts them the way the *Gifts* screen does. At the
+ * number and past it the line stands out, in words too. Nothing here refuses
+ * a grant past it: that is the owner's D17, still open.
+ *
+ * **A request a recommendation let in** (0177 D6): a code lets its person in
+ * at the door, with nobody named as having decided it. Such a request is one
+ * a card points to, granted, with no one in `decidedBy`, and it says so
+ * instead of *Decided by*.
  */
 
 import React, { useState } from 'react';
@@ -49,6 +60,8 @@ import {
 } from '../services/access-requests.ts';
 import { useOperatorT, useFormatters } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
+import { CeilingLine } from '../components/CeilingLine.tsx';
+import { listAllGifts } from '../services/gifts.ts';
 import type { OperatorKey } from '../i18n/operator-strings.ts';
 
 const TABS: ReadonlyArray<RequestState> = ['open', 'granted', 'declined'];
@@ -73,6 +86,10 @@ const MAIL_LINE = {
   failed: 'accessQueue.mailFailed',
   skipped: 'accessQueue.mailSkipped',
 } as const satisfies Record<NotifiedOutcome, OperatorKey>;
+
+/** A request a code let in at the door (0177 D6): a card points to it, it is granted, and nobody decided it. */
+const letInAtTheDoor = (request: AccessRequest): boolean =>
+  request.state === 'granted' && request.gift !== null && request.decidedBy === null;
 
 /** One request, with the decision controls when it is still open. */
 const RequestCard: React.FC<{
@@ -178,13 +195,19 @@ const RequestCard: React.FC<{
         </p>
       )}
 
-      {!open && (
-        <p className="text-xs text-gray-500">
-          {t('accessQueue.decidedBy')} {request.decidedBy}
-          {request.decidedAt ? ` · ${dateTime(request.decidedAt)}` : ''}
-          {request.decisionNote ? ` · ${request.decisionNote}` : ''}
-        </p>
-      )}
+      {!open &&
+        (letInAtTheDoor(request) ? (
+          <p className="text-xs text-gray-700">
+            {t('accessQueue.letInByRecommendation')}
+            {request.decidedAt ? ` · ${dateTime(request.decidedAt)}` : ''}
+          </p>
+        ) : (
+          <p className="text-xs text-gray-500">
+            {t('accessQueue.decidedBy')} {request.decidedBy}
+            {request.decidedAt ? ` · ${dateTime(request.decidedAt)}` : ''}
+            {request.decisionNote ? ` · ${request.decisionNote}` : ''}
+          </p>
+        ))}
 
       {open && (
         <div className="space-y-3 pt-1">
@@ -333,6 +356,8 @@ const AccessRequests: React.FC = () => {
     queryKey: ['access-requests', tab],
     queryFn: () => listAccessRequests(tab),
   });
+  // The owner's count and number, from the answer the Gifts screen reads (0177 §19).
+  const alpha = useQuery({ queryKey: ['gifts', 'operator'], queryFn: listAllGifts }).data?.alpha;
 
   const refresh = (decision: Decision) => {
     // The card that knew the outcome is about to unmount — deciding a request
@@ -354,6 +379,15 @@ const AccessRequests: React.FC = () => {
           <p className="text-sm text-gray-600">{t('accessQueue.subtitle')}</p>
         </div>
       </div>
+
+      {alpha && (
+        <CeilingLine
+          className="text-sm"
+          words={t('gifts.count.byOwner', { n: alpha.byOwner, max: alpha.ownerCeiling })}
+          n={alpha.byOwner}
+          max={alpha.ownerCeiling}
+        />
+      )}
 
       <div className="flex gap-2" role="tablist">
         {TABS.map((state) => (
