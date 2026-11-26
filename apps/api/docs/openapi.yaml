@@ -4706,6 +4706,16 @@ paths:
                             properties:
                               state: { type: string, enum: [withdrawn] }
                               withdrawnAt: { type: string, format: date-time }
+                              what:
+                                type: string
+                                enum: [source, destination]
+                                description: |
+                                  What was taken back (the owner's decisions of 2026-11-26): the
+                                  source's access, or a destination's password. Read from the
+                                  withdrawal's audit row. Absent from a server before alpha.21.
+                              destination:
+                                type: string
+                                description: With `what` destination, the destination's kind, to name it.
                           - type: object
                             required: [state]
                             properties:
@@ -10486,6 +10496,17 @@ components:
                 description: When the check passed (workplan 0154 T8); absent unless it passed.
               time: { $ref: '#/components/schemas/ProgressTime' }
               account: { type: string, nullable: true, description: "The ref of the Google account it reads; null when it reads none through a link." }
+              stopped:
+                type: object
+                description: |
+                  Present while a withdrawal holds the migration (the owner's decisions of
+                  2026-11-26): when, and whether the source's access or a destination's
+                  password was taken back.
+                required: [at]
+                properties:
+                  at: { type: string, format: date-time }
+                  what: { type: string, enum: [source, destination] }
+                  destination: { type: string, description: "With `what` destination, the destination's kind." }
         accounts:
           type: array
           items:
@@ -10504,6 +10525,8 @@ components:
                     properties:
                       state: { type: string, enum: [withdrawn] }
                       withdrawnAt: { type: string, format: date-time }
+                      what: { type: string, enum: [source, destination], description: "What the latest withdrawal took back." }
+                      destination: { type: string, description: "With `what` destination, the destination's kind." }
                   - type: object
                     required: [state]
                     properties:

@@ -82,6 +82,34 @@ import { TimeWhileCopyingLine } from '../components/TimeWhileCopyingLine.tsx';
 /** The grant a page may take back: a migration's, or one account's on a person's page. */
 type PageGrant = MigrationViewPayload['grant'];
 
+/** What a withdrawal holding a migration took back, as the page reads it. */
+type PageStopped = { readonly at: string; readonly what?: 'source' | 'destination' | undefined; readonly destination?: string | undefined };
+
+/** A page's grant as what stopped, or null when nothing was taken back. */
+const stoppedOf = (grant: PageGrant): PageStopped | null =>
+  grant.state === 'withdrawn' ? { at: grant.withdrawnAt, what: grant.what, destination: grant.destination } : null;
+
+/**
+ * THE SENTENCE FOR A HELD MIGRATION (the owner's decisions of 2026-11-26,
+ * change 1): the source's access withdrawn keeps its sentence; a
+ * destination's password removed says so, names the destination, and says
+ * the source was not touched. Null when nothing stopped.
+ */
+function useStoppedSentence(stopped: PageStopped | null, from: string | undefined): string | null {
+  const t = useT();
+  const { locale } = useLocale();
+  const { dateTime } = useFormatters();
+  if (!stopped) return null;
+  if (stopped.what === 'destination' && stopped.destination) {
+    return t('view.state.destinationRemoved', {
+      destination: providerName(stopped.destination, 'target', locale),
+      date: dateTime(stopped.at),
+      source: providerName(from ?? '', 'source', locale),
+    });
+  }
+  return t('view.state.withdrawn', { date: dateTime(stopped.at) });
+}
+
 /**
  * A person's page, told apart by the `kind` the server sends. A local guard,
  * not one from the service: this page's tests mock the service whole.
@@ -284,6 +312,11 @@ const TheAccessTheyGave: React.FC<{
     );
   }
 
+  // A destination's password removed (change 1 of the owner's decisions of
+  // 2026-11-26): the source's access was not taken back, so this section
+  // does not say it was, nor where to check it.
+  if (grant.state === 'withdrawn' && grant.what === 'destination') return null;
+
   if (grant.state === 'withdrawn') {
     return (
       <section className={frame}>
@@ -482,8 +515,10 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
 }) => {
   const t = useT();
   const { locale } = useLocale();
-  const { dateTime, list } = useFormatters();
+  const { list } = useFormatters();
   const from = providerName(migration.from, 'source', locale);
+  // Its own hold where the server says it (alpha.21), else its account's, as before.
+  const stopped = useStoppedSentence(migration.stopped ?? stoppedOf(grant), migration.from);
   const route = migration.to ? t('view.person.route', { from, to: providerName(migration.to, 'target', locale) }) : from;
   return (
     <div className="mt-4">
@@ -495,14 +530,11 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
             })
           : route}
       </h3>
-      {/* A withdrawn grant is the whole story, as on a migration's page. */}
-      <p className="mt-1 text-gray-900">
-        {grant.state === 'withdrawn'
-          ? t('view.state.withdrawn', { date: dateTime(grant.withdrawnAt) })
-          : t(STATE_SENTENCE[migration.state])}
-      </p>
+      {/* A withdrawal is the whole story, as on a migration's page. */}
+      <p className="mt-1 text-gray-900">{stopped ?? t(STATE_SENTENCE[migration.state])}</p>
+      {/* Stopped is not "not started yet, nothing has gone wrong" (change 1). */}
       {!migration.started ? (
-        <p className="mt-1 text-sm text-gray-600">{t('view.notStarted')}</p>
+        stopped ? null : <p className="mt-1 text-sm text-gray-600">{t('view.notStarted')}</p>
       ) : (
         <ul className="mt-2">
           {migration.domains.map((row) => (
@@ -514,8 +546,8 @@ const PersonMigration: React.FC<{ migration: PersonViewMigration; grant: PageGra
           ))}
         </ul>
       )}
-      {/* A withdrawn grant reads nothing, so there is nothing to wait for. */}
-      {grant.state !== 'withdrawn' && <HowLong time={migration.time} from={migration.from} />}
+      {/* A held migration copies nothing, so there is nothing to wait for. */}
+      {!stopped && <HowLong time={migration.time} from={migration.from} />}
     </div>
   );
 };
@@ -613,6 +645,7 @@ const View: React.FC = () => {
 
   const person = view.data && isPersonView(view.data) ? view.data : null;
   const one = view.data && !isPersonView(view.data) ? view.data : null;
+  const stopped = useStoppedSentence(one ? stoppedOf(one.grant) : null, one?.from);
   const moved = one?.domains.reduce((sum, d) => sum + d.bytesTransferred, 0) ?? 0;
 
   // The tab's name goes back to what it was when this page leaves, so the
@@ -674,14 +707,11 @@ const View: React.FC = () => {
           {/* A withdrawn grant is the whole story until somebody grants again:
               the lifecycle may still say active, and "your things are being
               copied across now" would be untrue. */}
-          <p className="mt-3 text-lg text-gray-900">
-            {one.grant.state === 'withdrawn'
-              ? t('view.state.withdrawn', { date: dateTime(one.grant.withdrawnAt) })
-              : t(STATE_SENTENCE[one.state])}
-          </p>
+          <p className="mt-3 text-lg text-gray-900">{stopped ?? t(STATE_SENTENCE[one.state])}</p>
 
+          {/* Stopped is not "not started yet, nothing has gone wrong" (change 1). */}
           {!one.started ? (
-            <Hint
+            stopped ? null : <Hint
               className="mt-4"
               tone="body"
               text={t('view.notStarted')}
@@ -705,7 +735,7 @@ const View: React.FC = () => {
               )}
             </>
           )}
-          {one.grant.state !== 'withdrawn' && <HowLong time={one.time} from={one.from} />}
+          {!stopped && <HowLong time={one.time} from={one.from} />}
 
           {link && <TheAccessTheyGave link={link} grant={one.grant} organisation={one.organisation} />}
           {/* Report this link (0108 T8 (d)), for somebody who granted and then

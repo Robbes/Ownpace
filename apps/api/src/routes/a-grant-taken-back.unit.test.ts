@@ -197,9 +197,10 @@ describe('withdrawing', () => {
         detail: { mappingId: GRANTED, linkId: view.id, atGoogle: 'revoked' },
       },
     ]);
-    // The page now says when, and offers nothing more.
+    // The page now says when, that it was the source's access (the owner's
+    // decisions of 2026-11-26, change 1), and offers nothing more.
     const after = await request(app).get(`/api/view/${view.token}`);
-    expect(after.body.grant).toEqual({ state: 'withdrawn', withdrawnAt: res.body.withdrawnAt });
+    expect(after.body.grant).toEqual({ state: 'withdrawn', withdrawnAt: res.body.withdrawnAt, what: 'source' });
   });
 
   it('deletes it here when Google refuses, and says Google did not confirm', async () => {
