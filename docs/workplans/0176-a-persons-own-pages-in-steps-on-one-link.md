@@ -4,6 +4,31 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26: step A, built as one draft pull request**
+(`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-a`), on §21.4's scope with the
+answers to D12 to D14. Part 4 of §23.1, the website and documents with the accessibility
+statement (T15, T9.9), was built beside it and merged in at the meet. E2E is the maintainer's to
+dispatch.
+
+- **T1:** a person's link asks one thing per screen (`PersonGrant.tsx`): who asks, with the
+  question and *No, not yet*; the accounts, where there is more than one; *Have this ready*;
+  *What you will see at {provider}*, with D12 (a)'s warning in our own words during the Alpha;
+  and *No, rather not*. Each step is a history entry with its own `h1`, focus, tab title and
+  *Step n of m*. The answer is kept for the tab, under the link's id. A migration's own link
+  is unchanged.
+- **T2:** *kopiëren* on a person's two pages (D1), in the server's ending after a sign-in and in
+  the refusals a person's link meets; each names the provider signed in to. D14 (a) through
+  `persons-page.tsx`: the member's screens keep their words.
+- **T5 and T6, first halves:** *Stop copying* opens its question as a screen, with two answers of
+  one size, then what the provider answered, per provider. The progress page says first whether
+  anything is needed, shows no price, and refreshes once a minute.
+- **T9:** the UI smoke measures text size, contrast and targets at 390 and 320 pixels.
+- **D13 (a):** the line where the link is made, and thirty days first.
+
+Each test §21.4 names was written first and seen failing on `main`; the pull request records
+it, with the table of new Dutch sentences for the owner's read (§6). Still the owner's: that
+read, D16 to D18, T0 and T12.
+
 **2026-11-26, the owner's answers to the sweep's decisions (T14).** On D12 to D15 the owner
 answered: *"D12: a / D13: a / D14: yes / D15: a"*. All four went as advised (§18):
 
