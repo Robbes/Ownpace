@@ -510,8 +510,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   tags), the binfmt and BuildKit images `images.yml` names in its actions' inputs (against the
   digest of the channel each action ran before, `latest` and `buildx-stable-1`), the hadolint
   image `hadolint.yml` runs (against Docker Hub's tags of its shape and major), the Semgrep image
-  `semgrep.yml` runs (the same way), the zizmor image `zizmor.yml` runs (against ghcr.io's tags of
-  its shape and major), and the squawk release `migration-locks.yml` installs (against upstream's
+  `semgrep.yml` runs (the same way), the Schemathesis image `schemathesis.yml` runs (the same
+  way), the zizmor image `zizmor.yml` runs (against ghcr.io's tags of its shape and major), and the squawk release `migration-locks.yml` installs (against upstream's
   git tags) share one summary issue (the MinIO row in it, and the tasks' prebuilt base's, went
   with alpha.18); another image a script there
   runs is not compared (none today: `db-roles.sh` reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
@@ -598,6 +598,34 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   its time-outs leave `main`'s runs finished; the two ReDoS rules, `detect-non-literal-regexp` and
   `detect-redos`, never do. Held by `scripts/a-finding-only-an-outside-check-saw.unit.test.ts`,
   which runs the report against a stubbed docker.
+- `schemathesis.yml` — **Schemathesis against the API, nightly on `main` and on dispatch, report
+  only; it blocks nothing yet** (workplan 0178 T7, the owner's decisions D3 (a) and D4 (a) of
+  2026-11-26). Not on pull requests and not a required check: that is T8, after 14 quiet nights,
+  and then only `ignored_auth` and `not_a_server_error` block. On a GitHub-hosted runner only,
+  never the self-hosted one, and never against the managed E2E's stack, the live service or the
+  acceptance stack. The job composes its own stack, every container of it in one network namespace
+  with nothing but loopback (Postgres with `--network none`, the rest joined to it), so nothing
+  reaches past the runner: Postgres from `deploy/compose/postgres/Dockerfile`'s base, the API from
+  the checkout on `apps/api/Dockerfile`'s base, both migration chains and the demo seed's two
+  organisations (`apps/api/src/scripts/seed-managed.ts`), the API connected as `app_user`, local
+  sign-in with a signing secret the run makes and masks, and tokens it signs for the seeded
+  owners. It reads no repository secret. The API needs nothing else to start, so no fake is
+  composed. Schemathesis 4.34.0, by the tag and index digest `SCHEMATHESIS_IMAGE` names, scans
+  every operation of `apps/api/docs/openapi.yaml`, with a token and without, for `ignored_auth`,
+  `not_a_server_error`, `status_code_conformance` and `response_schema_conformance`, at most 100
+  cases per operation. **The proof runs first**: the same scan against
+  `scripts/fixtures/schemathesis-known-bad/`, a server with one secured operation that answers
+  without a token and one that answers 500, must flag both, or the API's scan is not believed. The
+  job fails only when the scan did not finish (an image unpulled, the stack not up, a report
+  missing or stopped early, an operation untested, or the proof not holding). Its summary counts
+  each check and lists the operations each flagged, except `ignored_auth`'s on the API, which are
+  counted and never named, since the summary is public and such an operation may be a door that
+  answers without sign-in. **To see them**, run the same scan on a stack of your own with the
+  run's seed (dispatch the workflow with `seed`, or locally: `./scripts/local-pg.sh up`, a new
+  empty database on it, `seed-managed.ts` against it, the API started with `JWT_SECRET` of your
+  own, and Schemathesis with `--seed <the run's seed>`), and hand a real one to the maintainer
+  privately. Held by `scripts/a-scan-that-tried-the-running-api.unit.test.ts`, which runs the
+  report against a stubbed docker; its pin is the pin watch's row `schemathesis/schemathesis`.
 - `migration-locks.yml` — on a pull request and a push to `main` that touch either migration chain,
   the workflow or its script, and on dispatch, on a GitHub-hosted runner, never a required check
   (workplan 0165): squawk 2.74.0, the static musl build from its GitHub release, checked by its

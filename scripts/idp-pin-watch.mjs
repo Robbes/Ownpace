@@ -79,6 +79,9 @@
  *                      Hub's tags of its shape and major; and the
  *                      Semgrep image semgrep.yml scans the tree with
  *                      (`SEMGREP_IMAGE`, 2026-11-21), the same way; and the
+ *                      Schemathesis image schemathesis.yml scans the
+ *                      running API with (`SCHEMATHESIS_IMAGE`, 2026-11-26),
+ *                      the same way; and the
  *                      zizmor image zizmor.yml audits the workflows with
  *                      (`ZIZMOR_IMAGE`, 2026-11-20), against ghcr.io's tags
  *                      of its shape and major; and the
@@ -285,6 +288,33 @@ export function semgrepPin(text) {
   const [image] = named;
   if (image.repo !== 'semgrep/semgrep' || !/^\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
     throw new Error(`${SEMGREP_WORKFLOW} names ${image.ref}, not semgrep/semgrep by a release tag and its index digest`);
+  }
+  return image;
+}
+
+/**
+ * The Schemathesis `schemathesis.yml` scans the running API with, report only
+ * (workplan 0178 T7, the owner's decisions D3 and D4 of 2026-11-26): its
+ * job's one `SCHEMATHESIS_IMAGE:` line. Dependabot reads no workflow env, so
+ * this row is what says a newer release is tagged.
+ */
+export const SCHEMATHESIS_WORKFLOW = '.github/workflows/schemathesis.yml';
+
+/** Said beside the Schemathesis row when it is behind. */
+export const SCHEMATHESIS_NOTE =
+  "move `SCHEMATHESIS_IMAGE` in schemathesis.yml by tag and index digest, with the comment above it and `SCHEMATHESIS` in a-scan-that-tried-the-running-api saying what was read, in a pull request of its own three days after the tag's push; a newer Schemathesis can generate other cases and name its failures by other codes (`CODES` in scripts/schemathesis-report.mjs), so dispatch the workflow on that branch and read its summary";
+
+/**
+ * The image `schemathesis.yml` runs: its one `SCHEMATHESIS_IMAGE:` line, as
+ * `schemathesis/schemathesis:<x.y.z>@sha256:…`. None, two, another image or
+ * no digest is an error, never "current".
+ */
+export function schemathesisPin(text) {
+  const named = [...text.matchAll(/^\s*SCHEMATHESIS_IMAGE:\s*(\S+)\s*$/gm)].map((m) => parseRef(m[1]));
+  if (named.length !== 1) throw new Error(`${SCHEMATHESIS_WORKFLOW} sets SCHEMATHESIS_IMAGE ${named.length} times, not once`);
+  const [image] = named;
+  if (image.repo !== 'schemathesis/schemathesis' || !/^\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
+    throw new Error(`${SCHEMATHESIS_WORKFLOW} names ${image.ref}, not schemathesis/schemathesis by a release tag and its index digest`);
   }
   return image;
 }
@@ -1649,6 +1679,17 @@ export async function routineRows(repo, net) {
     const newest = newestLike(image.tag, await tagsFor(image.repo));
     const state = stateOf(image.tag, newest);
     return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [SEMGREP_NOTE] } : {}) };
+  }]);
+
+  // Schemathesis (0178 T7, 2026-11-26): the image schemathesis.yml scans the
+  // running API with, against Docker Hub's newest tag of its shape and major
+  // (an `<x.y.z>`, never a `v`-prefixed copy, a `-trixie` build, `stable` or
+  // `latest`).
+  jobs.push(['schemathesis/schemathesis', SCHEMATHESIS_WORKFLOW, async () => {
+    const image = schemathesisPin(need(repo, SCHEMATHESIS_WORKFLOW));
+    const newest = newestLike(image.tag, await tagsFor(image.repo));
+    const state = stateOf(image.tag, newest);
+    return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [SCHEMATHESIS_NOTE] } : {}) };
   }]);
 
   // zizmor (0119, 2026-11-20): the image zizmor.yml audits the workflows with,

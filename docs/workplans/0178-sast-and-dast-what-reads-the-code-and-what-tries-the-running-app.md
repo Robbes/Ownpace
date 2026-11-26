@@ -4,6 +4,35 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, T7 built (report only, not yet run on a hosted runner).** `.github/workflows/schemathesis.yml`
+runs `scripts/schemathesis-report.mjs` nightly on `main` and on dispatch, held by
+`scripts/a-scan-that-tried-the-running-api.unit.test.ts`. What was found and decided while building it:
+
+- **The API starts alone.** With Postgres and nothing else, in local sign-in mode, measured on
+  this checkout: both chains applied, `/health` answering, a seeded owner's token accepted by
+  `/api/me`. So §12's risk did not happen, and no fake is composed.
+- **One network namespace, loopback only.** Postgres runs with `--network none` and the API, the
+  fixture and Schemathesis join it, so the kernel gives nothing a route out, not even a host
+  Schemathesis made up for a connection test. Postgres and Node are not pinned in the workflow:
+  they are read from `deploy/compose/postgres/Dockerfile` and `apps/api/Dockerfile`'s `base`,
+  which Dependabot moves. The API connects as `app_user`, whose password the run sets.
+- **Schemathesis 4.34.0, not 4.34.2:** 4.34.2 was pushed on 2026-11-24, inside the three-day
+  floor. The pin watch's new row `schemathesis/schemathesis` lists 4.34.2 as newer.
+- **The proof:** `scripts/fixtures/schemathesis-known-bad/`, run first in every run. Measured
+  locally with 4.34.0: both faults flagged. The guard is red when either is taken out of what
+  Schemathesis flagged, and a run whose proof does not hold never scans the API.
+- **What the public summary names.** Every check is counted. `ignored_auth`'s operations on the
+  API are counted and never named, because the summary is public; the seed is given so that a
+  run can be repeated on a stack of one's own (docs/testing.md).
+- **The first list, measured locally** at 100 cases per operation (1 min 53 s, 200 operations):
+  `ignored_auth` 1, `not_a_server_error` 65, `status_code_conformance` 64,
+  `response_schema_conformance` 27. The server errors read so far are ids that are not UUIDs
+  reaching Postgres, which answers *invalid input syntax for type uuid*, and the API then
+  answers 500. The one `ignored_auth` is the maintainer's to read, privately.
+- **Open:** the first run on a hosted runner (its minutes, and whether the container setup works
+  there as composed). Per D9, `origin/main` is merged in once alpha.21's builder pull requests
+  land, and the scan is run against the routes they add.
+
 **2026-11-26, later: the owner's answers, D1 to D9 (T0).** In the owner's words:
 *"D1–D9: as advised. H: yes. All in this alpha"*. D9 is the maintainer's addition, put to the
 owner beside D1 to D8 (§9). *"H"* is about two fixes outside this plan, and this plan does not
@@ -72,7 +101,7 @@ one before it to be quiet on `main`.
 | T4 Guard: a secret-named key handed to the logger | builder | 📋 Planned, alpha.21 | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
 | T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 📋 Planned, alpha.21 | §4.1, §8 step 2. D1. Not on pull requests. S. By a new session, now (D9). |
 | T6 CodeQL's first list, read alert by alert | builder | 📋 Planned, alpha.21 | §8 step 2. As 0166 read Trivy's and Semgrep's. M. By the same session as T5. |
-| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 📋 Planned, alpha.21 | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
+| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 🔨 Built, its first hosted run waits for dispatch; merges after alpha.21's builds (D9) | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
 | T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |
 | T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6's reading and the owner's word per query (D8), so it may fall after alpha.21's release. S each. |
 | T10 A second identity: another organisation's ids refused at every door | builder | 📋 Planned, alpha.21 | §6.3, §8 step 6. D7. M. By the T7 session, after T7. |
