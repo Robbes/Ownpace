@@ -6,12 +6,7 @@
  * written to the same account read the same number under the same pool and
  * are added together against it once (`spaceByPool`).
  */
-import {
-  capacityFromJmapQuotas,
-  JMAP_QUOTA_CAPABILITY,
-  type DestinationCapacity,
-  type JmapQuota,
-} from '@openmig/shared';
+import { capacityFromJmapQuotas, JMAP_QUOTA_CAPABILITY, type DestinationCapacity, type JmapQuota, withoutTrailing } from '@openmig/shared';
 import { fetchWithRateLimitRetry } from './http-rate-limit.ts';
 
 /** Whether a session keeps quotas for this account: listed on the session, or on the account. */
@@ -30,7 +25,7 @@ export function jmapQuotaAnnounced(
 
 /** The pool a JMAP account's quota covers: the server and the account id. */
 export function jmapPool(baseUrl: string, accountId: string): string {
-  return `jmap:${baseUrl.replace(/\/+$/, '')}#${accountId}`;
+  return `jmap:${withoutTrailing(baseUrl, '/')}#${accountId}`;
 }
 
 /**

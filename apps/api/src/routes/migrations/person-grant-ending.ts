@@ -59,6 +59,7 @@ import {
   pinnedToPublished,
   pinsItsServer,
   reasonPair,
+  withoutTrailing,
   withoutUnpublishedHosts,
   type Bilingual,
   type Register,
@@ -303,7 +304,7 @@ export async function mintPersonProgressLink(
   source: Pool | LedgerDriver,
   target: Pick<PersonGrantTarget, 'tenantId' | 'personId'> & { readonly linkId?: string },
 ): Promise<ProgressPageUrl | null> {
-  const base = process.env.WEB_URL?.replace(/\/+$/, '');
+  const base = process.env.WEB_URL === undefined ? undefined : withoutTrailing(process.env.WEB_URL, '/');
   if (!base) return null;
   try {
     const issued = await withTenantDb(target.tenantId, source, (db) =>

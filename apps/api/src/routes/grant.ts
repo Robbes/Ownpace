@@ -108,6 +108,7 @@ import {
   type Bilingual,
   type DiscoveryDomain,
   type Register,
+  withoutTrailing,
 } from '@openmig/shared';
 import { readLinkAddressChanges, readPersonVoice } from '@openmig/managed';
 import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
@@ -303,7 +304,7 @@ export function linkClient(
 
 /** The address a provider must redirect to: the SAME one the owner registered for it. */
 function callbackFor(req: MappingLinkRequest, provider: GrantProviderId): string {
-  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const base = withoutTrailing(process.env.API_URL ?? `${req.protocol}://${req.get('host')}`, '/');
   return `${base}/api/migrations/${provider}/callback`;
 }
 
@@ -471,7 +472,7 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
  * the deployment names no web address; the ending then offers no button.
  */
 function grantPageBack(req: PersonLinkRequest): { backUrl?: string } {
-  const base = process.env.WEB_URL?.replace(/\/+$/, '');
+  const base = process.env.WEB_URL === undefined ? undefined : withoutTrailing(process.env.WEB_URL, '/');
   const token = req.params.link;
   return base && typeof token === 'string' && token !== '' ? { backUrl: `${base}/grant/${encodeURIComponent(token)}` } : {};
 }

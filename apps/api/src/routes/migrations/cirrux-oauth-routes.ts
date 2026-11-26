@@ -42,18 +42,7 @@ import { PgLedger } from '@openmig/ledger';
 import { readOrganisationClosure, rotationRefusal } from '@openmig/managed';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import {
-  CIRRUX_DRIVE_SCOPES,
-  cirruxDeploymentClient,
-  cirruxDriveDisconnectRevocation,
-  inLocale,
-  localeOf,
-  log,
-  organisationClosedRefusal,
-  type Bilingual,
-  type RevocationOutcome,
-  type TenantId,
-} from '@openmig/shared';
+import { CIRRUX_DRIVE_SCOPES, cirruxDeploymentClient, cirruxDriveDisconnectRevocation, inLocale, localeOf, log, organisationClosedRefusal, type Bilingual, type RevocationOutcome, type TenantId, withoutTrailing } from '@openmig/shared';
 import { forgetCirruxAccess } from '@openmig/connectors';
 import { qualifyCirruxDrive } from '@openmig/orchestration/account-qualification';
 import {
@@ -115,7 +104,7 @@ export interface CirruxDriveDisconnected {
 
 /** Built from `API_URL`, the way `redirectUris` lists it, so the two cannot differ. */
 function callbackUri(req: Request): string {
-  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const base = withoutTrailing(process.env.API_URL ?? `${req.protocol}://${req.get('host')}`, '/');
   return `${base}/api/migrations/cirrux/callback`;
 }
 

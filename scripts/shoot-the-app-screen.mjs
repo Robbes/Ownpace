@@ -88,6 +88,9 @@ const LAYOUT = {
   'GET /api/version': { version: JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')).version, commit: '' },
   'GET /api/platform-pause': { held: false },
   'GET /api/problem-reports/available': { available: false },
+  // The organisation's address changes, which the person's page reads (0168
+  // §6.3): none, as most organisations have, and as the UI smoke answers.
+  'GET /api/address-changes': { rows: [], door: 'api', file: null },
   'GET /api/auth/mode': { mode: 'local', acceptsSeedToken: true },
   'GET /api/me': {
     userId: 'app-screen',

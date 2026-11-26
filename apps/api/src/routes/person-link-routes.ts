@@ -63,7 +63,7 @@ import {
   type MappingLinkPurpose,
 } from '@openmig/ledger';
 import { listPersonLinks, readPerson, readPersonVoice, revokePersonLink, setPersonVoice } from '@openmig/managed';
-import { DISCOVERY_DOMAINS, PERSON_NOT_FOUND, PERSON_VOICES, log, type DiscoveryDomain } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, PERSON_NOT_FOUND, PERSON_VOICES, log, withoutTrailing, type DiscoveryDomain } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -141,7 +141,7 @@ function whatTheLinkCopies(accounts: ReadonlyArray<PersonGrantAccount>): { domai
 /** The browser-facing address, or null when this deployment cannot say. */
 function webUrl(): string | null {
   const raw = process.env.WEB_URL;
-  return raw ? raw.replace(/\/+$/, '') : null;
+  return raw ? withoutTrailing(raw, '/') : null;
 }
 
 /** The tenant and the person the route names, or the answer already sent. */
