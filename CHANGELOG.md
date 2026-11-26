@@ -113,8 +113,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **A DAV reply is read a tag at a time** (workplan 0178 T6). The CalDAV, CardDAV and WebDAV
   readers, the archive store, the trash bin, the removals a sync report lists, the quota reply and a
   calendar's supported components pulled elements out of a server's reply with patterns of the
-  shape `<p:name[^>]*>…</p:name>`, whose time grows with the square of a reply that opens an
-  element and never closes it. They read it now with `davElement` and the readers beside it in
+  shape `<p:name[^>]*>…</p:name>`, whose time could grow much faster than the reply. They read it
+  now with `davElement` and the readers beside it in
   `@openmig/shared` (`textsOf`, `firstTextOf`, `firstPlainTextOf`, `firstTextBeforeTag`), which find
   what the patterns found on random replies made of whole tags, in time that grows with the reply.
   A Graph task's HTML body has its tags taken out the same way.
