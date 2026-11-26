@@ -28,6 +28,7 @@ import Tenants from './pages/Tenants.tsx';
 import Login from './pages/Login.tsx';
 import RequestAccess from './pages/RequestAccess.tsx';
 import Grant from './pages/Grant.tsx';
+import PersonGrantOnePage, { ONE_PAGE_ROUTE } from './pages/PersonGrantOnePage.tsx';
 import View from './pages/View.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
 import AccessRequests from './pages/AccessRequests.tsx';
@@ -234,6 +235,18 @@ const AppRoutes: React.FC = () => {
         element={
           <ManagedOnly>
             <Grant />
+          </ManagedOnly>
+        }
+      />
+      {/* A person's link, everything its steps say on one page, which prints
+          (workplan 0176 D15 (a)). Under the link's own address for the same
+          reasons: public, outside the chrome, and the link is the credential,
+          which the web server's log writes as `:link` here too. */}
+      <Route
+        path={ONE_PAGE_ROUTE}
+        element={
+          <ManagedOnly>
+            <PersonGrantOnePage />
           </ManagedOnly>
         }
       />
