@@ -289,7 +289,7 @@ export const en = {
   'linkReport.sent.mail': 'Sent to our support team, with report reference {reference}. We will reply by email to {email}.',
   'linkReport.sent.mail.anonymous':
     'Sent to our support team, with report reference {reference}. Without an email address, we cannot answer you.',
-  'linkReport.next.grant': 'Nothing is read unless you allow it at Google.',
+  'linkReport.next.grant': 'Nothing is read unless you allow it.',
   'linkReport.next.withdraw': 'To stop the copying now, press Stop copying above.',
 } as const;
 
@@ -518,6 +518,6 @@ export const nl: Record<keyof typeof en, string> = {
   'linkReport.sent.mail': 'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. We antwoorden per e-mail naar {email}.',
   'linkReport.sent.mail.anonymous':
     'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. Zonder mailadres kunnen we u niet antwoorden.',
-  'linkReport.next.grant': 'Er wordt niets gelezen zonder uw toestemming bij Google.',
+  'linkReport.next.grant': 'Er wordt niets gelezen zonder uw toestemming.',
   'linkReport.next.withdraw': 'Wilt u het kopiëren nu stoppen? Druk dan hierboven op Kopiëren stoppen.',
 };
