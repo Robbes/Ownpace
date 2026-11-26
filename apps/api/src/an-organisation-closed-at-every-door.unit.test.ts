@@ -718,7 +718,9 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // Five more since a person's link asks for both sides (workplan 0174 T1):
   // a password source's records, a destination's, and the values a password
   // card shows. Read as before, to say what the link asks; no provider.
-  'routes/migrations/person-grant-subject.ts': 7,
+  // The eighth (the owner's decisions of 2026-11-26): which keys a destination
+  // holds, to say whether the organisation can open the copy. No value is read.
+  'routes/migrations/person-grant-subject.ts': 8,
   // Whether both sides have a way in (workplan 0174 T1): before a grant starts
   // a migration, and since 0174 §4.3 before a grant lifts a withdrawal's hold.
   // Moved from start-when-granted.ts word for word, so the endings can call it.

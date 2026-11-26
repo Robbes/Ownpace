@@ -54,7 +54,7 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgLedger, type LedgerDriver } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
-import type { GrantWithdrawal, TenantId, TokenRevoker } from '@openmig/shared';
+import type { Bilingual, GrantWithdrawal, TenantId, TokenRevoker } from '@openmig/shared';
 import { withTenantDb } from '../middleware/auth.ts';
 
 /** What a withdrawal is recorded under in `audit_log`. */
@@ -75,7 +75,11 @@ export type WithdrawalResult =
   | {
       readonly ok: false;
       readonly code: 'not_found' | 'nothing_granted' | 'changed';
-      readonly reason: string;
+      /**
+       * In both languages (the owner's decisions of 2026-11-26): the Dutch
+       * page showed the English half until then.
+       */
+      readonly reason: Bilingual;
     };
 
 /** The grant as the withdrawal reads it, before anything is changed. */
@@ -119,7 +123,10 @@ function alreadyWithdrawn(at: Date): WithdrawalResult {
   return {
     ok: false,
     code: 'nothing_granted',
-    reason: `You already withdrew your permission, on ${at.toISOString().slice(0, 10)}. Nothing reads your account.`,
+    reason: {
+      en: `You already withdrew your permission, on ${at.toISOString().slice(0, 10)}. Nothing reads your account.`,
+      nl: `U hebt uw toestemming op ${at.toISOString().slice(0, 10)} al ingetrokken. Uw account wordt niet meer gelezen.`,
+    },
   };
 }
 
@@ -152,9 +159,14 @@ export async function withdrawGrant(
     return {
       ok: false,
       code: 'not_found',
-      reason:
-        'This migration no longer exists, so it holds no permission of yours. Nothing you can do ' +
-        'from here will change that; please tell the person who sent you the link.',
+      reason: {
+        en:
+          'This migration no longer exists, so it holds no permission of yours. Nothing you can do ' +
+          'from here will change that; please tell the person who sent you the link.',
+        nl:
+          'Deze migratie bestaat niet meer, dus er staat geen toestemming van u in. U kunt dat ' +
+          'vanaf hier niet veranderen; laat het de persoon weten die u de link stuurde.',
+      },
     };
   }
   if (read.kind === 'withdrawn') return alreadyWithdrawn(read.at);
@@ -162,9 +174,12 @@ export async function withdrawGrant(
     return {
       ok: false,
       code: 'nothing_granted',
-      reason:
-        'This migration holds no permission that was given through a link, so there is nothing ' +
-        'here to withdraw.',
+      reason: {
+        en:
+          'This migration holds no permission that was given through a link, so there is nothing ' +
+          'here to withdraw.',
+        nl: 'Deze migratie heeft geen toestemming die via een link is gegeven, dus er is hier niets in te trekken.',
+      },
     };
   }
 
@@ -208,9 +223,14 @@ export async function withdrawGrant(
     return {
       ok: false,
       code: 'changed',
-      reason:
-        'Your permission changed while it was being withdrawn (it was given again), so nothing ' +
-        'was deleted. Press withdraw once more to take the new one back.',
+      reason: {
+        en:
+          'Your permission changed while it was being withdrawn (it was given again), so nothing ' +
+          'was deleted. Press withdraw once more to take the new one back.',
+        nl:
+          'Uw toestemming is opnieuw gegeven terwijl die werd ingetrokken, dus er is niets verwijderd. ' +
+          'Druk nog een keer op intrekken om ook de nieuwe in te trekken.',
+      },
     };
   }
   return { ok: true, withdrawal: { withdrawnAt: withdrawnAt.toISOString(), atGoogle } };

@@ -147,6 +147,13 @@ interface PendingConsent {
     readonly personId: string;
     readonly account: string;
     readonly mappingIds: readonly string[];
+    /**
+     * The person's grant page, to go back to when it has more accounts to
+     * connect (the owner's decisions of 2026-11-26): the address the
+     * authorize call came from, kept here for `link`'s reason. Absent when
+     * the deployment names no web address.
+     */
+    readonly backUrl?: string;
   };
   /**
    * The language the page that began this consent was in (workplan 0145 T6),
@@ -897,6 +904,13 @@ export function grantResultPage(
         readonly ok: true;
         readonly progressUrl?: ProgressPageUrl;
         /**
+         * A person's link with accounts still to connect (the owner's
+         * decisions of 2026-11-26): how many, and the grant page to go back
+         * to. The page then says this account is connected and how many are
+         * left, and does not say the link will not work again.
+         */
+        readonly more?: { readonly left: number; readonly backUrl: string };
+        /**
          * What the permission Google recorded allows (0144 T3 (c)). Required,
          * so no caller can reach "read-only" by leaving it out.
          */
@@ -957,6 +971,21 @@ export function grantResultPage(
   // "Read-only" only where Google holds what it recorded to reading (0144 T3
   // (c)). Otherwise what is true of Ownpace, and what is true of the
   // permission, said apart.
+  if (outcome.more && outcome.more.left > 0) {
+    // A person's link with more accounts to connect (the owner's decisions of
+    // 2026-11-26): not *done*, and the link still works, so the way back to
+    // it comes first. Their progress page is handed over here too, as at
+    // every ending.
+    const left = outcome.more.left === 1 ? words.oneMore : words.manyMore.replace('{n}', String(outcome.more.left));
+    return shell(
+      `<main style="${PAGE_STYLE}"><h1>${words.oneConnected}</h1>` +
+        `<p>${left}</p>` +
+        `<p><a href="${esc(outcome.more.backUrl)}" style="${BACK_LINK_STYLE}">${words.back}</a></p>` +
+        keepThis +
+        `<p>${words.access[outcome.permission]} ${words.withdraw}</p></main>`,
+      lang,
+    );
+  }
   return shell(
     `<main style="${PAGE_STYLE}"><h1>${words.done}</h1>` +
       `<p>${words.connected}</p>` +
@@ -967,6 +996,10 @@ export function grantResultPage(
 }
 
 const COPY_BUTTON_STYLE = 'min-height:44px;padding:8px 16px;font-size:1rem';
+/** *Back to the link*, drawn as a button a finger finds: a plain link, so no script is needed. */
+const BACK_LINK_STYLE =
+  'display:inline-block;min-height:44px;line-height:44px;padding:0 16px;font-size:1rem;' +
+  'border:1px solid #1f2937;border-radius:6px;color:#111827;text-decoration:none';
 
 /**
  * Copies the progress link (the owner's hand test, 2026-11-24). The Clipboard
@@ -1010,6 +1043,10 @@ const GRANT_ENDING: Readonly<
       readonly howLong: string;
       readonly access: Readonly<Record<RecordedPermission, string>>;
       readonly withdraw: string;
+      readonly oneConnected: string;
+      readonly oneMore: string;
+      readonly manyMore: string;
+      readonly back: string;
     }
   >
 > = {
@@ -1049,6 +1086,11 @@ const GRANT_ENDING: Readonly<
     withdraw:
       'You can withdraw it at any time from your Google account’s security settings, under the ' +
       'third-party apps that have access.',
+    // A person's link with more to connect (the owner's decisions of 2026-11-26).
+    oneConnected: 'Thank you, this account is connected.',
+    oneMore: 'There is one more.',
+    manyMore: 'There are {n} more.',
+    back: 'Back to the link',
   },
   nl: {
     failed: 'Dat is niet gelukt',
@@ -1087,6 +1129,10 @@ const GRANT_ENDING: Readonly<
     withdraw:
       'U kunt de toegang op elk moment intrekken in de beveiligingsinstellingen van uw ' +
       'Google-account, bij de apps van derden die toegang hebben.',
+    oneConnected: 'Dank u, dit account is verbonden.',
+    oneMore: 'Er is nog één account.',
+    manyMore: 'Er zijn nog {n} accounts.',
+    back: 'Terug naar de link',
   },
 };
 

@@ -153,6 +153,34 @@ describe('the grant ending, in Dutch', () => {
     });
   }
 
+  // The owner's decisions of 2026-11-26: a person's link with a second account
+  // to connect said *this link will not work again*.
+  describe('a person’s link with accounts left to connect', () => {
+    const back = `${ORIGIN}/grant/p.an-id.a-secret`;
+    it.each([
+      ['en', 1, 'Thank you, this account is connected.', 'There is one more.', 'Back to the link'],
+      ['nl', 1, 'Dank u, dit account is verbonden.', 'Er is nog één account.', 'Terug naar de link'],
+      ['en', 3, 'Thank you, this account is connected.', 'There are 3 more.', 'Back to the link'],
+      ['nl', 3, 'Dank u, dit account is verbonden.', 'Er zijn nog 3 accounts.', 'Terug naar de link'],
+    ] as const)('%s, %i left: says so, goes back to the link, and not that the link is done', (locale, left, title, more, button) => {
+      const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only', more: { left, backUrl: back } }, locale);
+      expect(lang(html)).toBe(locale);
+      expect(html).toContain(`<h1>${title}</h1>`);
+      expect(html).toContain(`<p>${more}</p>`);
+      expect(html).toMatch(new RegExp(`<a href="${back.replace(/\./g, '\\.')}" style="[^"]+">${button}</a>`));
+      expect(html).not.toMatch(/will not work again|werkt niet meer|that is done|het is gelukt/);
+      // Their progress page is still handed over.
+      expect(html).toContain(locale === 'nl' ? KEEP_NL : KEEP_EN);
+      if (locale === 'nl') expect(englishIn(html)).toBeUndefined();
+    });
+
+    it('none left: the ending it always was', () => {
+      const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only', more: { left: 0, backUrl: back } }, 'en');
+      expect(html).toContain('this link will not work again');
+      expect(html).not.toContain('Back to the link');
+    });
+  });
+
   it('says the new "keep this link" sentence in English when the page was English', () => {
     const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only' }, 'en');
     expect(lang(html)).toBe('en');

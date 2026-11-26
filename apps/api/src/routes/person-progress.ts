@@ -37,7 +37,7 @@
 
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
   PgLedger,
@@ -79,6 +79,7 @@ import {
   type TokenRevoker,
   type ViewDomainRow,
   type ViewGrant,
+  type WhatStopped,
 } from '@openmig/shared';
 import { withTenantDb } from '../middleware/auth.ts';
 import { namedAccount, readGrantRows, storedCredentials } from './migrations/grant-subject.ts';
@@ -208,6 +209,57 @@ function refOf(kind: 'grant' | 'account' | 'destination', parts: readonly string
     .slice(0, 32);
 }
 
+/**
+ * WHAT EACH HELD MIGRATION'S WITHDRAWAL TOOK BACK (the owner's decisions of
+ * 2026-11-26, change 1), inside the caller's tenant transaction.
+ *
+ * Read from the `mapping.grant_withdrawn` row every withdrawal writes in the
+ * same transaction as the hold: a destination's (`withdrawPersonDestination`)
+ * carries `role: 'target'`, a source's (`withdraw-grant.ts`,
+ * `withdrawPersonGrant`) carries none. The latest row per migration answers.
+ *
+ * Why the audit row and not the columns: a source's withdrawal also empties
+ * `source_secret_ref`, so "held with the source's grant still there" would
+ * name a destination's removal in most cases, but not when the person removed
+ * the destination's password before they ever gave the source's access. Then
+ * both columns read exactly as after a source's withdrawal. The audit row
+ * says which, always, and needs no new column. A held migration with no such
+ * row (a hold written before the audit row existed) reads as the source's, as
+ * every page read it until now.
+ *
+ * Answers `destination` with the destination's kind (`targetKind`), so the
+ * page can name it; never an address.
+ */
+export async function readWhatStopped(
+  db: PgDatabase,
+  tenantId: string,
+  held: ReadonlyArray<{ readonly mappingId: string; readonly targetKind: string | null }>,
+): Promise<Map<string, WhatStopped>> {
+  const answer = new Map<string, WhatStopped>();
+  if (held.length === 0) return answer;
+  const mappingId = sql<string>`${schema.auditLog.detail} ->> 'mappingId'`;
+  const rows = await db
+    .select({ mappingId, role: sql<string | null>`${schema.auditLog.detail} ->> 'role'` })
+    .from(schema.auditLog)
+    .where(
+      and(
+        eq(schema.auditLog.tenantId, tenantId),
+        eq(schema.auditLog.action, GRANT_WITHDRAWN_ACTION),
+        inArray(mappingId, held.map((h) => h.mappingId)),
+      ),
+    )
+    .orderBy(desc(schema.auditLog.at));
+  for (const h of held) {
+    // Newest first: the first row met for a migration is its latest withdrawal.
+    const latest = rows.find((r) => r.mappingId === h.mappingId);
+    answer.set(
+      h.mappingId,
+      latest?.role === 'target' && h.targetKind ? { what: 'destination', destination: h.targetKind } : { what: 'source' },
+    );
+  }
+  return answer;
+}
+
 /** One migration of the person's, with what the page and a withdrawal need of it. */
 interface Theirs {
   readonly mappingId: string;
@@ -267,7 +319,7 @@ async function readTheirs(db: PgDatabase, tenantId: string, personId: string): P
  * migration belongs to a group when its source is one a link can grant and
  * names an address; one that reads no Google account is shown on its own.
  */
-function groupByAccount(theirs: readonly Theirs[]): AccountGroup[] {
+function groupByAccount(theirs: readonly Theirs[], stopped: ReadonlyMap<string, WhatStopped> = new Map()): AccountGroup[] {
   const byKey = new Map<string, Theirs[]>();
   for (const m of theirs) {
     if (m.accountKey === null) continue;
@@ -278,17 +330,24 @@ function groupByAccount(theirs: readonly Theirs[]): AccountGroup[] {
   return [...byKey.values()].map((migrations): AccountGroup => {
     const held: Array<{ secretRef: string; sourceKind: string }> = [];
     for (const m of migrations) {
-      if (m.withdrawnAt || !m.secretRef) continue;
+      // A source's withdrawal empties `source_secret_ref`, so a held migration
+      // that still has one was held by a destination's password being removed
+      // (0174 §4.3): its Google access is still given, and stays the person's
+      // to withdraw from this page (the owner's answer of 2026-11-26).
+      if (!m.secretRef) continue;
       if (!held.some((h) => h.secretRef === m.secretRef)) held.push({ secretRef: m.secretRef, sourceKind: m.sourceKind });
     }
-    const withdrawn = migrations
-      .map((m) => m.withdrawnAt)
-      .filter((at): at is Date => at !== null)
-      .sort((a, b) => b.getTime() - a.getTime())[0];
+    // The latest withdrawal, and what it took back: the account's section says it.
+    const latest = migrations
+      .filter((m): m is Theirs & { withdrawnAt: Date } => m.withdrawnAt !== null)
+      .sort((a, b) => b.withdrawnAt.getTime() - a.withdrawnAt.getTime())[0];
     const grant: ViewGrant =
       held.length > 0
         ? viewGrantFor({ sourceSecretRef: held[0]!.secretRef, grantWithdrawnAt: null })
-        : viewGrantFor({ sourceSecretRef: null, grantWithdrawnAt: withdrawn ?? null });
+        : viewGrantFor(
+            { sourceSecretRef: null, grantWithdrawnAt: latest?.withdrawnAt ?? null },
+            latest ? stopped.get(latest.mappingId) : undefined,
+          );
     const ref =
       held.length > 0
         ? refOf('grant', held.map((h) => h.secretRef))
@@ -313,7 +372,12 @@ export async function readPersonView(
   if (organisation === undefined) return null;
 
   const theirs = await readTheirs(db, input.tenantId, input.personId);
-  const groups = groupByAccount(theirs);
+  const stopped = await readWhatStopped(
+    db,
+    input.tenantId,
+    theirs.filter((m) => m.withdrawnAt !== null),
+  );
+  const groups = groupByAccount(theirs, stopped);
   const refFor = (mappingId: string): string | null =>
     groups.find((g) => g.migrations.some((m) => m.mappingId === mappingId))?.ref ?? null;
 
@@ -329,6 +393,7 @@ export async function readPersonView(
       ...(progress.checkPassedAt ? { checkPassedAt: progress.checkPassedAt } : {}),
       ...(progress.time ? { time: progress.time } : {}),
       account: refFor(m.mappingId),
+      ...(m.withdrawnAt ? { stopped: { at: m.withdrawnAt.toISOString(), ...stopped.get(m.mappingId) } } : {}),
     });
   }
   const accounts: PersonViewAccount[] = groups.map((g) => ({ ref: g.ref, grant: g.grant }));

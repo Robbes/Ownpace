@@ -78,9 +78,11 @@ import type { PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import { answerAddressChangeThroughLink } from './link-address-changes.ts';
 import { withdrawGrant } from './withdraw-grant.ts';
+import { readGrantRows } from './migrations/grant-subject.ts';
 import {
   migrationProgress,
   readPersonView,
+  readWhatStopped,
   withdrawPersonDestination,
   withdrawPersonGrant,
   withdrawalRefusalBody,
@@ -166,7 +168,16 @@ router.get(
         // a state the CHECK constraint admits and the contract does not know is
         // a bug that must be loud, not a page that guesses a word for it.
         const progress = await migrationProgress(db, tenantId, mappingId, mapping.status);
-        return { mapping, progress };
+        // What a hold took back, the source's access or a destination's
+        // password (the owner's decisions of 2026-11-26, change 1).
+        const stopped = mapping.grantWithdrawnAt
+          ? (
+              await readWhatStopped(db, tenantId, [
+                { mappingId, targetKind: (await readGrantRows(db, tenantId, mappingId))?.target?.kind ?? null },
+              ])
+            ).get(mappingId)
+          : undefined;
+        return { mapping, progress, stopped };
       });
 
       if (!read) {
@@ -175,7 +186,7 @@ router.get(
         return void res.status(409).json({ error: 'not_found', ...reasonPair(MIGRATION_GONE) });
       }
 
-      const { mapping, progress } = read;
+      const { mapping, progress, stopped } = read;
       const body: MigrationView = {
         organisation: mapping.organisation,
         state: progress.state,
@@ -191,7 +202,7 @@ router.get(
         ...(progress.checkPassedAt ? { checkPassedAt: progress.checkPassedAt } : {}),
         ...(progress.time ? { time: progress.time } : {}),
         expiresAt: expiresAt.toISOString(),
-        grant: viewGrantFor(mapping),
+        grant: viewGrantFor(mapping, stopped),
       };
       res.json(body);
     } catch (error) {
@@ -265,7 +276,7 @@ router.post(
       const { tenantId, mappingId, linkId } = req.mappingLink!;
       const result = await withdrawGrant(pool(), { tenantId, mappingId, linkId }, tokenRevoker());
       if (!result.ok) {
-        return void res.status(409).json({ error: result.code, reason: result.reason });
+        return void res.status(409).json({ error: result.code, ...reasonPair(result.reason) });
       }
       res.json(result.withdrawal);
     } catch (error) {

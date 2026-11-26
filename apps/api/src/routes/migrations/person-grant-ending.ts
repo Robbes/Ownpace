@@ -104,6 +104,8 @@ export interface PersonGrantTarget {
   readonly account: string;
   /** The migrations the page listed under it. */
   readonly mappingIds: readonly string[];
+  /** The person's grant page, for the ending to go back to while accounts are left (`PendingConsent`). */
+  readonly backUrl?: string;
 }
 
 /** When every migration the page listed has gone from this person or this account since. */
@@ -147,9 +149,14 @@ async function recordRefusedSignIn(
   }
 }
 
-/** What landed: the migrations that took the token, and whether the link is now spent. */
+/**
+ * What landed: the migrations that took the token, whether the link is now
+ * spent, and how many accounts on it are still to connect (the owner's
+ * decisions of 2026-11-26: the ending said *this link will not work again*
+ * to a person with a second account to connect). Zero once it is spent.
+ */
 export type PersonGrantStoreResult =
-  | { readonly ok: true; readonly granted: readonly string[]; readonly linkSpent: boolean }
+  | { readonly ok: true; readonly granted: readonly string[]; readonly linkSpent: boolean; readonly left: number }
   | Exclude<GrantStoreResult, { ok: true }>;
 
 /**
@@ -256,7 +263,8 @@ export async function storePersonGrant(
         everyAccount && !stillAsked
           ? await spendPersonLink(db, { tenantId: target.tenantId, linkId: target.linkId, now })
           : false;
-      return { ok: true as const, granted: written, linkSpent };
+      const left = linkSpent || subject === null ? 0 : subject.accounts.filter((a) => !a.granted).length;
+      return { ok: true as const, granted: written, linkSpent, left };
     });
   } catch (error) {
     if (error instanceof AnotherAccountSignedIn) {

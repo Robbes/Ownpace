@@ -104,7 +104,7 @@ describe('on the grant page', () => {
   it('is not offered when a report could reach nobody', async () => {
     availableMock.mockResolvedValue(false);
     renderAt('/grant/abc.def');
-    expect(await screen.findByText(/Acme Legal is migrating your account/)).toBeInTheDocument();
+    expect(await screen.findByText(/Acme Legal is migrating your email, calendar and files/)).toBeInTheDocument();
     await waitFor(() => expect(availableMock).toHaveBeenCalledWith('grant', 'abc.def'));
     expect(screen.queryByRole('button', { name: 'Report this link' })).not.toBeInTheDocument();
   });
