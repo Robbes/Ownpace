@@ -3384,7 +3384,12 @@ catalog_queues() { # catalog_queues [catalog.ts] — the names; 1 and nothing wh
 # whose migrations the sync tick passes on `run-delta-sync`, the queue the
 # smoke's own passes use, with `{ tenantId, mappingId, domains }`. Run
 # 45833930566 failed on one: a pass of a migration this run never touched,
-# begun 9s before this check, still active after the wait. So:
+# begun 9s before this check, still active after the wait. The job runner
+# keeps that payload under `data.payload` (`{ payload, idem?, tags? }`,
+# packages/scheduler/src/pg-boss/job-runner.ts), so the SQL below reads
+# `j.data->'payload'->>'tenantId'`. Run 45887128804 failed on the same kind of
+# pass because this read `j.data->>'tenantId'`, which no job has, and so judged
+# every job this run's. So:
 #  - this run's job is one whose payload names no organisation (`tenantId`
 #    absent or empty), or names the demo's two, or an organisation that was
 #    not on the stack when the smoke began; every rule above is about these;
@@ -3407,7 +3412,7 @@ pgboss_jobs() {
   # every job: a column test, not the constant `true`, which Postgres refuses
   # in the ORDER BY below ("non-integer constant in ORDER BY").
   mine_sql="j.name IS NOT NULL"
-  [ -n "${OTHER_TENANTS_SQL:-}" ] && mine_sql="coalesce(j.data->>'tenantId', '') NOT IN (${OTHER_TENANTS_SQL})"
+  [ -n "${OTHER_TENANTS_SQL:-}" ] && mine_sql="coalesce(j.data->'payload'->>'tenantId', '') NOT IN (${OTHER_TENANTS_SQL})"
   if ! queues="$(catalog_queues)"; then
     echo "no queue could be read from packages/scheduler/src/pg-boss/catalog.ts's JOB_CATALOG, so which jobs are this stack's cannot be told"
     fail_at "the catalog's queues could not be read"
@@ -3465,7 +3470,7 @@ pgboss_jobs() {
   # own ids, never another organisation's. Without the organisations read,
   # whose a job is cannot be told, so the count above is all that is said.
   if [ "${OTHER_TENANTS_READ:-0}" = 1 ]; then
-    if ! left="$(q "SELECT j.name || '|' || coalesce(j.data->>'tenantId', '') || '|' || coalesce(j.data->>'mappingId', '') || '|' || j.state || '|' || extract(epoch FROM now() - coalesce(j.started_on, j.created_on))::int FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' AND j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__' AND ${mine_sql} ORDER BY j.created_on" 2>&1)"; then
+    if ! left="$(q "SELECT j.name || '|' || coalesce(j.data->'payload'->>'tenantId', '') || '|' || coalesce(j.data->'payload'->>'mappingId', '') || '|' || j.state || '|' || extract(epoch FROM now() - coalesce(j.started_on, j.created_on))::int FROM pgboss.job j WHERE j.created_on >= timestamptz '${SMOKE_STARTED_AT}' AND j.state IN ('created', 'active') AND NOT EXISTS (SELECT 1 FROM pgboss.schedule s WHERE s.name = j.name) AND left(j.name, 10) <> '__pgboss__' AND ${mine_sql} ORDER BY j.created_on" 2>&1)"; then
       echo "this run's jobs still in flight could not be named: ${left}"
     else
       while IFS='|' read -r name q_tenant q_mapping q_state q_secs; do
