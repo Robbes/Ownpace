@@ -26,7 +26,7 @@
  */
 
 import { verifyMX } from '@openmig/core';
-import { mxHostOf } from '@openmig/shared';
+import { log, loggableError, mxHostOf } from '@openmig/shared';
 import { isIP } from 'node:net';
 import type { GrantServer } from './grant-providers.ts';
 
@@ -80,7 +80,14 @@ export const readMxHosts: MxReader = async (domain) => {
   if (kept && now - kept.at < (kept.hosts === null ? FAILURE_HELD_MS : HELD_MS)) return kept.hosts;
   let timer: NodeJS.Timeout | undefined;
   const hosts = await Promise.race([
-    askResolvers(domain).catch(() => null),
+    // `verifyMX` answers a resolver that failed with `success: false`, so what
+    // lands here is a fault in the reading itself. It says nothing either way,
+    // as a failed lookup does, and it is logged without the domain, which is
+    // the person's own address's.
+    askResolvers(domain).catch((error: unknown) => {
+      log.warn("[api] reading the MX hosts for a password link's server failed, so its page shows the server's domain only:", loggableError(error));
+      return null;
+    }),
     new Promise<null>((resolve) => {
       timer = setTimeout(() => resolve(null), DEADLINE_MS);
     }),

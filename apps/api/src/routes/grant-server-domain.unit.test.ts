@@ -7,7 +7,14 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { addressDomain, isAddressLiteral, registrableDomain, serverAgainstAddress } from './grant-server-domain.ts';
+import { log } from '@openmig/shared';
+import { addressDomain, isAddressLiteral, readMxHosts, registrableDomain, serverAgainstAddress } from './grant-server-domain.ts';
+
+const { verifyMX } = vi.hoisted(() => ({ verifyMX: vi.fn() }));
+vi.mock('@openmig/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openmig/core')>();
+  return { ...actual, verifyMX };
+});
 
 describe('registrableDomain', () => {
   it('is the last two labels, or three under a second-level suffix', () => {
@@ -64,5 +71,25 @@ describe('serverAgainstAddress', () => {
     expect(failed).toEqual({ hosts: ['imap.elsewhere.example'], published: false, domains: ['elsewhere.example'] });
     const notAnAddress = await serverAgainstAddress('anna', { hosts: ['imap.elsewhere.example'], published: false }, async () => []);
     expect(notAnAddress.notTheAddressMail).toBeUndefined();
+  });
+});
+
+describe('readMxHosts', () => {
+  // `verifyMX` answers a resolver that failed with `success: false`, so a throw
+  // here is a fault in the reading itself: it still says nothing either way,
+  // and it is logged, so it is seen.
+  it('answers null when the reading throws, and logs the fault without the address’s domain', async () => {
+    verifyMX.mockRejectedValueOnce(new TypeError('a resolver answer of a shape nobody expected'));
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(await readMxHosts('a-fault.family.example')).toBeNull();
+      expect(warn).toHaveBeenCalledTimes(1);
+      const [line, logged] = warn.mock.calls[0] ?? [];
+      expect(String(line)).toMatch(/^\[api\] /);
+      expect(String(line)).not.toContain('family.example');
+      expect(logged).toBeDefined();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
