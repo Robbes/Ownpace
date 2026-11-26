@@ -77,16 +77,7 @@ import type {
   RemovalResult,
   FileNodeRef,
 } from '@openmig/shared';
-import {
-  parseRetryAfterMs,
-  log,
-  fileContentHash,
-  reconstructFileNodePath,
-  fileNodeIndex,
-  markNeedsDecision,
-  STREAMED_REQUEST_INIT,
-  withFailureCategory,
-} from '@openmig/shared';
+import { parseRetryAfterMs, log, fileContentHash, reconstructFileNodePath, fileNodeIndex, markNeedsDecision, STREAMED_REQUEST_INIT, withFailureCategory, withoutEither } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import { createHash } from 'node:crypto';
 
@@ -1375,7 +1366,7 @@ function isDescendantOf(
  * the reasons set out in `jmap-file-path.ts`.
  */
 function normalizeRelativePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  return withoutEither(path.replace(/\\/g, '/'), '/');
 }
 
 /** The containing directory of a root-relative path (`''` at the root). */

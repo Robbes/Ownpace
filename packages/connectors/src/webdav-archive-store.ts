@@ -37,6 +37,7 @@ import { DEFAULT_TREE_READ_BYTES, type ArchiveTree, type TreeEntry } from './arc
 import { joinStorePath, splitStorePath, type ArchiveStore, type StoreEntry } from './archive-store.ts';
 import { ZipUnreadable, type RandomAccessSource } from './zip-archive.ts';
 import { createFileHttpClient } from './webdav-source.ts';
+import { withoutTrailing } from '@openmig/shared';
 
 /** Where the target is and how to sign in: the same three things every DAV endpoint carries. */
 export interface WebDavArchiveEndpoint {
@@ -223,7 +224,7 @@ export function parseMultistatus(body: string): DavEntry[] {
     } catch {
       // A malformed href is kept as written; the comparison below will simply not match it.
     }
-    const path = decodeURIComponent(pathname).replace(/\/+$/, '');
+    const path = withoutTrailing(decodeURIComponent(pathname), '/');
     const length = LENGTH.exec(block)?.[1];
     out.push({ path, isCollection: COLLECTION.test(block), size: length === undefined ? undefined : Number(length) });
   }
@@ -232,7 +233,7 @@ export function parseMultistatus(body: string): DavEntry[] {
 
 /** The decoded, slash-trimmed path a request URL names, to tell a listed folder from its children. */
 function requestedPath(url: string): string {
-  return decodeURIComponent(new URL(url).pathname).replace(/\/+$/, '');
+  return withoutTrailing(decodeURIComponent(new URL(url).pathname), '/');
 }
 
 const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);

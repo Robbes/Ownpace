@@ -25,7 +25,7 @@ import {
 } from '@openmig/ledger';
 import { platformOperator, tenantMember } from '@openmig/managed/schema-managed';
 import { isPersonLinkToken, verifyPersonLink } from '@openmig/managed';
-import { LINK_CHECK_UNAVAILABLE, LINK_REFUSAL, log } from '@openmig/shared';
+import { LINK_CHECK_UNAVAILABLE, LINK_REFUSAL, log, withoutTrailing } from '@openmig/shared';
 import { serverFault } from '../server-fault.ts';
 
 export interface JwtPayload {
@@ -144,7 +144,7 @@ export function __resetJwksCacheForTests(): void {
  * every token it mints then verifies.
  */
 async function discoverJwksUri(issuer: string): Promise<string> {
-  const base = issuer.replace(/\/+$/, '');
+  const base = withoutTrailing(issuer, '/');
   const discoveryUrl = `${base}/.well-known/openid-configuration`;
 
   // `Awaited<ReturnType<typeof fetch>>`, not `Response`: this file imports

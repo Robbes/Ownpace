@@ -44,7 +44,7 @@ import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { log } from '@openmig/shared';
+import { log, withoutTrailing } from '@openmig/shared';
 import { readTickBeat } from '@openmig/managed';
 import { getDbPool } from '../middleware/auth.ts';
 import { jobRunner, type JobRunnerName } from '../job-runner.ts';
@@ -131,7 +131,7 @@ async function checkDatabase(): Promise<CheckState> {
 export function signInProbeUrl(issuer: string): string {
   const configured = process.env.JWT_JWKS_URI?.trim();
   if (configured) return configured;
-  return `${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`;
+  return `${withoutTrailing(issuer, '/')}/.well-known/openid-configuration`;
 }
 
 async function checkSignIn(): Promise<CheckState> {

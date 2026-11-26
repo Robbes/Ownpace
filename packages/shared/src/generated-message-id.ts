@@ -32,6 +32,7 @@
 
 import { createHash } from 'node:crypto';
 import { headerValue } from './mail-headers.ts';
+import { withoutTrailing, withoutTrailingOnEachLine } from './runs-at-the-ends.ts';
 
 /**
  * Domain for generated ids. Not a resolvable host, and namespaced so an
@@ -142,7 +143,7 @@ export function keyMaterial(rfc822: Uint8Array): Buffer {
   for (const b of [...boundaries].sort((x, y) => y.length - x.length)) {
     body = body.split(b).join(`=_b${boundaries.indexOf(b)}_=`);
   }
-  body = body.replace(/[ \t]+$/gm, '').replace(/\n+$/, '');
+  body = withoutTrailing(withoutTrailingOnEachLine(body, ' \t'), '\n');
 
   const header = KEYED_HEADERS.flatMap((name) =>
     (fields.get(name) ?? []).map((value) => `${name}:${value}`),
