@@ -582,6 +582,8 @@ const failures = new Map<string, number | { status: number; body: unknown }>();
 /** Every `/api` path the browser asked for, and the ones no fixture knew. */
 const apiHits: string[] = [];
 const apiMisses: string[] = [];
+/** Every `/api` request the browser made, as `METHOD /path`, whatever answered it. */
+const apiAsked: string[] = [];
 /** Every body a fixture ANSWERED FROM (`FromBody`), as sent: what a screen posted. */
 const apiBodies: Array<{ readonly key: string; readonly body: unknown }> = [];
 
@@ -619,6 +621,7 @@ function startServer(dist: string = DIST): Promise<{ server: Server; base: strin
 
     if (url.pathname.startsWith('/api')) {
       apiHits.push(url.pathname);
+      apiAsked.push(key);
       const forced = failures.get(key);
       if (forced) {
         const status = typeof forced === 'number' ? forced : forced.status;
@@ -1475,8 +1478,58 @@ describe("the home page's app screen (0152 T3)", () => {
         }
       }
     });
+
+    // The script that takes the pictures answers its own LAYOUT and the
+    // screen's answers, nothing else, and refuses to write while the page
+    // asks for more. This suite answers everything, so a read the page gained
+    // (the address changes, 0168) left the script stopped and this green.
+    it(`asks, in ${locale === 'en' ? 'English' : 'Dutch'}, only what the script that takes its pictures answers`, async () => {
+      const answers = appScreenAnswers(locale);
+      const saved = Object.fromEntries(Object.keys(answers).map((k) => [k, FIXTURES[k]]));
+      Object.assign(FIXTURES, answers);
+      const before = apiAsked.length;
+      try {
+        const l = await open(`/people/${APP_SCREEN_PERSON}`, { locale, clock: APP_SCREEN_NOW });
+        await l.page.waitForSelector(APP_SCREEN_READY, { timeout: 15_000 });
+        await l.page.waitForLoadState('networkidle');
+        const served = new Set([...whatThePhotoScriptServes(), ...Object.keys(answers)]);
+        const unanswered = [...new Set(apiAsked.slice(before))].filter((key) => !served.has(key)).sort();
+        expect(
+          unanswered,
+          'The person\'s page asks for answers `scripts/shoot-the-app-screen.mjs` does not have, so it would ' +
+            'refuse to take the pictures. Give its LAYOUT (or `appScreenAnswers`) an answer for each.',
+        ).toEqual([]);
+        await l.page.close();
+      } finally {
+        for (const [k, v] of Object.entries(saved)) {
+          if (v === undefined) delete FIXTURES[k];
+          else FIXTURES[k] = v;
+        }
+      }
+    });
   }
 });
+
+/**
+ * The keys of the LAYOUT that `scripts/shoot-the-app-screen.mjs` answers beside
+ * the screen's own, read from its source: imported, the script would build the
+ * app and photograph it. A key written as a template names the script's
+ * `TENANT`, which it declares.
+ */
+function whatThePhotoScriptServes(): string[] {
+  const source = readFileSync(join(REPO, 'scripts/shoot-the-app-screen.mjs'), 'utf8');
+  const start = source.indexOf('const LAYOUT = {');
+  const end = source.indexOf('\n};', start);
+  const tenant = /const TENANT = '([^']+)'/.exec(source)?.[1];
+  if (start < 0 || end < 0 || tenant === undefined) throw new Error('the photo script has no LAYOUT or TENANT to read');
+  const layout = source.slice(start, end);
+  const keys = [
+    ...[...layout.matchAll(/^ {2}'([A-Z]+ \/[^']*)':/gm)].map((m) => m[1]!),
+    ...[...layout.matchAll(/^ {2}\[`([A-Z]+ \/[^`]*)`\]:/gm)].map((m) => m[1]!.replaceAll('${TENANT}', tenant)),
+  ];
+  if (!keys.includes('GET /api/me')) throw new Error('read no `GET /api/me` in the photo script\'s LAYOUT');
+  return keys;
+}
 
 describe("a sign-in's example (the owner, 2026-09-29)", () => {
   // The owner: stick with "Username" / "Gebruikersnaam" and fill in "a grey
