@@ -152,6 +152,34 @@ export function refusedCode(err: unknown): boolean {
   return axios.isAxiosError(err) && err.response?.status === 410;
 }
 
+/** Why the server would not make a card the page offered, when the page has words of its own for it. */
+export type CardRefusal = 'gift_limit' | 'no_room' | 'only_after_alpha';
+
+/**
+ * A card refused for a reason the giver's page says itself (0177 §19, as
+ * built): the number each person may recommend reached, a full Alpha, and,
+ * during it, a member let in by a recommendation (D18). The page loaded with
+ * room and the answer changed before the press: a second tab, or the Alpha
+ * filling up. The server's sentences for the first two are English only, so
+ * the page says all three in its own words and language, as its panel does
+ * when it knows before the press.
+ */
+export function cardRefused(err: unknown): CardRefusal | null {
+  if (!axios.isAxiosError(err) || err.response?.status !== 409) return null;
+  const code = (err.response.data as { error?: unknown } | undefined)?.error;
+  return code === 'gift_limit' || code === 'no_room' || code === 'only_after_alpha' ? code : null;
+}
+
+/**
+ * A card the server would not withdraw because it is no longer unused, or no
+ * longer there (409, 404): used at the door, expired, or withdrawn in another
+ * tab while the page stood open. The server says it in English, with the old
+ * name; the list, read again, says which in the page's words.
+ */
+export function withdrawalOutdated(err: unknown): boolean {
+  return axios.isAxiosError(err) && (err.response?.status === 404 || err.response?.status === 409);
+}
+
 // ------------------------------------------------------------ the operator --
 
 export interface OperatorGift extends GiftSummary {

@@ -12,6 +12,7 @@
  *    card's language and nothing else; the code is shown on the card with
  *    the names and message typed on the page, which are never sent. A link
  *    stands beside the card. When no card can be made it says *none for now*.
+ *    A refusal it knows, it says in its own words and the page's language.
  *  - **The operator's Gifts** (0177 T16, §20; §21.2's point 17). Both counts
  *    with their ceilings, the two fields that set them, the cards not used
  *    yet, and the sentence about Google's list.
@@ -19,6 +20,7 @@
 
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -50,6 +52,16 @@ const wrap = (ui: React.ReactElement, path = '/') =>
   );
 
 const day = (when: string, locale: 'en' | 'nl') => new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(new Date(when));
+
+/** A refusal as axios hands it to the page. */
+const answer = (status: number, data: unknown) =>
+  new AxiosError(`Request failed with status code ${status}`, String(status), undefined, undefined, {
+    status,
+    statusText: '',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+    data,
+  });
 
 beforeEach(() => {
   postMock.mockReset();
@@ -245,6 +257,45 @@ describe('the giver’s page', () => {
     expect(await screen.findByText('You have recommended someone already. Withdraw an unused card to make another.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Make a recommendation' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Withdraw' })).toBeInTheDocument();
+  });
+
+  // The page loaded with room for a card, and the answer changed before the
+  // press: a second tab, or the Alpha filling up. The server's two sentences
+  // are English only (0177 §19, as built); the page has its own for both.
+  it.each([
+    [
+      'the number each person may recommend is reached',
+      { error: 'gift_limit', message: 'You have recommended 2 people already. Withdraw an unused card to make another.', limit: 2 },
+      'U hebt al iemand aanbevolen. Trek een ongebruikte kaart in om een nieuwe te maken.',
+    ],
+    [
+      'the Alpha has no place for a new card',
+      { error: 'no_room', message: 'The Alpha is full for now. No new recommendation can be made.' },
+      'De Alpha is nu vol. U kunt nu geen aanbeveling maken.',
+    ],
+  ])('a card the server refuses because %s is refused in the page’s own words, in Dutch on a Dutch page', async (_, body, words) => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    getMock.mockResolvedValue({ data: { ...MINE, limit: 2 } });
+    postMock.mockRejectedValue(answer(409, body));
+    wrap(<Give />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Maak een aanbeveling' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(`De aanbeveling kon niet worden gemaakt. ${words}`);
+    expect(document.body.textContent).not.toContain(body.message);
+  });
+
+  it('a withdrawal the server refuses says so in the page’s words, never the old name, and the list then shows the card as it is', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const card = { id: 'g-1', locale: 'nl', createdAt: '2026-12-01T10:00:00Z', expiresAt: '2028-12-01T10:00:00Z', revokedAt: null };
+    getMock
+      .mockResolvedValueOnce({ data: { ...MINE, limit: 2, held: 1, gifts: [{ ...card, redeemedAt: null, state: 'unused' }] } })
+      .mockResolvedValue({ data: { ...MINE, limit: 2, held: 1, gifts: [{ ...card, redeemedAt: '2026-12-25T10:00:00Z', state: 'redeemed' }] } });
+    // Used at the door while the page stood open: the server's 409, as built.
+    postMock.mockRejectedValue(answer(409, { error: 'Conflict', message: 'Only an unused gift can be revoked.' }));
+    wrap(<Give />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Intrekken' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^De aanbeveling kon niet worden ingetrokken\.$/);
+    expect(await screen.findByText(`Gebruikt op ${day('2026-12-25T10:00:00Z', 'nl')}: toegelaten`)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\bgifts?\b|\bunused\b|\brevoked\b/i);
   });
 });
 

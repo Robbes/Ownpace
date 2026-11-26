@@ -63,14 +63,24 @@ import { isAlpha } from '../components/AlphaNote.tsx';
 import { supportAddress } from '../components/SupportLine.tsx';
 import { recommendationPageUrl, siteAsTyped } from '../services/recommendation-page-link.ts';
 import {
+  cardRefused,
   listMyGifts,
   makeGift,
   refusalSaid,
   revokeMyGift,
+  withdrawalOutdated,
+  type CardRefusal,
   type GiftState,
   type GiftSummary,
   type MadeGift,
 } from '../services/gifts.ts';
+
+/** A refused card in the page's own words, the panel's sentences for the same three (`cardRefused`). */
+const CARD_REFUSED: Readonly<Record<CardRefusal, StringKey>> = {
+  gift_limit: 'give.atLimit',
+  no_room: 'give.full',
+  only_after_alpha: 'give.onlyAfterAlpha',
+};
 
 /** The door's address: the deployment's own, or this browser's (D9: `/code` in both languages). */
 const theDoor = (known: string | null | undefined): string => known ?? `${window.location.origin}/code`;
@@ -215,7 +225,17 @@ const Give: React.FC = () => {
   const revoke = useMutation({
     mutationFn: (id: string) => revokeMyGift(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['gifts', 'mine'] }),
+    // No longer unused, or gone: the list, read again, says what it is now.
+    onError: (err) => {
+      if (withdrawalOutdated(err)) void queryClient.invalidateQueries({ queryKey: ['gifts', 'mine'] });
+    },
   });
+
+  /** Why no card was made: the page's own sentence where it has one, else the server's, in the page's language. */
+  const madeRefusal = (err: unknown): string => {
+    const refused = cardRefused(err);
+    return refused ? t(CARD_REFUSED[refused]) : refusalSaid(err, locale, t);
+  };
 
   /**
    * Why no card can be made now, or null when one can (D7, D18, §20.3): during
@@ -321,7 +341,7 @@ const Give: React.FC = () => {
           )}
           {make.isError && (
             <p role="alert" className="text-lg text-red-700">
-              {t('give.failed')} {refusalSaid(make.error, locale, t)}
+              {t('give.failed')} {madeRefusal(make.error)}
             </p>
           )}
         </section>
@@ -425,7 +445,8 @@ const Give: React.FC = () => {
         </ul>
         {revoke.isError && (
           <p role="alert" className="text-lg text-red-700">
-            {t('give.revokeFailed')} {serverMessage(revoke.error)}
+            {t('give.revokeFailed')}
+            {!withdrawalOutdated(revoke.error) && ` ${serverMessage(revoke.error)}`}
           </p>
         )}
       </section>
