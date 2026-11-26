@@ -5,8 +5,9 @@ without an Ownpace account and without ever sending anybody their password.
 
 It exists because the alternative is worse in a specific way. Migrating a colleague's mailbox
 needs a credential for that mailbox, and the two obvious ways to get one are both bad: asking
-for their password, or sitting beside them while they sign in and copying a token out of a
-browser. Both put one person's private credential through another person's hands. A link
+for their password, or signing in to their account yourself and copying the token out of the
+browser. Both put one person's private credential through another person's hands; being with
+them while they sign in themselves does not. A link
 removes the middle: they sign in on their provider's own page (Google, Microsoft, Dropbox, Cirrux
 Drive), or, for an account that signs in with a password, type that password themselves on a page
 Ownpace shows only them (since alpha.21, workplan 0174). What comes back is stored encrypted,
@@ -28,14 +29,19 @@ link sent before that changed keeps working until it expires: see
 On the person's page (open them from **Migrations**), in the section with their name (**For
 Anna**, say), under **One grant link for everything**:
 
-1. Choose how long the link should work — **1 day**, **7 days** or **30 days**. Seven is
-   pre-filled. Pick the shortest one that gives the person a fair chance to get to it.
-2. Press **Create grant link**.
-3. Copy the link and send it, however you normally reach that person.
+1. Tell them first, by phone or in person: that a link is coming from you, and what it is for.
+   The section says so above its button (*Tell Anna first, by phone or in person. The page asks
+   whether you did.*), because the page they open asks exactly that, and waits if the answer is
+   no (workplan 0176, D13).
+2. Choose how long the link should work — **1 day**, **7 days** or **30 days**. Thirty is
+   pre-filled, so the person has time: the page they open tells them there is no hurry, and until
+   when.
+3. Press **Create grant link**.
+4. Copy the link and send it, however you normally reach that person.
 
-*Start a migration* offers the same link on its last screen when the person connects their own
-accounts (**They do, with a link**). Since alpha.21 that covers every account a link can connect:
-for one that signs in with a password, you fill in its server and account and press **Save for**
+*Start a migration* offers the same link, with the same line and the same choices, on its last
+screen when the person connects their own accounts (**They do, with a link**). Since alpha.21
+that covers every account a link can connect: for one that signs in with a password, you fill in its server and account and press **Save for**
 *the person*, and no password box is shown. The destination step asks **Whose account is** *the
 provider*? when the destination signs in with a password, or is Cirrux: **Mine, or the
 organisation's: I connect it**, or *the person*'s own, **they connect it with the link**. The last
@@ -46,9 +52,8 @@ link start by themselves when the person connects (see [When the grant lands](#w
 **When every account of theirs is connected already**, the new link asks each of them to connect
 again, and the screen says so. Make one when a connection has stopped working: the person took
 the access back at Google, or it lapsed, or it expired, as Google's access does after seven days
-while a Google application is still in testing. Their page then offers each account **Connect
-again with Google as** *that account*, and the link is spent once each has been connected through
-it.
+while a Google application is still in testing. Their page says why it asks again, and asks each
+account again, and the link is spent once each has been connected through it.
 
 **A migration that belongs to nobody**, made before people were or by hand, is given a person
 first. On the migration's page, under **Links**, answer **Who is this for?**: choose somebody,
@@ -56,8 +61,9 @@ or **Someone new** with their name, and press **Save**. The section then points 
 where the link is made.
 
 **If they open it inside another app.** A link tapped in a chat or mail app opens in that app's
-own browser, and Google is reported to refuse its sign-in there. The page says what to do,
-above its first button: *If this page opened inside another app, such as a chat or mail app, use
+own browser, and Google is reported to refuse its sign-in there. The page says what to do on
+the step before the provider's own page, *Have this ready*, where it can still be acted on: *If
+this page opened inside another app, such as a chat or mail app, use
 that app's 'Open in browser' option or copy the link into your favorite browser, such as
 Firefox, Safari or Chrome. The link still works.* It does: opening a link spends nothing, so opening it again in
 Firefox, Safari or Chrome is safe.
@@ -110,52 +116,73 @@ date or for good.
 
 ## What the other person sees
 
-The page says who is asking once, then shows a card for each account the link asks for, in two
-groups: **The accounts your data is copied from**, then **The accounts your data is copied to**.
-A group with no card is left out. Each card says **Connected**, **Waiting** or **Locked on this
-link**, and a destination's card says what arrives there and from where. A card for an account
-that signs in with a password is described in [A password, typed by the
-person](#a-password-typed-by-the-person); the sign-in cards work as below. Before any button,
-the page tells them:
+The page asks one thing at a time (workplan 0176). Each step is a screen of its own, with one
+heading and the step in words (*Step 2 of 4*), and the browser's **Back** goes one step back. An
+account that signs in with a password is described in [A password, typed by the
+person](#a-password-typed-by-the-person); the sign-in accounts go as below.
 
-- **who is asking** — your organisation, by name, and the address **you** sign in to Ownpace
-  with, so they know which person is asking and not only which organisation. If your
-  organisation has a phone number set, they see that too, so they can call and check it is
-  really you. And if your invoice details carry a business VAT number that the EU VAT register
-  (VIES) confirmed, they see your company's name as the register gives it: the one name on the
-  page nobody typed for it;
-- **from which account, and to where** — the account each card is for, and where each of its
-  migrations goes: which kind of server, where it is, and the account on it. Then one question:
-  *do you know who asked, and is the destination yours or your organisation's? Only then
-  continue.* This
-  is what lets somebody tell your migration from a stranger's, because everything else they
-  see is genuine either way — this page, and Google's own;
-- **what will be read** — their mail, calendars, contacts, tasks or files, in plain words: exactly
-  the data types each migration copies;
-- **that Ownpace only reads** — nothing is ever deleted or changed in their account, and nobody
-  sees their password, because they sign in on Google's own page. For mail, calendars and
-  contacts it also says that Google may describe the permission more broadly, because the
-  permission Ownpace asks for there also allows changes, and Google's own screen says so;
-  Ownpace makes none;
+1. **Who asks, and for what.** One line says what Ownpace is: the service that makes the copy.
+   Then who is asking, under **Sender**: your organisation, by name, and the address **you** sign
+   in to Ownpace with, so they know which person is asking and not only which organisation. If
+   your organisation has a phone number set, they see that too, so they can call and check it is
+   really you. And if your invoice details carry a business VAT number that the EU VAT register
+   (VIES) confirmed, they see your company's name as the register gives it: the one name on the
+   page nobody typed for it. Then what is asked, in one sentence: what is copied, from where and
+   to where (with more than one account, the next screen shows where). Then a few facts:
+   everything also stays where it is, Ownpace only reads there, your organisation can open the
+   copy too where it connected the destination, and there is no hurry: the link works until its
+   date. Then one question: did you tell them about this link yourself? Two answers of one
+   size: **Yes, that is right** and **No, not yet**. The answer only opens the next screen. It is
+   kept in that browser tab and never sent, so a return from Google does not ask again.
+2. **Not yet** opens a calm screen: ask you first, in a way they trust; the page can wait until
+   its date; and if they do not know you, close the page, or report the link (see [If they doubt
+   it](#if-they-doubt-it)). Nothing is sent. **Back** returns to the question.
+3. **The accounts**, when the link holds more than one, or one that is connected already, or a
+   new address for them to confirm. A line for each account, sources first, then destinations:
+   the account, its provider, what is copied from or to it, and its state, **Connected**,
+   **Waiting** or **Locked on this link**. A destination is named by its account and its
+   provider, or by its server where the provider has no name of its own. With the account the
+   copy is read from, that is what lets somebody tell your migration from a stranger's, because
+   everything else they see is genuine either way — this page, and Google's own. With one
+   waiting account and nothing else to show, the page goes straight on.
+4. **Have this ready**, for one account: its address; its password, which they type only on the
+   provider's own page, so Ownpace never sees it and neither do you; their phone, for a code the
+   provider may send, which they give to nobody, you included; and, when they do not know the
+   password, to stop there and do it together with you. During the Alpha, for Google, it suggests
+   doing this together with you: on the phone, or at the table. The note for a page opened inside
+   a chat or mail app stands here too.
+5. **What they will see at the provider**, as a numbered list: that the provider asks them to
+   sign in, and as which account — the one the step names, since any other is refused; during the
+   Alpha, Google's warning, why Google warns, and that they go on to Ownpace there only because
+   you told them about it; what the provider asks for, in plain words, with **the exact
+   permission** it will record behind a fold, so they can find it again in their own account;
+   and, during the Alpha, what to do when Google does not allow the connection: the address is
+   not on Google's list of test users yet, so they close the page and tell you. Then how long the
+   link works, the privacy policy and the terms, before they go anywhere, and two buttons: the
+   provider's own, and **No, rather not**, which ends calmly: nothing has happened, and the link
+   still works.
+
+What the page says Ownpace does is held to what the permission allows:
+
+- **that Ownpace only reads** — nothing is ever deleted or changed in their account. For mail,
+  calendars and contacts the provider step also says that Google's words are broader than what
+  Ownpace does, because the permission Ownpace asks for there also allows changes, and Google's
+  own screen says so; Ownpace makes none. It ends with the tester guide's own sentence: *Make sure
+  everything Ownpace asks for is ticked.* A grant with less than was asked is not stored;
 - **"read-only" only where Google enforces it**: for a link that asks only for Google Drive,
-  Google Tasks or both, whose permissions Google holds to reading, the box says *Read-only*
+  Google Tasks or both, whose permissions Google holds to reading, the page says *Read-only*
   instead. That is said of what the link asks for. Google also adds to the grant any permission
   the same Google account already gave the same app, which may allow changes, so the page after
-  Google says which it was (below);
-- **the exact permission** Google will record, so they can find it again in their own account;
-- **how long the link works**;
-- **which account to sign in with**: the one the card names, and that any other is refused;
-- the privacy policy and terms, before they go anywhere.
+  Google says which it was (below).
 
-Then a button on each card, **Continue with Google as** *that account*. When they press it they
-go to Google, sign in, and land back on a page that says it is done. **That page contains no
-token and asks nothing else of them.** They can close it and get on with their day. A card whose
-account is connected already says **Connected** instead, and the link is spent once every account
-on it is. On a link made to ask again, a connected account's card says it was connected before
-and offers **Connect again with Google as** *that account*. A card that cannot be asked, such as
-one whose migrations run through two different applications of its provider (two Google
-applications, or two Microsoft ones), says why instead of offering the button, in words they can
-pass on to you.
+When they press the provider's button they go to Google, sign in, and land back on a page that
+says it is done. **That page contains no token and asks nothing else of them.** It says how many
+accounts are left, and leads back to the link while any are; they can close it and get on with
+their day. A connected account says **Connected**, and the link is spent once every account on it
+is. On a link made to ask again, the first screen says why it asks again. An account that cannot
+be asked, such as one whose migrations run through two different applications of its provider
+(two Google applications, or two Microsoft ones), says why instead of offering the button, in
+words they can pass on to you.
 
 A migration a link cannot serve, such as one reading Box or a company's own Microsoft app, is
 left off the page: its credential still comes to you by hand.
@@ -182,7 +209,7 @@ stored.
 ### A Microsoft account (workplan 0171, alpha.20)
 
 A Microsoft 365 account, personal (Outlook.com, Hotmail) or work, is asked the same way. Its
-card says Microsoft where a Google card says Google: **Continue with Microsoft as** *that account*,
+steps say Microsoft where a Google account's say Google: **Continue with Microsoft as** *that account*,
 the permission Microsoft will ask for in words (*Outlook: read your email*, *OneDrive: read your
 files*, and so on), and the exact string under *Technical details*. Every Microsoft permission a
 link asks for is one of the read permissions *Connect with Microsoft* asks for, so the box says
@@ -209,7 +236,8 @@ more, because the same account had already given the same app a broader permissi
 says that too.
 
 **In English or Dutch, as they choose** (workplan 0145 T6). The page opens in their browser's
-language and has two buttons, EN and NL, in its top corner; the progress page has the same two.
+language and has two buttons in its top corner, **English** and **Nederlands**; the progress page
+has the same two.
 What will be read, the refusals of the link and of the migration, and the page after Google are
 in that language. Taking the access back and reporting the link still answer in English for now
 (workplan 0145 T6). The page after Google follows the language the grant page was in when they
@@ -273,7 +301,7 @@ changing the password at their provider makes the stored one useless.
 
 ### Only the account the page names
 
-The account a card names is a condition, not a label. Google or Microsoft tells Ownpace which
+The account a step names is a condition, not a label. Google or Microsoft tells Ownpace which
 account signed in, and access is accepted only from that one. So a link forwarded to
 somebody else, or opened in a browser signed in to the wrong account, connects nothing. Google
 offers the named account first, so the wrong one is rarely picked by accident.
@@ -307,8 +335,10 @@ migration's account cannot be changed afterwards, so create it again with that a
 
 ### If they doubt it
 
-Under that question, the page offers **Report this link** (workplan 0108 T8 (d)). A report goes to
-whoever runs your Ownpace, **not to you**: what the person wrote, an address to reply to if they
+**Report this link** (workplan 0108 T8 (d)) is a button on the *not yet* screen, where it answers
+the question, and a quiet link at the foot of every other screen, so somebody who answered yes
+and doubts it a step later can still report it. A report goes to whoever runs your Ownpace, **not
+to you**: what the person wrote, an address to reply to if they
 want an answer, and which link it was, so they can find the person, each of their migrations and
 who issued the link. The progress page offers the same, for somebody who granted and then had
 doubts. It appears only where the service has a
@@ -369,21 +399,32 @@ things, held by two different people, and that is the point:
 | To stop | Who does it | Where |
 |---|---|---|
 | a link being used | you | the person's page (a link sent before: the migration's page) |
-| access already granted | the person who granted it | their progress page (**Withdraw access**, per account), or their provider's settings, under the apps that have access; for a password, changing it at their provider |
+| access already granted | the person who granted it | their progress page (**Stop copying**, per account), or their provider's settings, under the apps that have access; for a password, changing it at their provider |
 | everything, permanently | you | delete the migration |
 
 ### When the person takes their access back
 
-The progress page the person gets once they have granted offers **Withdraw access** for each
-Google account, with one question before it acts (workplan 0108 T8 (c)). Pressing it:
+The progress page the person gets once they have granted offers **Stop copying** for each
+account they connected by signing in, named by its own provider (workplan 0108 T8 (c), workplan
+0176). The question has a screen of its own. It says that Ownpace then stops reading that
+account, that what is already copied stays where it was copied to, and that nothing is deleted at
+the provider. For a Google account it says that Google ends everything they allowed Ownpace, so
+all copying from that account stops. And it says that continuing later needs a new link from you.
+Two answers of one size, **No, do not stop** first, then **Yes, stop**. Pressing **Yes, stop**:
 
-1. asks Google to revoke the grant. Google takes back everything that person allowed the
-   application, at once, so any other migration of the same account through the same application
-   stops too; the page says so before the button;
-2. deletes the grant here from every migration of theirs that holds it, **whatever Google
+1. asks Google to revoke the grant, for a Google account. Google takes back everything that
+   person allowed the application, at once, so any other migration of the same account through
+   the same application stops too; the question says so first. Microsoft and Dropbox offer no
+   call that does this, so their accounts skip this step;
+2. deletes the grant here from every migration of theirs that holds it, **whatever the provider
    answered**, and records it for each;
-3. tells them which of the two happened. When Google did not confirm, they are sent to remove the
-   app from their Google account themselves.
+3. tells them that copying stopped, and since when; that nothing was deleted at the provider, and
+   that what was copied is still at the destination; and which of the two happened. When the
+   provider did not confirm, they are sent to remove Ownpace from the provider's list of apps
+   themselves, with a link to it. Only when it did confirm does the page say they have nothing
+   left to do.
+
+A destination's **Remove my password** asks the same way, with the same two answers.
 
 From then on **nothing reads that account**: no pass starts, a pass already running stops starting
 new items within about fifteen seconds and finishes the ones it has begun, and your **Start** and
@@ -439,7 +480,7 @@ connection stores none, the deployment's.
 app's own browser is the likely cause: Google is reported to refuse its sign-in there. A fresh
 link does not help with that; the same link, opened in the phone's or computer's own browser,
 such as Firefox, Safari or Chrome, rather than the one built into the chat or mail app, does.
-The page says so, above its first button: *If this page opened inside another app, such as a
+The page says so on its *Have this ready* step: *If this page opened inside another app, such as a
 chat or mail app, use that app's 'Open in browser' option or copy the link into your favorite
 browser, such as Firefox, Safari or Chrome. The link still works.*
 
