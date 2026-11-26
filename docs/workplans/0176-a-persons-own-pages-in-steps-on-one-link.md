@@ -4,6 +4,20 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's answer for #2197, D19's words:** *"Q2: a, and I approve, note layer
+review needed."* (*layer* read as *lawyer*), and *"Dutch read 1: #2197, yes as advised."*. The
+guide's sentence ships in alpha.21 on the owner's word, before the lawyer's read: *Zo werkt het
+voor familie en kennissen die u helpt.* / *This is how it works for family and acquaintances you
+help.*, at the end of the tester guide's part for a family member's link, with the glossary's
+*kennis* row. Both Dutch rows are the owner's, as written (§18).
+
+- **The guide's conditions line stays** as it is, quoting the Alpha terms 1.0 (*Alleen voor
+  huishoudens … die van uw gezin*). Where the two differ, the conditions apply, as the guide's
+  first lines say.
+- **On the lawyer's list**, read together with the terms' next version: the drafted terms line
+  (*Alleen particulieren …*, §18), the GDPR question whether helping an acquaintance stays a
+  personal activity, and this sentence of the guide.
+
 **2026-11-26, the owner's answer to D19 (T17):** *"D19: familie of kennissen. I also want to
 support people helping out each other."*, and then: *"Or perhaps 'familie en kennissen', with a
 focus on family"*. Wider than the advice. A member may move accounts for family and for
@@ -1637,6 +1651,13 @@ not. The options stay, as the record of what was put.
     stays their word, and the home page's block for families keeps its family. Where a text
     says whom a member may help, it names acquaintances once: *familie en kennissen* /
     *family and acquaintances*. Drafted, for the owner's read.
+  - **The guide's sentence, before the lawyer** (the owner, 2026-11-26, on #2197): *"Q2: a, and
+    I approve, note layer review needed."* (*layer* read as *lawyer*), and *"Dutch read 1:
+    #2197, yes as advised."*. It ships in alpha.21 as drafted, *Zo werkt het voor familie en
+    kennissen die u helpt.*, and the guide's conditions line stays, quoting the Alpha terms 1.0.
+  - **The lawyer's list for the terms' next version**, read together: the drafted terms line
+    above (*Alleen particulieren …*), the GDPR question (Art. 2(2)(c)) whether helping an
+    acquaintance stays a personal activity, and the guide's sentence.
   - **Google's list:** each person helped with a Google account takes a place on Google's list
     of test users, as plan 0177 §20.5 counts them.
 
