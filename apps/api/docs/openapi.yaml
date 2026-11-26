@@ -4850,8 +4850,9 @@ paths:
             link, or already withdrawn, with the day), the migration no longer
             exists (`not_found`), or a new grant landed while this one was being
             withdrawn (`changed`; nothing was deleted, press again). `reason` is
-            written for the person holding the link; for a person's link
-            `reasonNl` says it in Dutch.
+            written for the person holding the link, and `reasonNl` says it in
+            Dutch, for a migration's link too since the owner's decisions of
+            2026-11-26.
         '500':
           description: Ours; nothing the person did.
 

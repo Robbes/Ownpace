@@ -58,7 +58,6 @@ import {
   type PersonViewPayload,
   type ViewRow,
 } from '../services/view-service.ts';
-import { serverMessage } from '../services/api.ts';
 import { linkRefusal } from '../services/link-refusal.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import type { Locale, StringKey } from '../i18n/index.tsx';
@@ -373,10 +372,12 @@ const TheAccessTheyGave: React.FC<{
       )}
       {withdraw.error != null && (
         // The server's own sentence: nothing to take back, or it changed while
-        // it was being taken back. Both are written for this reader; a
-        // person's page is answered in both languages, and shows its own.
-        <p className="mt-2 text-sm text-amber-800">
-          {forAccount ? linkRefusal(withdraw.error, locale, t) : serverMessage(withdraw.error)}
+        // it was being taken back. Both are written for this reader, in both
+        // languages, and the page shows its own (the owner's decisions of
+        // 2026-11-26: a migration's page showed the English half on a Dutch
+        // page). Announced, as every refusal on these pages is.
+        <p role="alert" className="mt-2 text-sm text-amber-800">
+          {linkRefusal(withdraw.error, locale, t)}
         </p>
       )}
     </section>
@@ -462,7 +463,7 @@ const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewD
           )}
           {remove.error != null && (
             // The server's own sentence, in the page's language: it changed since the page was opened.
-            <p className="mt-2 text-sm text-amber-800">{linkRefusal(remove.error, locale, t)}</p>
+            <p role="alert" className="mt-2 text-sm text-amber-800">{linkRefusal(remove.error, locale, t)}</p>
           )}
         </div>
       )}

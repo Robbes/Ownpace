@@ -90,7 +90,7 @@ function refused(status: number, data: unknown): AxiosError {
 describe('what a person sees before consenting', () => {
   it('names who is asking — consenting to an anonymous request is not consenting', async () => {
     renderPage();
-    expect(await screen.findByText(/Acme Legal is migrating your account/)).toBeInTheDocument();
+    expect(await screen.findByText(/Acme Legal is migrating your email, calendar and files/)).toBeInTheDocument();
   });
 
   it('says what will be read, and that nothing is deleted or changed', async () => {
@@ -431,7 +431,7 @@ describe("a person's link", () => {
     expect(screen.getByRole('heading', { level: 3, name: 'anna@work.example' })).toBeInTheDocument();
     expect(screen.getByText('To anna, Nextcloud at cloud.example.org: your calendars and their events.')).toBeInTheDocument();
     expect(screen.getByText('To anna@soverin.net, Soverin: your contacts.')).toBeInTheDocument();
-    expect(screen.getByText(/is moving your accounts and\/or content to a new provider/)).toBeInTheDocument();
+    expect(screen.getByText(/is moving your email, calendar and files to a new provider/)).toBeInTheDocument();
   });
 
   it('offers no button for a connected account, and says why an account cannot be asked', async () => {
@@ -470,7 +470,7 @@ describe("a person's link", () => {
     renderPage();
     expect(await screen.findByRole('button', { name: 'Doorgaan met Google als anna@work.example' })).toBeInTheDocument();
     expect(screen.getByText('Twee applicaties, één aanmelding.')).toBeInTheDocument();
-    expect(screen.getByText('Verbonden. Dit account is klaar om te gebruiken in een migratie.')).toBeInTheDocument();
+    expect(screen.getByText('Verbonden. Voor dit account hoeft u niets meer te doen.')).toBeInTheDocument();
   });
 });
 

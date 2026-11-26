@@ -276,7 +276,7 @@ router.post(
       const { tenantId, mappingId, linkId } = req.mappingLink!;
       const result = await withdrawGrant(pool(), { tenantId, mappingId, linkId }, tokenRevoker());
       if (!result.ok) {
-        return void res.status(409).json({ error: result.code, reason: result.reason });
+        return void res.status(409).json({ error: result.code, ...reasonPair(result.reason) });
       }
       res.json(result.withdrawal);
     } catch (error) {

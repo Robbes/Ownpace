@@ -69,7 +69,7 @@ describe('the owner’s words of 2026-10-18', () => {
       'They connect their own accounts themselves, so you never hold those credentials. Where no link can reach, you sign in together.',
     );
     expect(nl['start.who.someoneElse.line']).toBe(
-      'Hun eigen accounts verbindt iemand anders zelf, zodat u die wachtwoorden nooit in handen krijgt. Waar dat niet met een link kan, meldt u zich samen aan.',
+      'Zij verbinden hun eigen accounts zelf, zodat u hun wachtwoorden nooit in handen krijgt. Waar geen link werkt, meldt u zich samen aan.',
     );
   });
 
@@ -88,10 +88,10 @@ describe('a provider is an aanbieder in Dutch (GLOSSARY.md)', () => {
 
   it('the grant page and the progress page say it in the owner’s chosen words', () => {
     expect(nl['grant.asking']).toBe(
-      '{organisation} migreert uw account naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat voor u moet worden gemigreerd.',
+      '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat voor u moet worden gemigreerd.',
     );
-    expect(nl['grant.person.asking']).toMatch(/^\{organisation\} migreert uw accounts naar een nieuwe aanbieder en heeft/);
-    expect(nl['view.who']).toBe('{organisation} migreert uw account naar een nieuwe aanbieder.');
+    expect(nl['grant.person.asking']).toMatch(/^\{organisation\} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft/);
+    expect(nl['view.who']).toBe('{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder.');
     expect(nl['view.person.who']).toBe(
       '{organisation} migreert uw accounts naar nieuwe aanbieders. Hier ziet u hoe elke migratie ervoor staat.',
     );
@@ -102,5 +102,33 @@ describe('a provider is an aanbieder in Dutch (GLOSSARY.md)', () => {
       'De aanbieder vroeg ons (automatisch) om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
     );
     expect(nl['pause.ceiling.why']).toMatch(/^Deze limiet is van uw oude aanbieder, niet van ons\. /);
+  });
+});
+
+/**
+ * The owner's decisions of 2026-11-26, change 2: the near-free wording fixes
+ * on the pages a family member sees and the start wizard's choice for them.
+ */
+describe('the owner’s wording fixes of 2026-11-26', () => {
+  it('the start wizard: someone new, and they sign in themselves', () => {
+    expect(nl['start.who.someoneNew']).toBe('Iemand nieuw');
+    expect(nl['start.who.someoneElse']).toBe('Zij zelf, met een link');
+  });
+
+  it('a migration in cutover is switching over, not switched', () => {
+    expect(nl['state.lifecycle.cutover']).toBe('Bezig met overstappen');
+  });
+
+  it('a connected account on a person’s link needs nothing more, in Dutch too', () => {
+    expect(en['grant.person.connected']).toBe('Connected. Nothing more is needed for this account.');
+    expect(nl['grant.person.connected']).toBe('Verbonden. Voor dit account hoeft u niets meer te doen.');
+  });
+
+  it('says what is moving as email, calendar and files, not "and/or content"', () => {
+    for (const key of ['grant.asking', 'grant.person.asking', 'view.who']) {
+      expect(en[key]).toContain('your email, calendar and files');
+      expect(en[key]).not.toMatch(/and\/or|account \/ content/);
+      expect(nl[key]).toContain('uw e-mail, agenda en bestanden');
+    }
   });
 });

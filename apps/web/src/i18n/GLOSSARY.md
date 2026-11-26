@@ -116,7 +116,7 @@ Two kinds of words render; only the first belongs to this glossary:
 
 | entity | states (EN) | notes |
 |---|---|---|
-| Mapping lifecycle | Active / Paused / In cutover / Done | NL: Actief / Gepauzeerd / Overgestapt / Afgerond. The owner's words (2026-10-10; was *In cutover*); a sentence about a migration in that state says *In overstap* (`finish.note.cutover`, `confirm.note.cutover`). |
+| Mapping lifecycle | Active / Paused / In cutover / Done | NL: Actief / Gepauzeerd / Bezig met overstappen / Afgerond. The owner's decisions of 2026-11-26 (was *Overgestapt*, the owner's words of 2026-10-10, which read as done; before that *In cutover*), the stage's own word for switching; a sentence about a migration in that state says *In overstap* (`finish.note.cutover`, `confirm.note.cutover`). |
 | Stage: where a migration, or a person's migrations, are (workplan 0154 T1) | Not started / Paused / Copying / Kept in step / Ready to switch / Switching / Done | NL: Nog niet gestart / Gepauzeerd / Wordt gemigreerd / Wordt bijgehouden / Klaar om over te stappen / Bezig met overstappen / Afgerond. Read from the lifecycle and each data type's phase by `stageOf` (shared); none is a new state. A person's is the least advanced (`leastAdvancedStage`). The lifecycle row above stays the operator's word. |
 | Domain pass | Pending / Syncing / Completed / Failed / Skipped | NL pending = **In afwachting** |
 | Run | Pending / Running / Succeeded / Failed / Cancelled | `success` keeps "Succeeded"; NL pending = **In afwachting** (the *wachtrij* words are reserved for **queued**) |

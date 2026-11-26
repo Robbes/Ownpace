@@ -44,7 +44,7 @@ export const en = {
   // trust us, so: second person, no jargon, and nothing they have to look up.
   'grant.title': 'Connect your account',
   'grant.loading': 'One moment…',
-  'grant.asking': '{organisation} is migrating your account and/or content to a new provider, and needs your permission to read what you currently store.',
+  'grant.asking': '{organisation} is migrating your email, calendar and files to a new provider, and needs your permission to read what you currently store.',
   'grant.reads': 'You are about to give (read) access to {reads}.',
   // What each data type reads, in the words a person would use about their
   // own account, joined into `grant.reads` as the page's language joins a list
@@ -104,7 +104,7 @@ export const en = {
   // A person's link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)): one
   // card per Google account, each asked once.
   'grant.person.asking':
-    '{organisation} is moving your accounts and/or content to a new provider, and needs your permission to read what you currently hold. Each account below asks once.',
+    '{organisation} is moving your email, calendar and files to a new provider, and needs your permission to read what you currently hold. Each account below asks once.',
   'grant.person.migration': 'To {where}: {reads}.',
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Continue with Google as {account}',
@@ -269,7 +269,7 @@ export const nl: Record<keyof typeof en, string> = {
   'grantLink.revokeArmed': 'Bevestig intrekken',
   'grant.title': 'Verbind uw account',
   'grant.loading': 'Een moment…',
-  'grant.asking': '{organisation} migreert uw account naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat voor u moet worden gemigreerd.',
+  'grant.asking': '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat voor u moet worden gemigreerd.',
   'grant.reads': 'U staat op het punt (lees)toegang te geven tot {reads}.',
   'grant.reads.email': 'uw e-mail: berichten, mappen en labels',
   'grant.reads.calendar': 'uw agenda’s en de afspraken daarin',
@@ -308,11 +308,11 @@ export const nl: Record<keyof typeof en, string> = {
     'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Firefox, Safari of Chrome. De link blijft werken.',
   'grant.connect': 'Doorgaan met Google',
   'grant.person.asking':
-    '{organisation} migreert uw accounts naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',
+    '{organisation} migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder en heeft uw toestemming nodig om te lezen wat erin zit. Elk account hieronder vraagt het één keer.',
   'grant.person.migration': 'Naar {where}: {reads}.',
   'grant.person.where': '{account}, {place}',
   'grant.person.connect': 'Doorgaan met Google als {account}',
-  'grant.person.connected': 'Verbonden. Dit account is klaar om te gebruiken in een migratie.',
+  'grant.person.connected': 'Verbonden. Voor dit account hoeft u niets meer te doen.',
   'grant.person.again':
     'Dit account was al verbonden. Wie u deze link stuurde, vraagt u opnieuw te verbinden, bijvoorbeeld omdat de verbinding niet meer werkt.',
   'grant.person.connectAgain': 'Opnieuw verbinden met Google als {account}',

@@ -425,6 +425,18 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
 }
 
 /**
+ * The person's grant page, for the ending to go back to when more accounts
+ * are left to connect (the owner's decisions of 2026-11-26): the web address
+ * this link opens, from the link the authorize call came through. None when
+ * the deployment names no web address; the ending then offers no button.
+ */
+function grantPageBack(req: PersonLinkRequest): { backUrl?: string } {
+  const base = process.env.WEB_URL?.replace(/\/+$/, '');
+  const token = req.params.link;
+  return base && typeof token === 'string' && token !== '' ? { backUrl: `${base}/grant/${encodeURIComponent(token)}` } : {};
+}
+
+/**
  * POST authorize for a PERSON'S link: the account the button named, asked for
  * everything its listed migrations need, through the one client they share.
  * The pending state records the account and those migrations, so the ending
@@ -501,6 +513,7 @@ async function authorizeForAPerson(
       personId: link.personId,
       account: account.account,
       mappingIds: account.migrations.map((m) => m.mappingId),
+      ...grantPageBack(req),
     },
     locale,
   });

@@ -1802,7 +1802,7 @@ describe('the grant and progress links, opened by the person they were sent to (
       asks: [`/api/grant/${GRANT_LINK}`, `/api/grant/${GRANT_LINK}/report`],
       says: {
         en: [
-          'Acme Families is migrating your account and/or content to a new provider', // grant.asking
+          'Acme Families is migrating your email, calendar and files to a new provider', // grant.asking
           'Connect your account', // grant.title
           'owner-a@demo.openmigrate.test', // who asked
           'anna@example.com', // from
@@ -1819,7 +1819,7 @@ describe('the grant and progress links, opened by the person they were sent to (
           'By continuing you accept how your data is handled:', // grant.disclosure
         ],
         nl: [
-          'Acme Families migreert uw account naar een nieuwe aanbieder',
+          'Acme Families migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder',
           'Verbind uw account',
           'owner-a@demo.openmigrate.test',
           'anna@example.com',
@@ -1847,7 +1847,7 @@ describe('the grant and progress links, opened by the person they were sent to (
       asks: [`/api/grant/${PERSON_GRANT_LINK}`, `/api/grant/${PERSON_GRANT_LINK}/report`],
       says: {
         en: [
-          'Acme Families is moving your accounts and/or content to a new provider', // grant.person.asking
+          'Acme Families is moving your email, calendar and files to a new provider', // grant.person.asking
           'owner-a@demo.openmigrate.test',
           'To anna@soverin.example, Soverin: your email — messages, folders and labels.', // grant.person.migration
           'To anna@example.org, Nextcloud at cloud.example.org: your calendars and their events.',
@@ -1857,12 +1857,12 @@ describe('the grant and progress links, opened by the person they were sent to (
           'By continuing you accept how your data is handled:',
         ],
         nl: [
-          'Acme Families migreert uw accounts naar een nieuwe aanbieder',
+          'Acme Families migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder',
           'owner-a@demo.openmigrate.test',
           'Naar anna@soverin.example, Soverin: uw e-mail: berichten, mappen en labels.',
           'Naar anna@example.org, Nextcloud op cloud.example.org: uw agenda’s en de afspraken daarin.',
           'Log in als anna@example.com.',
-          'Verbonden. Dit account is klaar om te gebruiken in een migratie.',
+          'Verbonden. Voor dit account hoeft u niets meer te doen.',
           "Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar 'Openen in browser'",
           'Door door te gaan gaat u akkoord met hoe uw gegevens worden verwerkt:',
         ],
@@ -1882,14 +1882,14 @@ describe('the grant and progress links, opened by the person they were sent to (
       asks: [`/api/view/${VIEW_LINK}`, `/api/view/${VIEW_LINK}/report`],
       says: {
         en: [
-          'Acme Families is migrating your account / content to a new provider.', // view.who
+          'Acme Families is migrating your email, calendar and files to a new provider.', // view.who
           'Your migration', // view.title
           'Your things are being migrated across now.', // view.state.active
           'The access you gave', // view.grant.title
           'This page only shows numbers; it holds nothing from your account.', // view.readOnly
         ],
         nl: [
-          'Acme Families migreert uw account naar een nieuwe aanbieder.',
+          'Acme Families migreert uw e-mail, agenda en bestanden naar een nieuwe aanbieder.',
           'Uw migratie',
           'De migratie is actief.',
           'De toegang die u gaf',

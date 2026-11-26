@@ -103,7 +103,7 @@ beforeEach(() => {
 describe('what the page says', () => {
   it('names who is doing this, in a sentence rather than a chip', async () => {
     renderPage();
-    expect(await screen.findByText(/Example family is migrating your account/)).toBeInTheDocument();
+    expect(await screen.findByText(/Example family is migrating your email, calendar and files/)).toBeInTheDocument();
     // `active` reads as "Active" everywhere else in the product. Here it is a
     // whole sentence, because the reader is not scanning twenty migrations —
     // they are reading about their own.
@@ -342,16 +342,58 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
     );
   });
 
-  it('shows the server’s own sentence when there was nothing to take back', async () => {
+  /** A 409 with the server's two halves, as `view.ts` answers a withdrawal it refuses. */
+  const alreadyWithdrawn = () => {
+    const refused = new AxiosError('Request failed with status code 409');
+    refused.response = {
+      status: 409,
+      statusText: '',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: {
+        error: 'nothing_granted',
+        reason: 'You already withdrew your permission, on 2026-09-24.',
+        reasonNl: 'U trok uw toestemming al in, op 2026-09-24.',
+      },
+    };
+    return refused;
+  };
+
+  it('shows the server’s own sentence when there was nothing to take back, and announces it', async () => {
     readMock.mockResolvedValue(payload({ grant: { state: 'granted' } }));
-    withdrawMock.mockRejectedValue(new Error('409'));
-    serverMessageMock.mockReturnValue('You already withdrew your permission, on 2026-09-24.');
+    withdrawMock.mockRejectedValue(alreadyWithdrawn());
     renderPage();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
     fireEvent.click(screen.getByRole('button', { name: 'Yes, withdraw it' }));
 
-    expect(await screen.findByText('You already withdrew your permission, on 2026-09-24.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('You already withdrew your permission, on 2026-09-24.');
+  });
+
+  // The owner's decisions of 2026-11-26: the Dutch page showed the English half.
+  it('says the refusal in Dutch on a Dutch page', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      readMock.mockResolvedValue(payload({ grant: { state: 'granted' } }));
+      withdrawMock.mockRejectedValue(alreadyWithdrawn());
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={qc}>
+          <LocaleProvider>
+            <MemoryRouter initialEntries={['/view/abc.def']}>
+              <Routes>
+                <Route path="/view/:link" element={<View />} />
+              </Routes>
+            </MemoryRouter>
+          </LocaleProvider>
+        </QueryClientProvider>,
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Toegang intrekken' }));
+      fireEvent.click(screen.getByRole('button', { name: /^Ja,/ }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('U trok uw toestemming al in, op 2026-09-24.');
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
   });
 
   it('once withdrawn, says copying stopped and when, instead of that it is copying, and offers nothing more', async () => {
