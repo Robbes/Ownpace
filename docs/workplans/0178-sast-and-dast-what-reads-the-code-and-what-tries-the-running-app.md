@@ -4,6 +4,39 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, later still: T5 built, report only; its proof and its first run are still to come.**
+`.github/workflows/codeql.yml` runs CodeQL's default suite for JavaScript and TypeScript on a
+push to `main`, on Wednesdays and on dispatch, never on a pull request, on `ubuntu-24.04`, with
+`contents: read` and `security-events: write` alone. It blocks nothing: no alert fails it, and it
+is in no ruleset (D1 (a), D8 (a)).
+
+- **Pinned.** `github/codeql-action` v4.39.4 at the commit `semgrep.yml` and `security-scan.yml`
+  already upload with, not the v4.39.5 §4.1 named. That release was tagged on 24 November, so on
+  this day it was under the three days CONTRIBUTING.md asks of a release, and a second commit
+  would have split the copies. v4.39.4 ships CodeQL 2.27.5, read from its `src/defaults.json`.
+  The pin watch has a row `CodeQL`: every copy held to one commit, named with its bundle, against
+  upstream's git tags. It lists v4.39.5 as newer, and Dependabot's `github-actions` entry
+  proposes the move.
+- **A scan that did not finish is red.** `scripts/codeql-report.mjs` reads the SARIF and writes
+  every alert to the summary, by query. It fails on no SARIF, on a file CodeQL could not extract,
+  and on a source file the checkout tracks that CodeQL does not say it extracted (§12's risk).
+- **The proof (§8 step 2).** `scripts/fixtures/codeql-known-bad/handler.mjs` is an Express
+  handler that puts `req.query` into a string-built SQL query and into `res.send`. The ordinary
+  run leaves it out (`.github/codeql/codeql.yml`). A dispatch with `proof` reads it as well,
+  uploads nothing, and is red unless `js/sql-injection` and `js/reflected-xss` are both reported
+  there.
+- **Held by** `scripts/a-flow-across-files-nothing-followed.unit.test.ts`: the triggers, the
+  pins, the permissions, the two configurations differing by the fixture alone, nothing under
+  `apps`, `packages`, `site`, `deploy` or `test` naming the fixture, and the report against
+  stubbed SARIF. The guard's 22 tests and the pin watch's 143 pass, and zizmor 1.33.1 finds
+  nothing under either persona.
+- **Not yet proved, and the maintainer's to run.** The proof dispatch on the branch, and the
+  first run on `main` with every file extracted (§10). Neither was run: this session dispatches
+  no workflow. One part is read here, not seen: the IDs `…/diagnostics/successfully-extracted-files`
+  and `…/diagnostics/extraction-errors` that the report reads extraction by. If CodeQL's SARIF
+  names them otherwise, the first run is red with every file listed as not extracted. That is
+  loud, never a false green, and the fix is one line. T6 reads the first list from `main`.
+
 **2026-11-26, later: the owner's answers, D1 to D9 (T0).** In the owner's words:
 *"D1–D9: as advised. H: yes. All in this alpha"*. D9 is the maintainer's addition, put to the
 owner beside D1 to D8 (§9). *"H"* is about two fixes outside this plan, and this plan does not
@@ -70,7 +103,7 @@ one before it to be quiet on `main`.
 | T2 Guard: raw SQL only at named places, each with its check | builder | 📋 Planned, alpha.21 | §5.1 G2. Today's places listed with their checks. Blocks. S. By the analyst session, after alpha.21's builds (D9). |
 | T3 Guard: every door either signs in, or is public in the code and in the API description alike | builder | 📋 Planned, alpha.21 | §5.1 G3. The static half of class 9. Blocks. M. By the analyst session, after alpha.21's builds (D9). |
 | T4 Guard: a secret-named key handed to the logger | builder | 📋 Planned, alpha.21 | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
-| T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 📋 Planned, alpha.21 | §4.1, §8 step 2. D1. Not on pull requests. S. By a new session, now (D9). |
+| T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 🔄 Built 2026-11-26; proof dispatch and first run on `main` to come | §4.1, §8 step 2. D1. Not on pull requests. `codeql.yml`, its report, its fixture and its guard; the Status entry of that day. |
 | T6 CodeQL's first list, read alert by alert | builder | 📋 Planned, alpha.21 | §8 step 2. As 0166 read Trivy's and Semgrep's. M. By the same session as T5. |
 | T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 📋 Planned, alpha.21 | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
 | T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |

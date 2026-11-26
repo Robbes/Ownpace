@@ -35,6 +35,14 @@ reading a file drops off its entry by itself.
 
 - [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 
+### `.github/codeql/codeql-proof.yml`
+
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
+
+### `.github/codeql/codeql.yml`
+
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
+
 ### `.github/dependabot.yml`
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
@@ -78,6 +86,11 @@ reading a file drops off its entry by itself.
 
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
+
+### `.github/workflows/codeql.yml`
+
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 
 ### `.github/workflows/e2e-live-target.yml`
 
@@ -189,6 +202,7 @@ reading a file drops off its entry by itself.
 
 - [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 - [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -206,6 +220,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/semgrep.yml`
 
 - [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 
 ### `.github/workflows/windows-payload.yml`
@@ -2190,6 +2205,7 @@ reading a file drops off its entry by itself.
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 
 ### `docs/windows-appliance-runbook.md`
@@ -3132,6 +3148,10 @@ reading a file drops off its entry by itself.
 ### `scripts/clock-watch.mjs`
 
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
+
+### `scripts/codeql-report.mjs`
+
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 
 ### `scripts/conflict-markers.mjs`
 
@@ -4582,6 +4602,20 @@ Reads:
 - `scripts/image-scan.mjs`
 - `scripts/rotate-db-passwords.unit.test.ts`
 
+### [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts)
+
+A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
+
+Reads:
+
+- `.github/codeql/codeql-proof.yml`
+- `.github/codeql/codeql.yml`
+- `.github/workflows/codeql.yml`
+- `.github/workflows/security-scan.yml`
+- `.github/workflows/semgrep.yml`
+- `docs/testing.md`
+- `scripts/codeql-report.mjs`
+
 ### [a-folder-that-is-one-row-not-two-hundred](../scripts/a-folder-that-is-one-row-not-two-hundred.unit.test.ts)
 
 A MEASUREMENT THAT ACCEPTS ONE FIELD AS EVIDENCE FOR ANOTHER RECOMMENDS A DESIGN ON A CAPABILITY IT NEVER MEASURED.
@@ -5158,6 +5192,7 @@ Reads:
 
 - `.github/dependabot.yml`
 - `.github/workflows/ci.yml`
+- `.github/workflows/codeql.yml`
 - `.github/workflows/e2e-managed.yml`
 - `.github/workflows/e2e.yml`
 - `.github/workflows/hadolint.yml`

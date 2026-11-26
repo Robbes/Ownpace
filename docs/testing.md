@@ -511,8 +511,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   digest of the channel each action ran before, `latest` and `buildx-stable-1`), the hadolint
   image `hadolint.yml` runs (against Docker Hub's tags of its shape and major), the Semgrep image
   `semgrep.yml` runs (the same way), the zizmor image `zizmor.yml` runs (against ghcr.io's tags of
-  its shape and major), and the squawk release `migration-locks.yml` installs (against upstream's
-  git tags) share one summary issue (the MinIO row in it, and the tasks' prebuilt base's, went
+  its shape and major), the squawk release `migration-locks.yml` installs (against upstream's
+  git tags), and `github/codeql-action`, every copy `codeql.yml`, `semgrep.yml` and
+  `security-scan.yml` run, held to one commit, named with the CodeQL bundle that release ships
+  (against upstream's git tags; Dependabot proposes the move) share one summary issue (the MinIO row in it, and the tasks' prebuilt base's, went
   with alpha.18); another image a script there
   runs is not compared (none today: `db-roles.sh` reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
   rebuild under the same tag is the image scan's to report. The exception is `www.yml`'s nginx,
@@ -598,6 +600,23 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   its time-outs leave `main`'s runs finished; the two ReDoS rules, `detect-non-literal-regexp` and
   `detect-redos`, never do. Held by `scripts/a-finding-only-an-outside-check-saw.unit.test.ts`,
   which runs the report against a stubbed docker.
+- `codeql.yml` — on a push to `main`, weekly (Wednesday) and on dispatch, **never on a pull
+  request**, on a GitHub-hosted runner, **report only and never a required check: it blocks
+  nothing** (workplan 0178 T5, the owner's D1 (a) and D8 (a) of 2026-11-26). CodeQL's default suite
+  for JavaScript and TypeScript, by `github/codeql-action` at the commit `semgrep.yml` and
+  `security-scan.yml` upload with, and the CodeQL bundle that release ships. It follows a value
+  from a request across files and functions, which Semgrep's free engine cannot, and uploads every
+  alert to code scanning beside Trivy's and Semgrep's. No alert fails it, the two ReDoS queries'
+  included, until workplan 0178 T6 has read the first list; a query blocks later only through a
+  report that fails on that query alone (T9). `scripts/codeql-report.mjs` writes every alert to
+  the summary, by query, and fails a scan that did not finish: no SARIF, a file CodeQL could not
+  extract, or a source file the checkout tracks that is not among the files CodeQL says it
+  extracted, since CodeQL parses TypeScript with its own compiler and not this repository's
+  TypeScript 7. **Its proof:** dispatched with `proof`, it also reads the known-bad fixture in
+  `scripts/fixtures/codeql-known-bad` (which the ordinary run leaves out,
+  `.github/codeql/codeql.yml`), uploads nothing, and is red unless `js/sql-injection` and
+  `js/reflected-xss` are both reported there. Held by
+  `scripts/a-flow-across-files-nothing-followed.unit.test.ts`.
 - `migration-locks.yml` — on a pull request and a push to `main` that touch either migration chain,
   the workflow or its script, and on dispatch, on a GitHub-hosted runner, never a required check
   (workplan 0165): squawk 2.74.0, the static musl build from its GitHub release, checked by its
