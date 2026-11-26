@@ -7887,6 +7887,8 @@ paths:
             `Not found`: the migration named by `mappingId` was deleted while
             its report was being made, after its mailbox was read (workplan
             0162). Nothing of its account is read.
+            Or `mappingId` is no UUID, so it names no migration: answered
+            before anything is read.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

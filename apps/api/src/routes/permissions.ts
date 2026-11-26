@@ -43,6 +43,7 @@
  */
 
 import { Router } from 'express';
+import { NOT_FOUND, idsThatAreNoUuid, isUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { sql } from 'drizzle-orm';
 import { withTenant, type PgDatabase } from '@openmig/ledger';
@@ -109,7 +110,7 @@ import { probeAnswers } from '../probe-answer.ts';
 import { refusedOverTestLimit } from '../probe-limit.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 // One client for Graph and for the organisation's own Nextcloud. The second is
 // a host a tenant gave us, so both go through the rule (0136 T1); Graph's
@@ -173,6 +174,14 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     // wrong language still warns about cutover where a 400 would not.
     const lang = localeOf(req.query.lang);
     let mailbox = asked;
+
+    // A `mappingId` that is no UUID names no migration: answered as one that
+    // is not there, before the database is asked (workplan 0178, A1; the path
+    // ids' answer, `an-id-that-is-no-uuid.ts`).
+    if (mailbox === '' && mappingId !== '' && !isUuid(mappingId)) {
+      res.status(404).json({ error: 'Not found', message: NOT_FOUND });
+      return;
+    }
 
     if (mailbox === '' && mappingId !== '') {
       mailbox = (await resolveMappingMailbox(tenantId, mappingId)) ?? '';

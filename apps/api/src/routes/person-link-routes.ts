@@ -53,6 +53,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import {
@@ -73,7 +74,12 @@ import { readPersonGrantSubject, type PersonGrantAccount } from './migrations/pe
 import { atTheLimit, issuePersonLinkWithinTheLimit } from './migrations/live-link-limit.ts';
 import { awaitingTheirGrant } from './migrations/start-when-granted.ts';
 
-const router = Router({ mergeParams: true });
+const router = idsThatAreNoUuid(Router({ mergeParams: true }), {
+  checkedByItsRoutes: {
+    personId: 'its person reader after sign-in, 404 person_not_found (a-link-for-a-person.unit.test.ts)',
+    linkId: 'checked by the one route that takes it, after its person (a-link-for-a-person.unit.test.ts)',
+  },
+});
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function pool() {

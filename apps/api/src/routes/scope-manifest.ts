@@ -7,10 +7,11 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { SCOPE_MANIFEST } from '@openmig/shared';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 router.get('/', (_req: Request, res: Response) => {
   res.json(SCOPE_MANIFEST);

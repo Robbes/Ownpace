@@ -7,6 +7,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
@@ -1119,7 +1120,13 @@ export function sourceCredentialRecord(
 // so the appliance cannot grow a second, slightly different one — see
 // RunStore.listRunsWithEvents.
 
-const router = Router();
+// A `mappingId` that is no UUID names no migration: answered as one this
+// organisation does not have, in English and Dutch (`NO_SUCH_MIGRATION`,
+// below), before any route of this router asks the database (workplan 0178,
+// A1). The press below had this answer alone; now every route has it.
+const router = idsThatAreNoUuid(Router(), {
+  answers: { mappingId: (res) => void res.status(404).json(NO_SUCH_MIGRATION) },
+});
 
 /**
  * A destination a person connected themselves through their grant link,

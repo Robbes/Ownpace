@@ -60,6 +60,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { RequestHandler, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -90,7 +91,7 @@ import {
   withdrawalRefusalBody,
 } from './person-progress.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function pool() {

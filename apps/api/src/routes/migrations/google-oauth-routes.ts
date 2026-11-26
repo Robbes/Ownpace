@@ -16,6 +16,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
@@ -65,7 +66,7 @@ import { moreToConnect } from './link-ending.ts';
 // account, and the scope string built from the ticks and nothing else.
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /**
  * Two shapes, and the older one is untouched (workplan 0106 T3b).
