@@ -4580,9 +4580,9 @@ the user gosu dropped to, it never does. What that means for you:
   did Trigger.dev's `trigger-db`, on the same build): the OTA stack at the E2E (managed) run of the branch or
   the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
   tag. The build pulls the pinned base when the machine does not have it (as
-  `up` pulled the image before), runs one `rm`, and takes libxml2 2.13.9-r3
-  from Alpine's mirror (`dl-cdn.alpinelinux.org`), Alpine's fix for
-  CVE-2026-86144 (workplan 0166 T3), which the base does not carry yet. On
+  `up` pulled the image before), runs one `rm`, and takes libxml2 2.13.9-r5
+  from Alpine's mirror (`dl-cdn.alpinelinux.org`), with Alpine's fix for
+  CVE-2026-86144 (workplan 0166 T3; -r3 until 2026-11-26), which the base does not carry yet. On
   `v0.2.0-alpha.4` to `v0.2.0-alpha.7` it also took four of Alpine's security
   updates from that mirror, which PostgreSQL 18.7's image, from alpha.8 to
   alpha.13, carried itself, so those releases needed no package mirror. The

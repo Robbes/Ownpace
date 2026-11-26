@@ -134,6 +134,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Both Postgres builds take libxml2 2.13.9-r5, as Alpine's mirror no longer serves 2.13.9-r3**
+  (workplan 0166 T3, the owner's D3: an exact `apk add`). From 2026-11-26 a build of the managed
+  stack's database image or the appliance's, on a machine without it, stopped at that step: Alpine
+  keeps only a package's newest build, and its mirror served 2.13.9-r5 instead. Each build now
+  takes -r5 at that exact version, which carries Alpine's fix for CVE-2026-86144 as -r3 did, and
+  still stops if its base carries any other than -r2. Both images have a new name,
+  `localhost/postgres:18.7-alpine-188a4909a850`, which each machine builds at its next `up`,
+  restarting its databases once. A machine that has the old image keeps running it until then.
+
 - **Removing a destination's password no longer reads as withdrawing the source's access**, and
   the pages a family member sees say four things better (the owner's decisions of 2026-11-26).
   *Remove my password* for a destination on the person's progress page holds the migrations into
