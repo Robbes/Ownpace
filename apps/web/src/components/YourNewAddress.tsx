@@ -29,8 +29,13 @@ import { useT } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { answerAddressChangeByLink, type LinkAddressChange } from '../services/link-address-service.ts';
 
+/**
+ * Drawn on a person's own two pages only, so at their sizes (workplan 0176 T9):
+ * sentences at 18 pixels and 7 to 1, the answer a main button with an edge
+ * that can be seen.
+ */
 const BUTTON =
-  'min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-50';
+  'block w-full min-h-[60px] rounded-lg border-2 border-gray-700 bg-white px-4 py-3 text-lg font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50';
 
 type State = LinkAddressChange['state'];
 
@@ -75,21 +80,21 @@ export const YourNewAddress: React.FC<{
         const lineId = `${idBase}-${i}`;
         return (
           <div key={c.ref} className="rounded-lg border border-gray-200 bg-white p-4">
-            <p id={lineId} className="text-sm text-gray-900 break-words">
+            <p id={lineId} className="text-lg text-gray-900 break-words">
               {t('addresses.grant.yours', { new: c.newAddress })}
             </p>
             {answered?.state === 'confirmed' && (
-              <p role="status" className="mt-1 text-sm text-green-800 break-words">
+              <p role="status" className="mt-1 text-lg text-green-900 break-words">
                 {t('addresses.grant.confirmed', { new: answered.newAddress })}
               </p>
             )}
             {answered?.state === 'proposed' && (
-              <p role="status" className="mt-1 text-sm text-gray-700">
+              <p role="status" className="mt-1 text-lg text-gray-900">
                 {t('addresses.grant.returned')}
               </p>
             )}
             {now === 'proposed' && answered === undefined && (
-              <p className="mt-1 text-sm text-gray-600">{t('addresses.grant.leaveIt')}</p>
+              <p className="mt-1 text-lg text-gray-800">{t('addresses.grant.leaveIt')}</p>
             )}
             <div className="mt-2 flex flex-wrap gap-2">
               {now === 'proposed' ? (
@@ -98,6 +103,7 @@ export const YourNewAddress: React.FC<{
                   aria-describedby={lineId}
                   disabled={busy === c.ref}
                   className={BUTTON}
+                  data-main
                   onClick={() => void answer(c, 'confirmed')}
                 >
                   {t('addresses.grant.yes')}
@@ -108,6 +114,7 @@ export const YourNewAddress: React.FC<{
                   aria-describedby={lineId}
                   disabled={busy === c.ref}
                   className={BUTTON}
+                  data-main
                   onClick={() => void answer(c, 'proposed')}
                 >
                   {t('addresses.notRight')}
@@ -115,7 +122,7 @@ export const YourNewAddress: React.FC<{
               )}
             </div>
             {refused[c.ref] !== undefined && (
-              <p role="alert" className="mt-2 text-sm text-red-800 break-words">
+              <p role="alert" className="mt-2 text-lg text-red-800 break-words">
                 <span className="font-medium">{t('addresses.notSaved')}</span> {refused[c.ref]}
               </p>
             )}

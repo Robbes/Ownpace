@@ -107,16 +107,18 @@ describe('what the page says', () => {
     // `active` reads as "Active" everywhere else in the product. Here it is a
     // whole sentence, because the reader is not scanning twenty migrations —
     // they are reading about their own.
-    expect(screen.getByText('Your things are being migrated across now.')).toBeInTheDocument();
+    // In D1's words since 2026-11-26, workplan 0176 T2.
+    expect(screen.getByText('Copying is in progress.')).toBeInTheDocument();
     expect(screen.queryByText('Active')).not.toBeInTheDocument();
   });
 
   // *Kept in sync* left the progress row long ago: the stage says *kept in
   // step* / *wordt bijgehouden*, and this sentence now does too (the owner,
   // 2026-10-18), saying where the new things come from.
+  // And copied, in D1's words (2026-11-26, workplan 0176 T2, §15).
   it.each([
-    ['en', 'Anything new on your old account is still kept in step for you.'],
-    ['nl', 'Wat nieuw binnenkomt op uw oude omgeving, wordt nog steeds bijgehouden.'],
+    ['en', 'Anything new on your old account is still copied.'],
+    ['nl', 'Wat nieuw binnenkomt op uw oude account, wordt ook nog gekopieerd.'],
   ] as const)('%s: a migration that keeps following says so in the stage’s words', async (locale, sentence) => {
     window.localStorage.setItem('ownpace.locale', locale);
     try {
@@ -142,7 +144,8 @@ describe('what the page says', () => {
 
   it('counts what has been copied, and says how much has moved', async () => {
     renderPage();
-    expect(await screen.findByText('4211 migrated')).toBeInTheDocument();
+    // *copied*, where it said *migrated* (2026-11-26, workplan 0176 D1, T2).
+    expect(await screen.findByText('4211 copied')).toBeInTheDocument();
     expect(screen.getByText('Email')).toBeInTheDocument();
     expect(screen.getByText(/86.8 MB moved so far/)).toBeInTheDocument();
   });
@@ -153,7 +156,7 @@ describe('what the page says', () => {
     readMock.mockResolvedValue(payload({ started: false, domains: [] }));
     renderPage();
     expect(await screen.findByText('Nothing has been copied yet.')).toBeInTheDocument();
-    expect(screen.queryByText(/migrated$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ copied$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/moved so far/)).not.toBeInTheDocument();
   });
 
@@ -162,7 +165,7 @@ describe('what the page says', () => {
     // that has never completed gets the weaker sentence, worded as weaker.
     readMock.mockResolvedValue(payload({ domains: [row({ lastActiveAt: YESTERDAY })] }));
     renderPage();
-    expect(await screen.findByText(/Still migrating; last worked on/)).toBeInTheDocument();
+    expect(await screen.findByText(/Still copying; last worked on/)).toBeInTheDocument();
     expect(screen.queryByText(/Up to date as of/)).not.toBeInTheDocument();
   });
 
@@ -259,7 +262,7 @@ describe('when something is wrong', () => {
     // whose reader cannot check anything.
     readMock.mockResolvedValue(payload({ domains: [row({ pausedReason: { kind: 'hibernating' } })] }));
     renderPage();
-    await screen.findByText('4211 migrated');
+    await screen.findByText('4211 copied');
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
@@ -286,18 +289,21 @@ describe('when something is wrong', () => {
 describe('the access they gave, and taking it back (0108 T8 (c))', () => {
   const WITHDRAWN_AT = '2026-09-24T06:00:00.000Z';
 
-  it('offers to withdraw a grant, and asks once more before it does', async () => {
+  // *Stop copying*, its question a screen of its own with two answers of one size, then what
+  // the provider answered (2026-11-26, workplan 0176 D2, T5, §9.1): *Withdraw access* opened a row under it.
+  it('offers to stop, and asks once more, on a screen of its own, before it does', async () => {
     readMock.mockResolvedValue(payload({ organisation: 'Example Care', grant: { state: 'granted' } }));
     renderPage();
+    expect(await screen.findByText(/Example Care reads your Google account/)).toBeInTheDocument();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop copying' }));
 
-    // Said before the second press: what stops, what stays, and that Google
-    // takes it back for the whole app.
-    expect(screen.getByText(/Example Care reads your Google account/)).toBeInTheDocument();
-    expect(screen.getByText(/What was already copied over stays/)).toBeInTheDocument();
-    expect(screen.getByText(/any other migration you allowed stops too/)).toBeInTheDocument();
-    expect(screen.getByText(/Continuing later needs a new link/)).toBeInTheDocument();
+    // Said before the second press: what stops, what stays, that Google takes it back for the
+    // whole app, and that continuing later needs a new link.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Stop copying from your Google account?' })).toBeInTheDocument();
+    expect(screen.getByText(/What is already copied stays where it was copied to/)).toBeInTheDocument();
+    expect(screen.getByText(/Google ends everything you allowed Ownpace/)).toBeInTheDocument();
+    expect(screen.getByText('Continuing later needs a new link from Example Care.')).toBeInTheDocument();
     expect(withdrawMock).not.toHaveBeenCalled();
   });
 
@@ -305,10 +311,10 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
     readMock.mockResolvedValue(payload({ grant: { state: 'granted' } }));
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop copying' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'No, do not stop' }));
 
-    expect(screen.getByRole('button', { name: 'Withdraw access' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Stop copying' })).toBeInTheDocument();
     expect(withdrawMock).not.toHaveBeenCalled();
   });
 
@@ -317,12 +323,12 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
     withdrawMock.mockResolvedValue({ withdrawnAt: WITHDRAWN_AT, atGoogle: 'revoked' });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Yes, withdraw it' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop copying' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, stop' }));
 
-    expect(await screen.findByText(/Google confirmed the access is withdrawn/)).toBeInTheDocument();
+    expect(await screen.findByText('Google confirmed it. Ownpace can no longer reach this account.')).toBeInTheDocument();
     expect(withdrawMock).toHaveBeenCalledWith('abc.def');
-    expect(screen.getByText(/Nothing more is read from your account/)).toBeInTheDocument();
+    expect(screen.getByText('You do not have to do anything.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /myaccount\.google\.com/ })).not.toBeInTheDocument();
   });
 
@@ -331,11 +337,11 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
     withdrawMock.mockResolvedValue({ withdrawnAt: WITHDRAWN_AT, atGoogle: 'not_confirmed' });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Yes, withdraw it' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop copying' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, stop' }));
 
-    expect(await screen.findByText(/Google did not confirm withdrawing it/)).toBeInTheDocument();
-    expect(screen.getByText(/remove the app yourself/)).toBeInTheDocument();
+    expect(await screen.findByText(/Google did not confirm\./)).toBeInTheDocument();
+    expect(screen.getByText(/remove Ownpace yourself from the list of apps at Google/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'myaccount.google.com/connections' })).toHaveAttribute(
       'href',
       'https://myaccount.google.com/connections',
@@ -364,8 +370,8 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
     withdrawMock.mockRejectedValue(alreadyWithdrawn());
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Yes, withdraw it' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop copying' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, stop' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('You already withdrew your permission, on 2026-09-24.');
   });
@@ -388,8 +394,9 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
           </LocaleProvider>
         </QueryClientProvider>,
       );
-      fireEvent.click(await screen.findByRole('button', { name: 'Toegang intrekken' }));
-      fireEvent.click(screen.getByRole('button', { name: /^Ja,/ }));
+      // *Kopiëren stoppen*, where it said *Toegang intrekken* (2026-11-26, workplan 0176 D2).
+      fireEvent.click(await screen.findByRole('button', { name: 'Kopiëren stoppen' }));
+      fireEvent.click(await screen.findByRole('button', { name: /^Ja,/ }));
       expect(await screen.findByRole('alert')).toHaveTextContent('U hebt uw toestemming op 2026-09-24 al ingetrokken.');
     } finally {
       window.localStorage.removeItem('ownpace.locale');
@@ -400,18 +407,19 @@ describe('the access they gave, and taking it back (0108 T8 (c))', () => {
     readMock.mockResolvedValue(payload({ grant: { state: 'withdrawn', withdrawnAt: WITHDRAWN_AT } }));
     renderPage();
 
-    expect(await screen.findByText(/Migrating stopped: on .* you withdrew the access you gave\./)).toBeInTheDocument();
-    expect(screen.queryByText('Your things are being migrated across now.')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
+    // What stopped, and when, without the blame (2026-11-26, workplan 0176 D2, §9.1).
+    expect(await screen.findByText(/^Copying stopped on .+\.$/)).toBeInTheDocument();
+    expect(screen.queryByText('Copying is in progress.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop copying' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'myaccount.google.com/connections' })).toBeInTheDocument();
   });
 
   it('offers nothing where there is no grant to take back', async () => {
     renderPage();
 
-    expect(await screen.findByText('Your things are being migrated across now.')).toBeInTheDocument();
+    expect(await screen.findByText('Copying is in progress.')).toBeInTheDocument();
     expect(screen.queryByText('The access you gave')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop copying' })).not.toBeInTheDocument();
   });
 });
 
@@ -446,20 +454,21 @@ describe('a person’s progress page', () => {
   it('draws each migration under the account it reads, and the others after', async () => {
     readMock.mockResolvedValue(personPayload());
     renderPage();
-    expect(await screen.findByRole('heading', { level: 1, name: 'Your migrations' })).toBeInTheDocument();
-    expect(screen.getByText(/Example family is moving your accounts to new providers/)).toBeInTheDocument();
+    // In a person's own words (2026-11-26, workplan 0176 D1, T2, T6, §15).
+    expect(await screen.findByRole('heading', { level: 1, name: 'How far is the copying?' })).toBeInTheDocument();
+    expect(screen.getByText(/Example family copies your email, calendar and files to a new provider/)).toBeInTheDocument();
 
     const account = screen.getByRole('region', { name: 'Your Google account' });
     expect(within(account).getByRole('heading', { name: 'Google to Nextcloud' })).toBeInTheDocument();
-    expect(within(account).getByText('12 migrated')).toBeInTheDocument();
-    expect(within(account).getByText('Your things are being migrated across now.')).toBeInTheDocument();
+    expect(within(account).getByText('12 copied')).toBeInTheDocument();
+    expect(within(account).getByText('Copying is in progress.')).toBeInTheDocument();
     expect(within(account).getByRole('heading', { name: 'Google to Soverin' })).toBeInTheDocument();
     expect(within(account).getByText('Nothing has been copied yet.')).toBeInTheDocument();
-    expect(within(account).getByText(/reads this Google account for the migrations above/)).toBeInTheDocument();
+    expect(within(account).getByText(/reads this Google account for the copying above/)).toBeInTheDocument();
 
-    const others = screen.getByRole('region', { name: 'Your other migrations' });
-    expect(within(others).getByText('4211 migrated')).toBeInTheDocument();
-    expect(within(others).queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
+    const others = screen.getByRole('region', { name: 'Your other accounts' });
+    expect(within(others).getByText('4211 copied')).toBeInTheDocument();
+    expect(within(others).queryByRole('button', { name: 'Stop copying' })).not.toBeInTheDocument();
   });
 
   it('offers Report this link, for the person’s own progress link (0108 T8 (d))', async () => {
@@ -483,8 +492,8 @@ describe('a person’s progress page', () => {
     expect(await screen.findByRole('region', { name: 'Google account 1' })).toBeInTheDocument();
     const work = screen.getByRole('region', { name: 'Google account 2' });
     expect(within(work).getByRole('heading', { name: 'Google to Soverin' })).toBeInTheDocument();
-    expect(within(work).queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Withdraw access' })).toHaveLength(1);
+    expect(within(work).queryByRole('button', { name: 'Stop copying' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Stop copying' })).toHaveLength(1);
   });
 
   it('takes one account’s access back by its ref, and says what Google answered', async () => {
@@ -492,9 +501,11 @@ describe('a person’s progress page', () => {
     withdrawAccountMock.mockResolvedValue({ withdrawnAt: YESTERDAY, atGoogle: 'not_confirmed' });
     renderPage();
     const account = await screen.findByRole('region', { name: 'Your Google account' });
-    fireEvent.click(within(account).getByRole('button', { name: 'Withdraw access' }));
-    fireEvent.click(within(account).getByRole('button', { name: 'Yes, withdraw it' }));
-    expect(await within(account).findByText(/so these migrations cannot use it/)).toBeInTheDocument();
+    // The question and the answer are screens of their own (2026-11-26, workplan 0176 T5, §9.1).
+    fireEvent.click(within(account).getByRole('button', { name: 'Stop copying' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, stop' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Copying has stopped' })).toBeInTheDocument();
+    expect(screen.getByText(/so Ownpace cannot use it\. Google did not confirm\./)).toBeInTheDocument();
     expect(withdrawAccountMock).toHaveBeenCalledWith('abc.def', ACCOUNT);
     expect(withdrawMock).not.toHaveBeenCalled();
   });
@@ -505,8 +516,9 @@ describe('a person’s progress page', () => {
     );
     renderPage();
     const account = await screen.findByRole('region', { name: 'Your Google account' });
-    expect(within(account).getAllByText(/Migrating stopped: on .* you withdrew the access you gave\./)).toHaveLength(2);
-    expect(within(account).queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
+    // What stopped, and when, without the blame (2026-11-26, workplan 0176 D2, §9.1).
+    expect(within(account).getAllByText(/^Copying stopped on .+\.$/)).toHaveLength(2);
+    expect(within(account).queryByRole('button', { name: 'Stop copying' })).not.toBeInTheDocument();
   });
 
   it('shows a refused withdrawal in the page’s language, from the server’s two halves', async () => {
@@ -522,9 +534,9 @@ describe('a person’s progress page', () => {
     withdrawAccountMock.mockRejectedValue(refused);
     renderPage();
     const account = await screen.findByRole('region', { name: 'Your Google account' });
-    fireEvent.click(within(account).getByRole('button', { name: 'Withdraw access' }));
-    fireEvent.click(within(account).getByRole('button', { name: 'Yes, withdraw it' }));
-    expect(await within(account).findByText('It changed since this page was opened.')).toBeInTheDocument();
+    fireEvent.click(within(account).getByRole('button', { name: 'Stop copying' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, stop' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('It changed since this page was opened.');
   });
 
   /**
@@ -560,7 +572,7 @@ describe('a person’s progress page', () => {
     ).toBeInTheDocument();
     expect(within(account).queryByRole('heading', { name: 'Google to Soverin' })).toBeNull();
     // Alone in its section, the route is still just the route.
-    const others = screen.getByRole('region', { name: 'Your other migrations' });
+    const others = screen.getByRole('region', { name: 'Your other accounts' });
     expect(within(others).getByRole('heading', { level: 3 })).toHaveTextContent(/ to Soverin$/);
   });
 
@@ -582,7 +594,8 @@ describe('a person’s progress page', () => {
       );
       expect(await screen.findByRole('heading', { name: 'Google naar Soverin: e-mail' })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Google naar Soverin: agenda en contacten' })).toBeInTheDocument();
-      expect(document.title).toBe('Uw migraties — Ownpace');
+      // No *migratie* in a person's title (2026-11-26, workplan 0176 D1, §10).
+      expect(document.title).toBe('Hoe ver is het kopiëren? — Ownpace');
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }
@@ -591,16 +604,16 @@ describe('a person’s progress page', () => {
   it('names the page in the browser’s tab', async () => {
     readMock.mockResolvedValue(personPayload());
     renderPage();
-    await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
-    expect(document.title).toBe('Your migrations — Ownpace');
+    await screen.findByRole('heading', { level: 1, name: 'How far is the copying?' });
+    expect(document.title).toBe('How far is the copying? — Ownpace');
   });
 
   it('gives the tab its name back on the way out', async () => {
     readMock.mockResolvedValue(personPayload());
     document.title = 'Ownpace';
     const page = renderPage();
-    await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
-    expect(document.title).toBe('Your migrations — Ownpace');
+    await screen.findByRole('heading', { level: 1, name: 'How far is the copying?' });
+    expect(document.title).toBe('How far is the copying? — Ownpace');
     page.unmount();
     expect(document.title).toBe('Ownpace');
   });
@@ -613,18 +626,20 @@ describe('a person’s progress page', () => {
  * type's stage, the owner's line under it (*4,211 of ~5,000 · last pass …*),
  * and how long. The stage and the time are the server's; the page says them.
  */
+// A migration's own progress page is a person's page too since 2026-11-26, workplan 0176 (§6, D14 (a)):
+// the same facts, in a person's words, where it said the owner's.
 describe('stage, totals and time, as the owner’s pages say them (0154 T8)', () => {
   const kept = row({ stage: 'kept_in_step', itemsFound: 5000, lastSyncedAt: YESTERDAY });
 
   it('says each data type’s stage, and its count against what was found', async () => {
     readMock.mockResolvedValue(payload({ domains: [kept] }));
     renderPage();
-    const mail = (await screen.findByText('Kept in step')).closest('li')!;
-    expect(within(mail).getByText(/^4,211 of ~5,000 · last pass /)).toBeInTheDocument();
+    const mail = (await screen.findByText('Copied, and kept up to date')).closest('li')!;
+    expect(within(mail).getByText(/^4,211 of ~5,000 · last copied /)).toBeInTheDocument();
     // The line says when, so the page does not say it twice.
     expect(within(mail).queryByText(/Up to date as of/)).not.toBeInTheDocument();
     // The stage stands where the bare count stood.
-    expect(within(mail).queryByText('4211 migrated')).not.toBeInTheDocument();
+    expect(within(mail).queryByText('4211 copied')).not.toBeInTheDocument();
   });
 
   it('keeps its own *last worked* where the line does not say when, as while copying', async () => {
@@ -632,9 +647,9 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       payload({ domains: [row({ stage: 'copying', itemsFound: 5000, lastActiveAt: YESTERDAY })] }),
     );
     renderPage();
-    const mail = (await screen.findByText('Copying')).closest('li')!;
+    const mail = (await screen.findByText('Being copied')).closest('li')!;
     expect(within(mail).getByText('4,211 of ~5,000')).toBeInTheDocument();
-    expect(within(mail).getByText(/Still migrating; last worked on/)).toBeInTheDocument();
+    expect(within(mail).getByText(/Still copying; last worked on/)).toBeInTheDocument();
   });
 
   it('does not say *still copying* under *Paused*, nor *not started yet* under *Not started*', async () => {
@@ -647,9 +662,9 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       }),
     );
     renderPage();
-    await screen.findByText('Paused');
-    expect(screen.getByText('Not started')).toBeInTheDocument();
-    expect(screen.queryByText(/Still migrating/)).not.toBeInTheDocument();
+    await screen.findByText('On hold');
+    expect(screen.getByText('Not started yet')).toBeInTheDocument();
+    expect(screen.queryByText(/Still copying/)).not.toBeInTheDocument();
     expect(screen.queryByText('Not started yet.')).not.toBeInTheDocument();
   });
 
@@ -661,7 +676,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       }),
     );
     renderPage();
-    const mail = (await screen.findByText('Ready to switch')).closest('li')!;
+    const mail = (await screen.findByText('Copied, ready for the switch')).closest('li')!;
     expect(within(mail).getByText(/^The check passed /)).toBeInTheDocument();
   });
 
@@ -677,7 +692,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       }),
     );
     renderPage();
-    expect(await screen.findByText(/About 10 to 11 hours more, from the last 3 passes\./)).toBeInTheDocument();
+    expect(await screen.findByText(/About 10 to 11 hours more\./)).toBeInTheDocument();
     expect(screen.getByText(/^Slowed by Microsoft/)).toBeInTheDocument();
   });
 
@@ -703,7 +718,7 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       }),
     );
     renderPage();
-    await screen.findByText('Kept in step');
+    await screen.findByText('Copied, and kept up to date');
     expect(screen.queryByText('How long:')).not.toBeInTheDocument();
   });
 
@@ -726,9 +741,10 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
       accounts: [],
     });
     renderPage();
-    expect(await screen.findByText('Kept in step')).toBeInTheDocument();
-    expect(screen.getByText(/^4,211 of ~5,000 · last pass /)).toBeInTheDocument();
-    expect(screen.getByText('We will know after three passes; 1 so far.')).toBeInTheDocument();
+    // The same facts, in a person's words (2026-11-26, workplan 0176 D14 (a)): the member's screens keep theirs.
+    expect(await screen.findByText('Copied, and kept up to date')).toBeInTheDocument();
+    expect(screen.getByText(/^4,211 of ~5,000 · last copied /)).toBeInTheDocument();
+    expect(screen.getByText(/How long is not known yet\. We will know after a few rounds of copying\./)).toBeInTheDocument();
   });
 
   it('says it in Dutch on a Dutch page, in the owner’s Dutch words', async () => {
@@ -755,9 +771,9 @@ describe('stage, totals and time, as the owner’s pages say them (0154 T8)', ()
           </LocaleProvider>
         </QueryClientProvider>,
       );
-      const mail = (await screen.findByText('Wordt bijgehouden')).closest('li')!;
-      expect(within(mail).getByText(/^4\.211 van ~5\.000 · laatste ronde /)).toBeInTheDocument();
-      expect(screen.getByText(/Ongeveer nog 10 tot 11 uur, volgens de laatste 3 rondes\./)).toBeInTheDocument();
+      const mail = (await screen.findByText('Gekopieerd, en wordt bijgehouden')).closest('li')!;
+      expect(within(mail).getByText(/^4\.211 van ~5\.000 · laatst gekopieerd /)).toBeInTheDocument();
+      expect(screen.getByText(/Ongeveer nog 10 tot 11 uur\./)).toBeInTheDocument();
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }
@@ -814,7 +830,7 @@ describe('a destination’s password removed is not the source’s access withdr
     expect(within(account).queryByText('Nothing has been copied yet.')).not.toBeInTheDocument();
     expect(within(account).queryByText(/Nothing more is read from your account/)).not.toBeInTheDocument();
     // And the person can still take the Google access back from here.
-    expect(within(account).getByRole('button', { name: 'Withdraw access' })).toBeInTheDocument();
+    expect(within(account).getByRole('button', { name: 'Stop copying' })).toBeInTheDocument();
   });
 
   it('the source’s access withdrawn keeps its own sentence, and no not-started fold either', async () => {
@@ -822,7 +838,7 @@ describe('a destination’s password removed is not the source’s access withdr
       payload({ started: false, domains: [], grant: { state: 'withdrawn', withdrawnAt: AT, what: 'source' } }),
     );
     renderPage();
-    expect(await screen.findByText(/Migrating stopped: on .* you withdrew the access you gave\./)).toBeInTheDocument();
+    expect(await screen.findByText(/^Copying stopped on .+\.$/)).toBeInTheDocument();
     expect(screen.queryByText('Nothing has been copied yet.')).not.toBeInTheDocument();
   });
 

@@ -138,7 +138,7 @@ describe('a destination the person connected, on their progress page (0174 §4.3
   it('draws no section from a payload with no list', async () => {
     readMock.mockResolvedValue(person());
     renderPage();
-    await screen.findByRole('heading', { level: 1, name: 'Your migrations' });
+    await screen.findByRole('heading', { level: 1, name: 'How far is the copying?' });
     expect(screen.queryByRole('button', { name: 'Remove my password' })).not.toBeInTheDocument();
   });
 });

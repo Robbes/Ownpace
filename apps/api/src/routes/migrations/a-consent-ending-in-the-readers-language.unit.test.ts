@@ -130,7 +130,7 @@ describe('the grant ending, in Dutch', () => {
 
   for (const permission of ['read-only', 'allows-changes', 'widened'] as const) {
     it(`a grant that landed (${permission}) is Dutch, with lang="nl" and the sentence to keep the link`, () => {
-      const html = grantResultPage({ ok: true, progressUrl, permission }, 'nl');
+      const html = grantResultPage({ ok: true, provider: 'google', progressUrl, permission }, 'nl');
       expect(lang(html)).toBe('nl');
       expect(html).toContain(KEEP_NL);
       expect(englishIn(html)).toBeUndefined();
@@ -138,7 +138,7 @@ describe('the grant ending, in Dutch', () => {
   }
 
   it('a grant that landed with no progress page is Dutch too', () => {
-    const html = grantResultPage({ ok: true, permission: 'allows-changes' }, 'nl');
+    const html = grantResultPage({ ok: true, provider: 'google', permission: 'allows-changes' }, 'nl');
     expect(lang(html)).toBe('nl');
     expect(englishIn(html)).toBeUndefined();
   });
@@ -163,7 +163,7 @@ describe('the grant ending, in Dutch', () => {
       ['en', 3, 'Thank you, this account is connected.', 'There are 3 more.', 'Back to the link'],
       ['nl', 3, 'Dank u, dit account is verbonden.', 'Er zijn nog 3 accounts.', 'Terug naar de link'],
     ] as const)('%s, %i left: says so, goes back to the link, and not that the link is done', (locale, left, title, more, button) => {
-      const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only', more: { left, backUrl: back } }, locale);
+      const html = grantResultPage({ ok: true, provider: 'google', progressUrl, permission: 'read-only', more: { left, backUrl: back } }, locale);
       expect(lang(html)).toBe(locale);
       expect(html).toContain(`<h1>${title}</h1>`);
       expect(html).toContain(`<p>${more}</p>`);
@@ -175,14 +175,14 @@ describe('the grant ending, in Dutch', () => {
     });
 
     it('none left: the ending it always was', () => {
-      const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only', more: { left: 0, backUrl: back } }, 'en');
+      const html = grantResultPage({ ok: true, provider: 'google', progressUrl, permission: 'read-only', more: { left: 0, backUrl: back } }, 'en');
       expect(html).toContain('this link will not work again');
       expect(html).not.toContain('Back to the link');
     });
   });
 
   it('says the new "keep this link" sentence in English when the page was English', () => {
-    const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only' }, 'en');
+    const html = grantResultPage({ ok: true, provider: 'google', progressUrl, permission: 'read-only' }, 'en');
     expect(lang(html)).toBe('en');
     expect(html).toContain(KEEP_EN);
     expect(html).not.toContain('<p>Bookmark it.');
@@ -190,12 +190,107 @@ describe('the grant ending, in Dutch', () => {
 
   it('is English when no language, or an unknown one, is given', () => {
     for (const html of [
-      grantResultPage({ ok: true, permission: 'read-only' }),
-      grantResultPage({ ok: true, permission: 'read-only' }, 'de' as never),
+      grantResultPage({ ok: true, provider: 'google', permission: 'read-only' }),
+      grantResultPage({ ok: true, provider: 'google', permission: 'read-only' }, 'de' as never),
     ]) {
       expect(lang(html)).toBe('en');
       expect(html).toContain('Thank you');
     }
+  });
+});
+
+/**
+ * ONE ENDING SERVES EVERY PROVIDER (workplan 0176 T2.4, D1, §5.5). It is drawn
+ * after a Microsoft and a Dropbox sign-in too, and its last sentence sent each
+ * of them to *your Google account's security settings*. It names the provider
+ * that was signed in to now, and first the person's own page, where a stop is
+ * easiest. And its Dutch says *kopiëren*, as a person's two pages do: it said
+ * *migratie* four times, in three sentences.
+ */
+describe('the grant ending names the provider that was signed in to, and says kopiëren (0176)', () => {
+  const progressUrl = progressPageUrl(ORIGIN, 'a-view-token');
+  /** The page's last paragraph, as text. */
+  const lastSentence = (html: string): string => {
+    const paragraphs = [...html.matchAll(/<p>([\s\S]*?)<\/p>/g)].map((m) => m[1]!.replace(/<[^>]+>/g, ''));
+    return paragraphs[paragraphs.length - 1] ?? '';
+  };
+
+  it.each([
+    ['microsoft', 'Microsoft'],
+    ['dropbox', 'Dropbox'],
+    ['google', 'Google'],
+  ] as const)('after a %s sign-in, the last sentence names %s, and first the person’s own page', (provider, name) => {
+    const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only', provider }, 'en');
+    const last = lastSentence(html);
+    expect(last).toBe(
+      `You can stop this at any time on your own page, above. Or at ${name}, in the list of apps that have access to your account.`,
+    );
+    for (const other of ['Google', 'Microsoft', 'Dropbox'].filter((n) => n !== name)) expect(html).not.toContain(other);
+  });
+
+  it('in Dutch too', () => {
+    const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only', provider: 'microsoft' }, 'nl');
+    expect(lastSentence(html)).toBe(
+      'U kunt dit altijd weer stoppen op uw eigen pagina, hierboven. Of bij Microsoft, in de lijst van apps die toegang hebben tot uw account.',
+    );
+  });
+
+  it('with no page of its own to point at, the provider alone', () => {
+    const html = grantResultPage({ ok: true, permission: 'read-only', provider: 'dropbox' }, 'en');
+    expect(lastSentence(html)).toBe('You can stop this at any time at Dropbox, in the list of apps that have access to your account.');
+  });
+
+  it('says kopiëren in Dutch, and no form of migreren, whatever it ends on', () => {
+    const back = `${ORIGIN}/grant/p.an-id.a-secret`;
+    for (const html of [
+      grantResultPage({ ok: true, progressUrl, permission: 'read-only', provider: 'google' }, 'nl'),
+      grantResultPage({ ok: true, progressUrl, permission: 'allows-changes', provider: 'google', more: { left: 1, backUrl: back } }, 'nl'),
+      grantResultPage({ ok: true, permission: 'widened', provider: 'google' }, 'nl'),
+    ]) {
+      expect(words(html)).not.toMatch(/migr/i);
+    }
+    const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only', provider: 'google' }, 'nl');
+    expect(words(html)).toContain('Uw account is nu verbonden, en Ownpace kan eruit lezen. U hoeft verder niets te doen, en deze link werkt niet meer.');
+    expect(words(html)).toContain('Hier is uw eigen pagina. Bewaar deze. Die laat zien hoe ver het kopiëren is, en niets uit uw account:');
+    expect(words(html)).toContain('Hij werkt de komende 90 dagen, en wie u de link stuurde, kan hem op elk moment uitzetten.');
+  });
+
+  it('and English follows its Dutch: no migration in it either', () => {
+    const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only', provider: 'google' }, 'en');
+    expect(words(html)).not.toMatch(/migrat/i);
+    expect(words(html)).toContain('Here is your own page. Keep this one. It shows how far the copying is, and nothing from inside your account:');
+    expect(words(html)).toContain('It works for the next 90 days, and whoever sent you the link can turn it off at any time.');
+  });
+});
+
+/**
+ * THE ENDING, AS LARGE AS A PERSON'S PAGES (workplan 0176 T9, §5.5). Its sizes
+ * are its own, an inline style under the policy it is served with: there was
+ * no size for its text, and *Back to the link* was 44 pixels high. The smoke
+ * has no API behind it, so the sizes are held here, on its HTML.
+ */
+describe('the ending is as large as a person’s pages (0176 T9)', () => {
+  const progressUrl = progressPageUrl(ORIGIN, 'a-view-token');
+  const back = `${ORIGIN}/grant/p.an-id.a-secret`;
+  const html = grantResultPage({ ok: true, progressUrl, permission: 'read-only', provider: 'google', more: { left: 1, backUrl: back } }, 'en');
+  const styleOf = (re: RegExp): string => re.exec(html)?.[1] ?? '';
+
+  it('sets its sentences at 18 pixels', () => {
+    expect(styleOf(/<main style="([^"]*)"/)).toMatch(/font-size:\s*(1\.125rem|18px)/);
+  });
+
+  it('draws Back to the link as a main button: 60 pixels high at least, as wide as the column, its words 18 pixels', () => {
+    const style = styleOf(/<a href="[^"]+" style="([^"]*)">Back to the link<\/a>/);
+    expect(style).toMatch(/min-height:\s*60px/);
+    expect(style).toMatch(/width:\s*100%/);
+    expect(style).toMatch(/font-size:\s*(1\.125rem|18px)/);
+  });
+
+  it('draws Copy link at least 44 pixels high and wide, its words at 18 pixels', () => {
+    const style = styleOf(/<button type="button" id="copy-link"[^>]*style="([^"]*)"/);
+    expect(style).toMatch(/min-height:\s*(4[4-9]|[5-9]\d)px/);
+    expect(style).toMatch(/min-width:\s*(4[4-9]|[5-9]\d)px/);
+    expect(style).toMatch(/font-size:\s*(1\.125rem|18px)/);
   });
 });
 

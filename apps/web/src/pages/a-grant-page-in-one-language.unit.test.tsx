@@ -322,9 +322,10 @@ describe('the view page', () => {
     renderAt('/view/abc.def');
     expect(await screen.findByRole('alert')).toHaveTextContent(LINK_EN);
     const group = screen.getByRole('group', { name: 'Language' });
-    await userEvent.click(within(group).getByRole('button', { name: 'NL' }));
+    // Each language in its own words on a person's own page (2026-11-26, workplan 0176 T9.7), where it said NL.
+    await userEvent.click(within(group).getByRole('button', { name: 'Nederlands' }));
     expect(screen.getByRole('alert')).toHaveTextContent(LINK_NL);
-    expect(within(group).getByRole('button', { name: 'NL' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(group).getByRole('button', { name: 'Nederlands' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('its waiting line is a status', async () => {

@@ -56,7 +56,7 @@ const dom = globalThis as unknown as Dom;
 /** The page's body as a browser lays it out, its script run, with the clipboard behaving as asked. */
 function open(locale: 'en' | 'nl', clipboard: Clipboard) {
   const written: string[] = [];
-  const html = grantResultPage({ ok: true, progressUrl: URL_, permission: 'read-only' }, locale);
+  const html = grantResultPage({ ok: true, provider: 'google', progressUrl: URL_, permission: 'read-only' }, locale);
   // innerHTML does not run a script, so the page's own one is run after it.
   dom.document.body.innerHTML = /<body>([\s\S]*)<\/body>/.exec(html)?.[1] ?? '';
   const value =
@@ -84,7 +84,7 @@ const settle = () => new Promise((r) => setTimeout(r, 0));
 describe('the page after Google offers to copy the progress link', () => {
   for (const locale of ['en', 'nl'] as const) {
     it(`${locale}: a button named in the page's language, beside the link, shown by the script`, () => {
-      const html = grantResultPage({ ok: true, progressUrl: URL_, permission: 'read-only' }, locale);
+      const html = grantResultPage({ ok: true, provider: 'google', progressUrl: URL_, permission: 'read-only' }, locale);
       expect(html).toMatch(/<button type="button" id="copy-link" hidden /);
       const { button, status, link } = open(locale, 'works');
       expect(button.textContent).toBe(WORDS[locale].copy);
@@ -114,13 +114,13 @@ describe('the page after Google offers to copy the progress link', () => {
   }
 
   it('offers no button, and runs no script, when there is no progress link to keep', () => {
-    const html = grantResultPage({ ok: true, permission: 'read-only' });
+    const html = grantResultPage({ ok: true, provider: 'google', permission: 'read-only' });
     expect(html).not.toContain('copy-link');
     expect(html).not.toContain('<script>');
   });
 
   it('is served permitting exactly its one script, by hash', () => {
-    const html = grantResultPage({ ok: true, progressUrl: URL_, permission: 'read-only' }, 'nl');
+    const html = grantResultPage({ ok: true, provider: 'google', progressUrl: URL_, permission: 'read-only' }, 'nl');
     expect(html.match(/<script>/g)).toHaveLength(1);
     expect(html).toContain(`<script>${COPY_LINK_SCRIPT}</script>`);
     const hash = createHash('sha256').update(COPY_LINK_SCRIPT, 'utf8').digest('base64');

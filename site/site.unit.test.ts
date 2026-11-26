@@ -1549,3 +1549,131 @@ describe('the count before a migration has the app’s name (the owner, 2026-10-
     }
   });
 });
+
+/**
+ * THE HOME PAGE SAYS HOW IT GOES FOR A FAMILY MEMBER (workplan 0176 D17 (b);
+ * the owner, 2026-11-26: a short block on the home page, with step A).
+ *
+ * A member who migrates for a family member reads the home page before they
+ * make a link, and the family member then reads the link page. So the block
+ * says who does what, in four cards, and only what a person's two pages do
+ * once step A is merged:
+ *
+ *  - never *one link*: until step C a person gives permission on one link and
+ *    follows the copying on another;
+ *  - never the member's name on that page: step B gives the sender a name;
+ *  - no picture: the site shows no screen of a person's pages yet.
+ *
+ * It stands once on each home page, after the app's page for a person and
+ * before Where to, in the home page's own form: a heading, one paragraph and
+ * cards. What the family member does is said with *kopiëren*, as their own
+ * pages say it (D1); what the member does keeps *migreren*.
+ */
+describe('the home page says how it goes for a family member (workplan 0176 D17 (b))', () => {
+  type ForFamily = { title: string; lede: string; cards: ReadonlyArray<readonly [string, string]> };
+  type Words = { forFamily: ForFamily; appScreen: { caption: string }; whereTitle: string };
+  const LOCALES = ['en', 'nl'] as const;
+
+  const copy = async (): Promise<Record<(typeof LOCALES)[number], Words>> =>
+    ((await import('./copy.mjs')) as unknown as { COPY: Record<(typeof LOCALES)[number], Words> }).COPY;
+
+  /** The home page of a language, as the build renders it. */
+  const homeOf = async (locale: string): Promise<Page> => {
+    const home = (await renderedPages()).find((p) => p.locale === locale && p.key === 'home');
+    expect(home, `no home page in ${locale}`).toBeDefined();
+    return home!;
+  };
+
+  /** The block as the page draws it: from its heading up to Where to's. */
+  const blockOf = (html: string, c: Words): string => {
+    const at = html.indexOf(`<h2>${c.forFamily.title}</h2>`);
+    expect(at, `the home page has no heading “${c.forFamily.title}”`).toBeGreaterThan(-1);
+    return html.slice(at, html.indexOf(`<h2>${c.whereTitle}</h2>`, at));
+  };
+
+  /** What a visitor reads of it: no tags, one space between words. */
+  const said = (block: string): string => block.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+  it('stands once, after the app’s page and before Where to, as a heading, one paragraph and four cards', async () => {
+    const COPY = await copy();
+    for (const locale of LOCALES) {
+      const c = COPY[locale];
+      expect(c.forFamily, `site/copy.mjs has no forFamily in ${locale}`).toBeDefined();
+      const { html, file } = await homeOf(locale);
+      const heading = `<h2>${c.forFamily.title}</h2>`;
+      expect(html.split(heading).length - 1, `${file} shows the block more or less than once`).toBe(1);
+
+      const at = html.indexOf(heading);
+      const app = html.indexOf(`<figcaption>${c.appScreen.caption}</figcaption>`);
+      expect(app, `${file}: the app's page is gone`).toBeGreaterThan(-1);
+      expect(app, `${file}: the block comes before the app's page`).toBeLessThan(at);
+      expect(html.indexOf(`<h2>${c.whereTitle}</h2>`), `${file}: the block comes after Where to`).toBeGreaterThan(at);
+
+      const block = blockOf(html, c);
+      expect(block).toContain(`<p>${c.forFamily.lede}</p>`);
+      expect(c.forFamily.cards).toHaveLength(4);
+      expect(block.match(/<div class="card">/g) ?? []).toHaveLength(4);
+      for (const [title, words] of c.forFamily.cards) {
+        expect(block).toContain(`<div class="card"><h3>${title}</h3><p>${words}</p></div>`);
+      }
+    }
+    expect(COPY.nl.forFamily.lede).not.toBe(COPY.en.forFamily.lede);
+  });
+
+  it('says who does what: the member tells first and sends the link, the family member gives permission, follows and stops', async () => {
+    const COPY = await copy();
+    const WHO_DOES_WHAT = {
+      en: [
+        /tell them first/i,
+        /grant link/,
+        /We never send it\./,
+        /type their own password, on their own page/,
+        /you never see it/,
+        /a page of their own/,
+        /how far the copying is, and nothing from their account/,
+        /stop the copying there/,
+      ],
+      nl: [
+        /vertelt het eerst zelf/i,
+        /toegangslink/,
+        /Wij sturen hem nooit\./,
+        /typt zelf het wachtwoord, op de eigen pagina/,
+        /u ziet het nooit/,
+        /een eigen pagina/,
+        /hoe ver het kopiëren is, en niets uit het account/,
+        /het kopiëren ook stoppen/,
+      ],
+    } as const;
+    for (const locale of LOCALES) {
+      const { html } = await homeOf(locale);
+      const text = said(blockOf(html, COPY[locale]));
+      for (const fact of WHO_DOES_WHAT[locale]) expect(text, `${locale}: the block no longer says ${fact}`).toMatch(fact);
+    }
+  });
+
+  it('promises nothing that step A does not build: not one link, not the member by name, and no picture', async () => {
+    const COPY = await copy();
+    for (const locale of LOCALES) {
+      const { html, file } = await homeOf(locale);
+      const block = blockOf(html, COPY[locale]);
+      const text = said(block);
+      // Step C makes it one link. Until then the page a person follows the copying on has a link of its own.
+      expect(text.match(/\b(one|a single|the same|één|een enkele|dezelfde) link\b/i)?.[0], `${file} promises one link`).toBeUndefined();
+      // Step B gives the sender a name. Until then the link page shows the member's address.
+      expect(text.match(/\b(your name|by name|uw naam|bij naam|met naam)\b/i)?.[0], `${file} promises a name`).toBeUndefined();
+      // No screen of a person's pages is photographed for the site yet.
+      expect(block.match(/<(img|picture|figure|svg)\b/)?.[0], `${file} shows a picture in the block`).toBeUndefined();
+    }
+  });
+
+  it('says kopiëren of what the family member sees, and keeps migreren for the member', async () => {
+    const COPY = await copy();
+    const { forFamily } = COPY.nl;
+    // The heading and the paragraph are about the member, who migrates.
+    expect(`${forFamily.title} ${forFamily.lede}`).toMatch(/migre/i);
+    // The two cards about the family member are theirs, and say what their pages say.
+    const theirs = forFamily.cards.slice(2).map(([title, words]) => `${title} ${words}`).join(' ');
+    expect(theirs.match(/\S*migr\S*/gi) ?? [], 'a card about the family member says a form of migreren').toEqual([]);
+    expect(theirs).toMatch(/kopiëren/);
+  });
+});

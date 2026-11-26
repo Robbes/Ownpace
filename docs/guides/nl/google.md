@@ -87,7 +87,7 @@ Het token moet toestemming hebben voor de contactenscope, `https://www.googleapi
 
 ### Het account van iemand anders: stuur een link {#grant-link}
 
-Is het account van een collega, een familielid of een klant, dan is de eerlijke manier om dit token te krijgen **niet** om naar het wachtwoord te vragen, en ook niet om ernaast te zitten terwijl die persoon zich aanmeldt. Open de persoon op de pagina **Migraties**, druk op **Toegangslink maken**, en stuur de link zelf. Het is één link voor alle migraties van die persoon: die meldt zich één keer aan bij elk eigen Google-account.
+Is het account van een collega, een familielid of een klant, dan is de eerlijke manier om dit token te krijgen **niet** om naar het wachtwoord te vragen, en ook niet om u zelf bij dat account aan te melden en het token uit de browser te halen. Erbij zijn terwijl die persoon zich zelf aanmeldt, mag wel: aan de telefoon, of aan tafel. Open de persoon op de pagina **Migraties**, druk op **Toegangslink maken**, en stuur de link zelf. Het is één link voor alle migraties van die persoon: die meldt zich één keer aan bij elk eigen Google-account.
 
 De ander opent de link, ziet wie het vraagt en wat er precies gelezen wordt, meldt zich bij Google aan op de eigen pagina van Google, en drukt op één knop per account. Het token gaat rechtstreeks naar elke migratie die dat account leest. **U ziet het niet, en niemand anders ook niet**: het wordt versleuteld bewaard bij die migraties, en niet bij de verbinding, dus het zegt niets over enig ander account.
 

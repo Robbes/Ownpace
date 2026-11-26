@@ -39,11 +39,14 @@
 
 import {
   NO_NAMED_ACCOUNT,
+  NO_NAMED_ACCOUNT_ON_A_PERSONS_LINK,
   addressKey,
   anotherAccount,
   anotherAccountAt,
+  anotherAccountOnAPersonsLink,
   isAddress,
   noNamedAccountAt,
+  noNamedAccountOnAPersonsLinkAt,
   reasonPair,
   unconfirmedAccount,
   unconfirmedAccountAt,
@@ -166,6 +169,11 @@ export function signedInAccountRefusal(
   named: string | null | undefined,
   signedIn: SignedInAccount | string | null,
   provider: GrantProviderId = 'google',
+  /**
+   * Whether a person's link asked, whose pages say the link and never a
+   * migration (workplan 0176 D1, §21.3). A migration's own link keeps its words.
+   */
+  onAPersonsLink = false,
 ): SignedInAccountRefusal | null {
   // A string is Google's ending as it was before the seam: an address Google
   // verified (`accountInIdToken` answers null for any other).
@@ -174,18 +182,24 @@ export function signedInAccountRefusal(
     // Google's rule, word for word as before the seam: its own fold, its own
     // sentences. Only the address counts; Google names no aliases.
     if (!named || !namesAGoogleAccount(named)) {
-      return { code: 'no_named_account', ...reasonPair(NO_NAMED_ACCOUNT) };
+      return { code: 'no_named_account', ...reasonPair(onAPersonsLink ? NO_NAMED_ACCOUNT_ON_A_PERSONS_LINK : NO_NAMED_ACCOUNT) };
     }
     if (who === null || !who.confirmed) {
       return { code: 'unconfirmed', ...reasonPair(unconfirmedAccount(named)) };
     }
     if (!sameGoogleAccount(named, who.address)) {
-      return { code: 'another_account', ...reasonPair(anotherAccount(who.address, named)) };
+      return {
+        code: 'another_account',
+        ...reasonPair(onAPersonsLink ? anotherAccountOnAPersonsLink('google', who.address, named) : anotherAccount(who.address, named)),
+      };
     }
     return null;
   }
   if (!named || !isAddress(named)) {
-    return { code: 'no_named_account', ...reasonPair(noNamedAccountAt(provider)) };
+    return {
+      code: 'no_named_account',
+      ...reasonPair(onAPersonsLink ? noNamedAccountOnAPersonsLinkAt(provider) : noNamedAccountAt(provider)),
+    };
   }
   if (who === null || !who.confirmed) {
     return { code: 'unconfirmed', ...reasonPair(unconfirmedAccountAt(provider, named)) };

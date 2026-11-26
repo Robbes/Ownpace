@@ -29,6 +29,7 @@
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { render, screen, cleanup } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router';
@@ -186,17 +187,21 @@ const PERSON = {
 
 describe("a person's grant page says it before the first button too (the owner's hand test, 2026-11-24)", () => {
   for (const locale of LOCALES) {
-    it(`${locale}: the line comes before the first Continue with Google, not after the last card`, async () => {
+    // Since 2026-11-26 a person's link asks one thing at a time (workplan 0176 T1, §5.4): the
+    // line stands on a sign-in account's *Have this ready*, where it can still be acted on,
+    // before the *Next* that leads to Google's button, and once.
+    it(`${locale}: the line comes on Have this ready, before the step that holds Google's button`, async () => {
+      window.sessionStorage.clear();
       readMock.mockResolvedValue(PERSON);
       wrap(locale, <Grant />, '/grant/abc.def', '/grant/:link');
-      const name = (account: string) => words(locale, 'grant.person.connect').replace('{account}', account);
-      const first = await screen.findByRole('button', { name: name('first@example.invalid') });
-      expect(screen.getByRole('button', { name: name('second@example.invalid') })).toBeTruthy();
+      await userEvent.click(await screen.findByRole('button', { name: words(locale, 'grant.person.yes') }));
+      const connect = (account: string) => words(locale, 'grant.person.connectAccount').replace('{account}', account);
+      expect(await screen.findByRole('button', { name: connect('second@example.invalid') })).toBeTruthy();
+      await userEvent.click(screen.getByRole('button', { name: connect('first@example.invalid') }));
+      const next = await screen.findByRole('button', { name: words(locale, 'grant.step.next') });
       const lines = screen.getAllByText(words(locale, 'grant.inAppBrowser'));
-      expect(lines, 'said once, not once per card').toHaveLength(1);
-      expect(before(lines[0] as HTMLElement, first), 'the line must be read before the first button is pressed').toBe(
-        true,
-      );
+      expect(lines, 'said once').toHaveLength(1);
+      expect(before(lines[0] as HTMLElement, next), 'the line must be read before Google is reached').toBe(true);
       expect(lines[0]?.textContent).toMatch(GRANT_ENDING[locale]);
     });
   }

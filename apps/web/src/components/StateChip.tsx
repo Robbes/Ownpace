@@ -34,8 +34,10 @@
  * server-vocabulary word does not compile.
  */
 import React from 'react';
+import type { Stage } from '@openmig/shared';
 import { useT } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
+import { usePersonsPage } from './persons-page.tsx';
 
 type Tone = 'gray' | 'muted' | 'blue' | 'green' | 'emerald' | 'yellow' | 'red' | 'void';
 
@@ -147,6 +149,23 @@ export const STATE_TABLE = {
 export type StateEntity = keyof typeof STATE_TABLE;
 export type StateOf<E extends StateEntity> = keyof (typeof STATE_TABLE)[E] & string;
 
+/**
+ * A STAGE IN A PERSON'S OWN WORDS (workplan 0176 D14 (a), the owner,
+ * 2026-11-26; `GLOSSARY.md`'s Stage row). On a person's own page a stage says
+ * *kopiëren*: *Wordt gekopieerd* where the member reads *Wordt gemigreerd*,
+ * about the same numbers. Total, so a new stage says nothing on that page
+ * until it has a person's word too. The colours are the table's.
+ */
+export const PERSON_STAGE_KEY: Readonly<Record<Stage, StringKey>> = {
+  not_started: 'view.person.stage.not_started',
+  paused: 'view.person.stage.paused',
+  copying: 'view.person.stage.copying',
+  kept_in_step: 'view.person.stage.kept_in_step',
+  ready_to_switch: 'view.person.stage.ready_to_switch',
+  switching: 'view.person.stage.switching',
+  done: 'view.person.stage.done',
+};
+
 function StateChip<E extends StateEntity>({
   entity,
   state,
@@ -155,22 +174,27 @@ function StateChip<E extends StateEntity>({
   state: StateOf<E>;
 }): React.ReactElement {
   const t = useT();
+  // A person's own page: its own words for a stage, and 16 pixels at the
+  // least (workplan 0176 D14, T9). The member's screens are unchanged.
+  const personsPage = usePersonsPage() !== null;
+  const size = personsPage ? 'px-2.5 py-1 text-base' : 'px-2 py-0.5 text-xs';
   const entry = (STATE_TABLE[entity] as Record<string, { key: StringKey; tone: Tone }>)[state];
   if (!entry) {
     // Defensive only — the types make this unreachable from checked call
     // sites. An unknown value renders raw and neutral rather than crashing
     // a screen over a word (hard rule 9's spirit: show what arrived).
     return (
-      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${TONE_CLASS.gray}`}>
+      <span className={`inline-block rounded font-medium ${size} ${TONE_CLASS.gray}`}>
         {state}
       </span>
     );
   }
+  const key = personsPage && entity === 'stage' ? PERSON_STAGE_KEY[state as Stage] : entry.key;
   return (
     <span
-      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${TONE_CLASS[entry.tone]}`}
+      className={`inline-block rounded font-medium ${size} ${TONE_CLASS[entry.tone]}`}
     >
-      {t(entry.key)}
+      {t(key)}
     </span>
   );
 }

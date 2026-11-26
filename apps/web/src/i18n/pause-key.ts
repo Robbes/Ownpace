@@ -38,3 +38,21 @@ export const PAUSE_WHY_KEY: Record<PauseReason['kind'], StringKey> = {
   'operator-hold': 'pause.hold.why',
   'data-ceiling': 'pause.dataCeiling.why',
 };
+
+/**
+ * WHY IT WAITS, ON A PERSON'S OWN PAGE (workplan 0176 D14 (a), T6.3): the same
+ * three reasons in a person's words, *kopiëren* and no *ronde*, and the data
+ * ceiling with no price, no package and no Billing page, none of which the
+ * reader can open. An operator's own words for a hold still pass as written.
+ */
+export const PERSON_PAUSE_KEY: Record<PauseReason['kind'], StringKey> = {
+  'daily-download-ceiling': 'view.person.pause.ceiling',
+  'operator-hold': 'view.person.pause.hold.default',
+  'data-ceiling': 'view.person.pause.dataCeiling',
+};
+
+export const PERSON_PAUSE_WHY_KEY: Record<PauseReason['kind'], StringKey> = {
+  'daily-download-ceiling': 'view.person.pause.ceiling.why',
+  'operator-hold': 'view.person.pause.hold.why',
+  'data-ceiling': 'view.person.pause.dataCeiling.why',
+};

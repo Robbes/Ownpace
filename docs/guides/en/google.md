@@ -87,7 +87,7 @@ The token must be consented with the contacts scope, `https://www.googleapis.com
 
 ### Somebody else's account: send them a link {#grant-link}
 
-If the account belongs to a colleague, a family member or a client, the honest way to get this token is **not** to ask them for their password, and not to sit beside them while they sign in. Open the person on the **Migrations** page, press **Create grant link**, and send them the link yourself. It is one link for all of their migrations: they sign in to each Google account of theirs once.
+If the account belongs to a colleague, a family member or a client, the honest way to get this token is **not** to ask them for their password, and not to sign in to their account yourself and copy the token out of the browser. Being with them while they sign in themselves is fine: on the phone, or at the table. Open the person on the **Migrations** page, press **Create grant link**, and send them the link yourself. It is one link for all of their migrations: they sign in to each Google account of theirs once.
 
 They open it, see who is asking and exactly what will be read, sign in to Google on Google's own page, and press one button per account. The token goes straight into each of their migrations that reads that account. **You never see it, and neither does anyone else** — it is stored encrypted against those migrations, and not against the connection, so it gives nothing away about any other account.
 

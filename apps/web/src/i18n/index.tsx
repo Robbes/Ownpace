@@ -14,6 +14,7 @@ import { OPERATOR_STRINGS, type OperatorKey } from './operator-strings.ts';
 import {
   formatRelativeToNow,
   formatDateTime,
+  formatTime,
   formatDay,
   formatMonth,
   formatNumber,
@@ -175,6 +176,7 @@ export function useOperatorT(): (key: OperatorScreenKey, vars?: TemplateVars) =>
 export function useFormatters(): {
   relativeToNow: (when: string | Date) => string;
   dateTime: (when: string | Date) => string;
+  time: (when: string | Date) => string;
   day: (day: string) => string;
   month: (month: string) => string;
   number: (n: number) => string;
@@ -186,6 +188,7 @@ export function useFormatters(): {
     () => ({
       relativeToNow: (when: string | Date) => formatRelativeToNow(when, locale),
       dateTime: (when: string | Date) => formatDateTime(when, locale),
+      time: (when: string | Date) => formatTime(when, locale),
       day: (day: string) => formatDay(day, locale),
       month: (month: string) => formatMonth(month, locale),
       number: (n: number) => formatNumber(n, locale),
