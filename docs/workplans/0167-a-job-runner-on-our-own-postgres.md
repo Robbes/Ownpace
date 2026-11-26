@@ -4,7 +4,21 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
-**2026-11-26, latest: the smoke's job check waits only for its own organisations' jobs, for
+**2026-11-26, latest: the smoke reads a job's organisation where the job runner writes it, for
+alpha.21.** E2E (managed) run 45887128804 failed on the same line as 45833930566: a
+`run-delta-sync` job still active after the 120s wait, its tenant and mapping printed as `(none)`.
+The job runner keeps a run's payload under `data.payload` (`{ payload, idem?, tags? }`,
+`packages/scheduler/src/pg-boss/job-runner.ts`), and the rule in the entry below read
+`j.data->>'tenantId'`, which no job has. So every job was judged this run's, another
+organisation's pass too, and that rule had never applied on a real stack. The scratch rows of its
+local proof carried the payload at the top level, as no job does. `smoke-managed.sh` now reads
+`j.data->'payload'->>'tenantId'` and `j.data->'payload'->>'mappingId'`. A new test in
+`smoke-managed-verdict.unit.test.ts` enqueues a pass through `PgBossProducer` itself, its sending
+stubbed, and follows each path the gate reads through the data the producer handed pg-boss. On the
+old paths it found nothing; on the new ones it finds the pass's tenant and mapping. Two tests
+updated. On a real stack, proved only by E2E (managed). Test only: no product behaviour changes.
+
+**2026-11-26, earlier: the smoke's job check waits only for its own organisations' jobs, for
 alpha.21.** E2E (managed) run 45833930566 failed on one line only: a `run-delta-sync` job still
 active after the 120s wait. The same commit was green when run again (45836652360). The job was a
 sync-tick pass of another organisation on the long-lived OTA stack, a migration the smoke never
