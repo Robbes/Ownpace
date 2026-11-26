@@ -4,6 +4,32 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the final sweep before step A: the public website.** The owner, the same day:
+*"Does the sweep session include the public website? Please include if not yet."* It did not:
+§19 left the site out. It is in now. Read at `b5431b8`: `site/` in both languages, the legal
+texts it renders, and the app's help guides, which the site links. A copy of the site, built
+for the Alpha, was measured in a browser. §22 holds it. Nothing is built.
+
+- **Five things on the website travel with step A** (T15, §22.3). The tester guide tells a
+  member nothing about a family member's link: not to tell them first, not what they will see,
+  not what to do when Google asks again for an account that is not the member's own. The
+  Google help guide says not to *sit beside them while they sign in*, where the link page says
+  to do that step together. Then the accessibility statement, the site's sentence about a
+  link, and the English pages at 320 pixels.
+- **Nothing on the site contradicts D1.** The site speaks to the member, and keeps *migreren*
+  and *overstappen*. Its first sentence already says *kopieert*. One draft of §15 now takes
+  the guide's verb, *beschrijft*.
+- **D3's open part has a shape** (§22.5, D16): one setting that the app and the site both
+  read, so that no sentence names a country.
+- **The page says *accept*, and the terms say *no party*** (§22.6, D18). For the lawyer.
+- **A story for families on the site is worth doing, in a plan of its own** (§22.7, D17).
+- **The site holds AA where it was measured, with one fault:** every English page scrolls
+  sideways at 320 pixels. The three pages of the site that a person can reach from their own
+  pages are smaller and paler than those pages will be (§22.8).
+- **Three more decisions, D16 to D18** (T16, §18). None stops step A.
+
+**Is step A still ready to build? Yes,** with T15's part for step A added to it (§21.4).
+
 **2026-11-26, the final sweep before step A.** The owner asked for it: *"step A can be built
 once #2175 is in. But first do a final sweep of if we need to add/change anything."* #2175 is
 in: `main` is at `b5431b8`, and its tree is the tree of `d60bbb2`, that branch's last head.
@@ -84,8 +110,9 @@ step's shape, and T0 fills in Google's words from a real phone.
   the copy, and the sender.
 - **Step C, the mechanism:** T4, and the second half of T5.
 
-T10 and T11 travel with each step. T0 is the owner's and blocks only what it names. T13 is
-answered. T14 holds the sweep's four decisions.
+T10 and T11 travel with each step, and so does T15, the website. T0 is the owner's and blocks
+only what it names. T13 is answered. T14 holds the sweep's four decisions, and T16 the
+website's three.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
@@ -99,11 +126,13 @@ answered. T14 holds the sweep's four decisions.
 | T7 *Je* or *u*, and the page's language, chosen per person | builder | 📋 Planned | §11. After T2, so each sentence is written once. A managed migration. L. D8 is answered: per person. |
 | T8 Making the link: tell first, a message to send, 30 days | builder | 📋 Planned | §12. M. |
 | T9 Size, contrast and targets on the two pages | builder | 📋 Planned | §13. No schema. M. |
-| T10 What follows: the guides, the privacy text, ADR-0035, the glossary | builder | 📋 Planned | §14. With each step. M. |
+| T10 What follows: the guides, the privacy text, ADR-0035, the glossary | builder | 📋 Planned | §14. With each step. M. The website's share is T15. |
 | T11 Proofs: unit, the managed UI smoke, integration | builder | 📋 Planned | §16. With each step. |
 | T12 A first test with three people | owner | ⏳ **Owner** | §17. After step A is on a stack the owner can reach. |
 | T13 The owner's decisions | owner | ✅ Answered 2026-11-26 | §18. D1 to D11, all as advised. |
 | T14 The sweep's decisions, D12 to D15 | owner | ⏳ **Owner** | §18. Each says what the builder does until it is answered, so step A waits on none. |
+| T15 The public website: what travels with each step | builder | 📋 Planned | §22, §21.4. With step A: the tester guide, the Google help guide, the accessibility statement, one sentence of the Leaving pages, and the English pages at 320 pixels. M. |
+| T16 The website's decisions, D16 to D18 | owner | ⏳ **Owner** | §18. Each says what the builder does until it is answered, so step A waits on none. |
 
 ## 1. The owner's words
 
@@ -1028,7 +1057,9 @@ What the sweep adds:
   (§8.2), and a stop's ten minutes.
 - **The lawyer reads two things before anybody outside the Alpha gets these pages:** the
   window on a stop (D6), and the privacy text for the new places a person's data is shown.
-  Putting both to the lawyer is the owner's.
+  Putting both to the lawyer is the owner's. D18 adds a third question (§22.6).
+- **The website, with each step, is T15** (§22): what the site, the legal texts it renders and
+  the app's help guides say about these pages, and what changes with which step.
 
 ## 15. The words this plan introduces (for the owner to read)
 
@@ -1092,7 +1123,7 @@ which T0 supplies.
 | Google 2, Alpha | *Google has not checked Ownpace yet. That is why Google warns, and Google is right to.* | *Google heeft Ownpace nog niet gecontroleerd. Daarom waarschuwt Google, en dat is terecht.* |
 | Google 2, Alpha | *Google's screen says: «…». To go on, tap «…», then «…».* | *Op het scherm van Google staat: «…». Wilt u verder? Tik dan op «…», en daarna op «…».* |
 | Google 2, Alpha | *Do this only here, because {who} told you about it themselves. At any other warning, stop.* | *Doe dit alleen hier, omdat {who} het u zelf heeft verteld. Bij elke andere waarschuwing stopt u.* |
-| Google 3 | *Google's words are broader than what Ownpace does. Ownpace only reads. It sends nothing and deletes nothing. Make sure everything Ownpace asks for is ticked.* | *Google omschrijft het ruimer dan wat Ownpace doet. Ownpace leest alleen. Het verzendt niets en verwijdert niets. Zorg dat alles wat Ownpace vraagt een vinkje heeft.* |
+| Google 3 | *Google's words are broader than what Ownpace does. Ownpace only reads. It sends nothing and deletes nothing. Make sure everything Ownpace asks for is ticked.* | *Google beschrijft het ruimer dan wat Ownpace doet. Ownpace leest alleen. Het verzendt niets en verwijdert niets. Zorg dat alles wat Ownpace vraagt een vinkje heeft.* |
 | Google 4, Alpha | *Does Google say «…»? Then this address is not on Google's list yet. Close the page and tell {who}. You did nothing wrong.* | *Zegt Google «…»? Dan staat dit adres nog niet op de lijst van Google. Sluit de pagina en vertel het {who}. U hebt niets fout gedaan.* |
 | Before the buttons | *You can stop this at any time, on this page.* | *U kunt dit altijd weer stoppen, op deze pagina.* |
 | Buttons | *Sign in with Google* · *No, rather not* | *Inloggen met Google* · *Nee, liever niet* |
@@ -1169,6 +1200,11 @@ rows above are.
 The button says *Sign in with Google* / *Inloggen met Google*. The desk review's readers leaned
 to *Inloggen bij Google*: the person signs in at Google, and not to Ownpace with Google. Where
 the button carries Google's mark, Google sets its words (§20). For the owner's read.
+
+**Corrected by the sweep of the website:** *Google 3* said *omschrijft* in its Dutch. The app,
+the tester guide and the site say *beschrijft* of this one fact
+(`apps/web/src/i18n/strings/connect.ts:839`, `site/pages/nl/alpha-handleiding.md:117`,
+`site/copy.mjs:629`). One verb for one thing (R8).
 
 *The progress page.*
 
@@ -1383,6 +1419,61 @@ builder does until it is, so step A can start.
   **Advice: (a).** Step A stays what the owner set it to be, and T12 shows first whether
   anybody misses it. **Until answered: not built.**
 
+**Three more, from the website (T16). Not answered yet.** Each says what the builder does
+until it is.
+
+- **D16. Where the service is run, said on a person's page (D3's open part).** D3 was answered
+  as advised: *the service that makes the copy* now, and where it is run with the site's next
+  pass, read from the deployment's configuration and never written into a sentence. Today the
+  site says it by hand in two places: the home page (*Ownpace runs in the Netherlands, in the
+  EU*, `site/copy.mjs:277` / `:663`) and the privacy text (*on a machine we administer
+  ourselves, in the Netherlands*, `site/legal/privacy.md:1247`). The app has no setting for
+  it. (a) One setting holds the country as a two-letter code. The web build and the site build
+  both read it, as both read the stage. A person's link page then says one fixed sentence
+  under its first line, *Ownpace runs in {country}.* / *Ownpace draait in {country}.*, with
+  the country's name in the reader's language, from the browser's own list. Unset, the page
+  says nothing, which is what somebody else's deployment gets. The home page's sentence takes
+  its country from the same setting. (b) No setting. Under the first line stands a link, *Who
+  runs Ownpace, and where*, to the part of the privacy text that says it, made as the legal
+  links are. (c) Nothing on the page; the site goes on saying it. **Advice: (a), in step B.**
+  It is a setting on every stack and a guard, which is more than step A's words and layout.
+  (b) sends a reader who wanted one fact to a long legal page. The sentence says where the
+  service runs and no more: the copy goes to the provider the page names, wherever that is,
+  so the page never says the data *stays* anywhere (R3). **Until answered: nothing is added.**
+- **D17. A story for families on the website.** The site has none. A family appears as a
+  choice in the estimate (*My household (4 people)*, `site/copy.mjs:384` / `:750`), as the
+  fourth tier's *A household, or a small business* (`:350` / `:724`), and in two sentences
+  about a link (`:152`, `:262`). The desk review advised four things for the member who
+  arranges this for a family member: a block on the home page, and a page, that say who does
+  what; a price example for a family; a getting-started guide in plain Dutch; and the proof
+  under *Nothing is deleted at the source* said for people before it is said for engineers.
+  (a) A plan of its own for the site, written once step A is on a stack. (b) A short block on
+  the home page with step A, and the rest in that plan. (c) Not now. **Advice: (a).** Nobody
+  in the desk review read a page of the site, and the owner's rule for the quick changes was
+  *only the ones the desk review also advised* (§1). Three of the block's sentences are not
+  true until later: *one link* is step C, a sender *by name* is step B, and a picture of the
+  first screen needs step A built. A price example has to be worked out by the build from
+  `site/prices.mjs`, as *A typical cost* on the Leaving pages is, and not typed. §22.7 lists
+  what that plan should hold, and what the glossary already settles for it. **Until answered:
+  not built, and not planned further here.**
+- **D18. What a person is said to accept before the provider's button.** The link page says
+  *By continuing you accept how your data is handled:* and links the privacy policy and the
+  terms (`grant.disclosure`, `apps/web/src/i18n/strings/grant.ts:180` / `:376`;
+  `Grant.tsx:657-666`). The page's own header calls it a disclosure, the one Google's
+  verification asks for (`Grant.tsx:73-78`). The terms say that somebody who only follows a
+  progress link, or gives access through a link a customer sent, *does not become a party to
+  these terms* (`site/legal/terms.md:627-628`; `terms.nl.md:62-63`). The privacy text gives
+  the ground for a family member's access and address as legitimate interests, which is not
+  consent (`site/legal/privacy.md:1191`). So the page says *accept* where the two texts
+  describe something the reader is told. (a) Step A leaves the sentence as it is, and the
+  owner puts the question to the lawyer with D6's. (b) Step A says what the links are and
+  claims no acceptance: *How Ownpace handles your data:* / *Zo gaat Ownpace met uw gegevens
+  om:*, with the same two links in the same place. **Advice: (a).** It is a sentence about
+  the law, and this plan changes none of those without the lawyer. (b) is the draft to put to
+  the lawyer: it is plainer Dutch too, where today's begins *Door door te gaan*. **Until
+  answered: (a).** This plan's own phrase for the block, *the texts a person accepts*, means
+  this sentence and its two links, and claims nothing about the law.
+
 ## 19. Not in this plan
 
 - **A route with no link:** an address and a code typed by hand. The owner: *"Yes, but first
@@ -1398,7 +1489,10 @@ builder does until it is, so step A can start.
   progress page shares this plan's parts, and takes their words and sizes with them (§6); its
   asking page is left as it is.
 - **Where the service is run, said on the link page** (D3 (b)): with the site's next pass.
-- **The gift's screens,** the member's own screens beyond §12, and the site.
+  D16 gives it a shape (§22.5).
+- **The gift's screens,** and the member's own screens beyond §12. **Corrected by the sweep:**
+  this line left the site out too. The owner asked for it on 2026-11-26, and §22 holds it. A
+  story for families on the site stays out, for a plan of its own if D17 goes as advised.
 - **Leaving the Alpha at Google.** Once Google has verified the app, the warning step and
   *Access blocked* are expected to go, and the weekly stop with them. Until somebody has seen
   that, `isAlpha()` is the rule.
@@ -1709,6 +1803,44 @@ Written first: a case in the smoke, *nothing small on a person's pages*, which f
 on 12- and 14-pixel text, on 32-pixel targets and on `gray-500` sentences. The ending's sizes
 are held by a case on its HTML, since the smoke has no API behind it.
 
+**T15, the website with step A.** Sentences, and one rule of the site's layout. No page is
+added to the site and none is renamed. Done means:
+
+1. The tester guide, in both languages, has no *Dat hoort zo tijdens de Alpha* and no *That is
+   expected during the Alpha*. It says why Google warns, in the link page's own words (§15,
+   *Google 2*).
+2. The guide has a part for a family member's link, under *Zo begint u* / *How to start*,
+   with its own id in each language (§22.3 has a draft). The six sections stay six
+   (`site/site.unit.test.ts:759-766`), and the two Google ids stay
+   (`apps/web/src/components/AlphaGoogleLine.unit.test.tsx`).
+3. *Als Google opnieuw vraagt* / *When Google asks again* says what to do when the account is
+   a family member's: a new link, made on that person's page.
+4. A sentence the link page takes from the guide is the same sentence in both places: *Make
+   sure everything Ownpace asks for is ticked*, and *Go on to Ownpace there* if D12 goes as
+   advised.
+5. The Google help guide, in both languages, no longer says *not to sit beside them while
+   they sign in* (`docs/guides/en/google.md:90`, `docs/guides/nl/google.md:90`). It names what
+   is wrong: asking for the password, or signing in for them.
+6. The site's sentence under *What you will do* says *on their own page*, where it said *on a
+   page only they see* (`site/copy.mjs:262` / `:648`).
+7. The accessibility statement, in both languages, says what is true after step A (§13),
+   names a person's two pages in their own words, and has no sentence over twenty words in
+   the parts it changes.
+8. No page of the site scrolls sideways at 320 pixels, in either language.
+9. Nothing else on the site changes. The home page's picture of the app, and the words in it,
+   are the member's screen, which step A leaves (`site/app-screen/screen.json`; the smoke's
+   *the home page's app screen*).
+
+Written first: `scripts/a-site-that-says-what-a-persons-page-says.unit.test.ts`. It reads the
+two tester guides, the two Google help guides and `site/copy.mjs`. It fails today on *Dat
+hoort zo*, on *That is expected*, on *ernaast te zitten* and *sit beside them*, on a guide
+with no part for a family member, and on *a page only they see*. It holds the sentences of
+point 4 equal in the guide and in the dictionary, as
+`scripts/the-alpha-said-to-a-visitor.unit.test.ts` holds the visitor's line. And a case in
+`test/ui/site.ui.test.ts`: the home page at 320 pixels, in English and in Dutch. It fails
+today on the English one, which is 323 pixels wide there. The file opens one Dutch page at
+that width (`:174`).
+
 **T10 and T11 with step A** are §14's *With step A* and the tests above. Gates before it is
 called done: lint, typecheck, the unit tests, the UI smoke. E2E against a real account is the
 maintainer's to dispatch. `CHANGELOG.md` in both languages. This plan's Status.
@@ -1725,4 +1857,221 @@ maintainer's to dispatch. `CHANGELOG.md` in both languages. This plan's Status.
 | Can a step leak the link? | No new address, no new request, no token on the page, no message to another window. The page's policy sends no referrer |
 | Can a stranger with the link do more? | No. In step A the two links are as they are: the asking link is spent once used, and the page that lives long holds counts and states |
 | Does stopping stay as easy as starting? | One button, as large as the one that started it, on the page; two equal answers; said before the provider's button too |
+| Does the website say the same as the page? | After T15, yes, for what step A changes (§22.2). The legal texts wait for the lawyer, and D18 names the one place where they and the page differ today |
 | What does a real person make of it? | Not known. T12 is the first test, and what it finds outranks all of this |
+
+## 22. The public website (added to the sweep, 2026-11-26)
+
+Asked for by the owner (the Status block). Read for it, at `b5431b8`: `site/copy.mjs` and
+`site/pages/` in both languages; the privacy text, the terms and the Alpha conditions in both
+languages, for what they say of a link, a family member and Google; the app's help guides
+(`docs/guides/`), which the site's Leaving pages link; `site/build.mjs` for its layout; and
+the guards that hold the site to the app. A copy of the site was built for the Alpha outside
+the repository, and a browser was asked what it drew, at 390 and at 320 pixels wide. No test
+of the product was run.
+
+### 22.1 Which pages of the site a person can reach
+
+A person with a link has no account and no menu. From their two pages the site is three links
+away, and today a fourth.
+
+| From | To | Where |
+|---|---|---|
+| The link page | The privacy policy and the terms | `Grant.tsx:657-666` |
+| The link page, at its foot | The accessibility statement | `Grant.tsx:676` |
+| The progress page, at its foot | The privacy policy and the accessibility statement | `View.tsx:764-774` |
+| The link page, above the first Google button, during the Alpha | The tester guide's part *Als u Google koppelt* | `Grant.tsx:446`, `AlphaGoogleLine` |
+
+Step A takes the fourth away on a person's link (D9): the steps say it on the page. After
+step A a person reads three pages of the site, in the site's own type: the privacy policy, the
+terms and the accessibility statement. §22.8 measures them.
+
+The tester guide stays what the member reads. The Alpha's note links it on every signed-in
+page, and the mail that lets a member in links it too
+(`apps/web/src/services/tester-guide-link.ts:19-33`).
+
+### 22.2 What the site says of these pages, sentence by sentence
+
+| Where | What it says | Against this plan |
+|---|---|---|
+| The tester guide, *Google-adressen eerst* (`site/pages/nl/alpha-handleiding.md:68-71`; EN `alpha-guide.md:37-40`) | Mail every Google address first, a family member's too; without it Google does not allow the connection | Holds. It is the member's half of the link page's fourth step. It does not say what the family member then sees, or what the member does when they report it: T15 |
+| The guide, *Open links in a browser* (`:83-84`; EN `:52-53`) | Not in a chat or mail app | Holds: the link page says the same (`grant.inAppBrowser`) |
+| The guide, *Als u Google koppelt* (`:115-118`; EN `:82-85`) | A warning comes; *Dat hoort zo tijdens de Alpha*; go on to Ownpace; everything ticked; Google describes more than Ownpace uses | *Dat hoort zo* goes (R2; §14 had this). The link page quotes the rest, word for word (§5.4) |
+| The guide, *Als Google opnieuw vraagt* (`:122-125`; EN `:89-92`) | After about seven days: *Accounts*, *Opnieuw verbinden*, *Verbinden met Google* | True for the member's own account. For a family member's account the member cannot sign in: a new link asks again (§3.3). The site says that nowhere: T15 |
+| The guide, as a whole | The member's own steps | Nothing on what a family member sees, and nothing that says *tell them first*. Step A's first screen asks whether they were told: T15 |
+| The Google help guide (`docs/guides/en/google.md:90`; NL `:90`) | The honest way is *not to ask them for their password, and not to sit beside them while they sign in* | Against #2175's *together* line and the owner's *"Yes, preferably"* (§1). The rule it shortens is in `docs/grant-links.md:5-9`: not to copy a token out of their browser. T15 |
+| The same guide (`:90-94`) | One link for all of their migrations; they see who asks, sign in on Google's own page and press one button per account; a link is spent once every account is connected | Holds in step A. *Spent* changes with step C (T4) |
+| The home page, *Where to* (`site/copy.mjs:152` / `:547`) | A family member connects a destination of their own with a grant link, and types its password *on their own page* | Holds |
+| The Leaving pages, under *What you will do* (`:262` / `:648`) | The same, *on a page only they see* | Not literally true (R3): whoever holds the link sees the page. *On their own page*, as the line above says it. T15 |
+| *How it works*, step 2 (`site/pages/en/how-it-works.md:17-26`; NL `hoe-het-werkt.md:19-28`) | Ownpace only reads; some permissions allow more; *for Google, the app says so beside the button*; access can be withdrawn at the provider at any time | Holds. On a person's link the sentence stands in the step before the button, which is still before they connect |
+| The home page's picture of the app (`site/copy.mjs:138-143` / `:536-541`; `site/app-screen/`) | The member's page for one person: *Wordt gemigreerd*, *laatste ronde* | Holds. It is the member's screen, which keeps its words (D14). The smoke holds the picture's words to the app's, so a shared word changed by accident fails there |
+| The accessibility statement (`site/pages/nl/toegankelijkheid.md:12-14`, `:50-53`, `:63-64`; EN `accessibility.md`) | Its scope names the two pages a link opens; *Start a migration* is the one exception to *a new screen is not announced*; nothing checked at 200% zoom | Changes with step A (§13). Its scope says *de voortgang van een migratie*: on a person's page that is *hoe ver het kopiëren is* (D1) |
+| The privacy text, a family member (`site/legal/privacy.md:1143-1145`; NL `privacy.nl.md:425-427`) | A page *that says who asked, from which account and to where* | Holds in step A. Steps B and C change it (§14) |
+| The terms (`site/legal/terms.md:627-628`; NL `terms.nl.md:62-63`) | Somebody who follows a progress link, or gives access through a link, is no party to the terms | Against the link page's *By continuing you accept* (D18). It names two kinds of link: step C |
+| The Alpha conditions (`site/legal/alpha.nl.md:129`, `:141`, `:145`, `:161`; EN `alpha.md:331`, `:345`) | *That migration's progress link*; a family member's Google address first; *Reconnect* on the account; a family member withdraws *on their own progress page* | The second holds. A progress link has been the person's, for all of their migrations, since 2026-10-03 (`apps/web/src/components/MappingLinksPanel.tsx:42-49`). *Reconnect* is for the member's own account. Both are small, and both are the owner's and the lawyer's: with step C at the latest |
+| The home page, *European, all the way down* (`site/copy.mjs:277` / `:663`) | *Ownpace runs in the Netherlands, in the EU* | D3's open part: D16 |
+
+### 22.3 With step A (T15)
+
+**The tester guide gains a part for a family member's link.** The Dutch is written first and
+is the one the owner reads, as for the rest of the guide (`alpha-handleiding.md:2-9`). A
+draft, under *Zo begint u*, after *Als u Google koppelt*:
+
+> ### Als een gezinslid een link krijgt {#gezinslid-link}
+>
+> Is het account van een gezinslid? Vraag dan niet om het wachtwoord. U maakt een
+> toegangslink, en uw gezinslid geeft zelf toestemming.
+>
+> 1. **Vertel het eerst zelf.** Bel, of zeg het als u elkaar ziet: er komt een link van u, en
+>    waarvoor die is. De pagina vraagt uw gezinslid of u dat hebt gedaan. Is het antwoord nee,
+>    dan wacht de pagina.
+> 2. **Maak de link.** Open de persoon bij *Migraties* en kies *Toegangslink maken*. Stuur de
+>    link zelf, zoals u die persoon altijd bereikt. Wij sturen hem nooit.
+> 3. **Doe de stap bij Google het liefst samen:** aan de telefoon, of aan tafel. Uw gezinslid
+>    typt het eigen wachtwoord zelf. U hoeft het niet te weten, en u vraagt er niet om.
+> 4. **Laat Google de verbinding niet toe?** Dan staat het adres nog niet op de lijst van
+>    Google. Mail het ons, en wacht op ons antwoord. Daarna opent uw gezinslid de link opnieuw.
+>
+> Daarna heeft uw gezinslid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
+> gezinslid het ook stoppen.
+
+In English, with the id `family-link`: *When a family member gets a link*, and the same five
+things in the same order.
+
+Each sentence restates something decided: the question on the first screen (§5.1); the owner's
+*"Keep the rule"* on who sends the link; *"Yes, preferably"* on doing it together; and the
+guide's own *Google-adressen eerst*. Point 4's last sentence holds while the link's date has
+not passed. The part says *kopiëren* where it describes what the family member sees. The rest
+of the guide keeps *migreren*: it speaks to the member.
+
+It stands in the guide whatever D13's answer is. D13 is about one line on the member's screen.
+The guide is the page a tester is asked to read before they start, and without this part a
+member sends the link cold.
+
+***Als Google opnieuw vraagt* gains one paragraph:** *Is het het account van een gezinslid?
+Maak dan een nieuwe toegangslink voor die persoon, en vertel het weer eerst.* Step C changes
+it: the one link then asks again by itself (D4).
+
+**The Google help guide** (`docs/guides/`, both languages, `google.md:90`). The sentence
+becomes what `docs/grant-links.md:5-9` says. The two bad ways are asking for the password, and
+signing in for them and taking what the provider gives back. Being with them while they sign
+in themselves is fine, and during the Alpha the link page advises it. The guide is the app's,
+it opens without an account, and the site's *Leaving Google* page links it three times
+(`site/sources.mjs:80-82`).
+
+**The accessibility statement** changes as §13 says, and the sweep of the website adds three
+things. Its scope names a person's two pages in D1's word. Its sentence about what the tests
+open gains the second width, 320 pixels. And the parts it changes are split into short
+sentences. The statement is one of the three pages a person can reach. Its Dutch runs to 17.7
+words a sentence, and one sentence has 58 (`toegankelijkheid.md:32-35`).
+
+**The site's sentence about a link** says *on their own page*, in both languages
+(`site/copy.mjs:262` / `:648`).
+
+**The English pages at 320 pixels.** The header is 2.7 pixels wider than the screen there, on
+every English page: the mark, *Nederlands* and *Menu*. The Dutch pages fit, because *English*
+is the shorter word. One rule of the header's layout mends it, and the site's test opens a
+page in each language at that width (§21.4).
+
+**What step A must not break on the site.** The file names the app links
+(`scripts/a-policy-link-that-answers.unit.test.ts`); the guide's six sections and its two
+Google ids; the visitor's line (`scripts/the-alpha-said-to-a-visitor.unit.test.ts`); and the
+home page's picture, with the words in it.
+
+### 22.4 With steps B and C
+
+- **Step B.** The tester guide's new part names what the page then shows of the sender: the
+  name, the relation and the number (T3). It names T8's tick and its message too. The privacy
+  text changes as §14 says.
+- **Step C.** One link, where the site and the help guides say two, or say *spent*: the Google
+  help guide (`google.md:90-94`); `docs/grant-links.md`; the tester guide's paragraph for a
+  family member's account when Google asks again; the terms' sentence about who is no party
+  (`terms.md:627`); the Alpha conditions (`alpha.nl.md:129`, `:161`); the privacy text's *own
+  progress page* (`privacy.nl.md:433`); and the accessibility statement's scope. The three
+  legal texts are the owner's and the lawyer's, with §14's.
+- **T0.** Google's own words go into the guide when they go into the link page, from the same
+  record, with its date (§20).
+
+### 22.5 D3's open part: where the service is run
+
+D3 (b) waited for the site's next pass. What that pass finds:
+
+- **The site says it by hand, twice** (§22.2's last row, and the privacy text). Nothing holds
+  the two to each other, and the app has no word for it.
+- **It can change.** The privacy text says where the service runs *during the Alpha*, and that
+  it will say where data goes if the service moves (`site/legal/privacy.md:1247`,
+  `:1323-1325`).
+- **Somebody else can run the same software.** So the dictionary cannot hold a country, and a
+  deployment that sets nothing must say nothing.
+- **One thing is true for every reader:** where the service runs. Where the copy ends up is
+  the provider the page names, which the family chose. The page never says the data *stays*
+  in a country, or in the EU.
+
+D16 puts the choice to the owner (§18). Under its (a), as advice to the builder: one key in
+the stack's `.env`, handed to the web build and to the site build as the stage is
+(`site/build.mjs:141`); a two-letter country code, refused when it is not one; the name from
+the browser's own list, in the reader's language; the home page's sentence built from it; and
+a guard that the privacy text's own sentence names the same country.
+
+### 22.6 What the page says a person accepts
+
+D18 (§18). The page's sentence, the terms and the privacy text say three things about one
+moment. Nothing changes in step A. The lawyer's pass gets one more question, beside the window
+on a stop: does a person who gives access through a link accept anything? And if not, what
+should the sentence above the two links say?
+
+### 22.7 A story for families on the site
+
+What the desk review found on the site, each held against the owner's answers and the
+glossary. None is in this plan (D17).
+
+| What | Worth doing? | What settles its words |
+|---|---|---|
+| A block on the home page, and a page, for the member who arranges this for a family member: you arrange it, they give permission themselves, you never see their password, they can follow it and stop it | Yes. During the Alpha only households take part (`alpha-handleiding.md:56`), and the site does not say how a household does it | *Overstappen*, never *verhuizen* (`GLOSSARY.md:59`). *Kopiëren* for what the family member sees (D1). *One link* only after step C, and a sender *by name* only after step B. A picture of the first screen, taken as the home page's is (`scripts/shoot-the-app-screen.mjs`), only after step A |
+| A price example for a family | Yes, small. Today a household reads as the fourth tier (`site/copy.mjs:350` / `:724`) | Worked out by the build from `site/prices.mjs`, as *A typical cost* on the Leaving pages is (`site/copy.mjs:263-266`). Never typed |
+| A getting-started guide in plain Dutch, in steps, with the technical parts in a section of their own | Yes, larger. `docs/guides/nl/start.md` is *Hoe een migratie kopieert*: it explains the order of the copying, and is no first step | The member's level, which is the app's. A person's pages are a level plainer (§1). The app serves the guides, so this is the app's plan as much as the site's |
+| The proof under *Nothing is deleted at the source*, said for people first | Yes, small. Today the link reads *The test that checks this (code, on GitHub)* (`site/copy.mjs:110` / `:519`) | The claim stays linked to the guard that holds it (`site/proof.mjs`). Only the words round the link change |
+| One plain verb | Done by D1, for a person's pages. The site keeps *migreren* for the member, 84 times in its Dutch, and its first sentence already says *kopieert* (`site/copy.mjs:501`) | The owner, 2026-10-10 and 2026-11-26 |
+| The country, where an older person reads it | D16 | R3: where the service runs, never where the data stays |
+
+### 22.8 The site's own accessibility and plain language
+
+Measured on the copy built for the Alpha, at 390 and at 320 pixels. In Dutch: the tester
+guide, *Hoe het werkt*, the accessibility statement, the privacy policy, the Alpha conditions,
+the home page, pricing, *Weg bij Google*, the estimate and the gift page. In English: the home
+page and the guide, and six pages for the check at 320 pixels.
+
+| What | Found | Against |
+|---|---|---|
+| The page's language, its title, one `h1`, no heading level skipped, a *Skip to content* link first, every picture with words | On every page measured | Holds |
+| Sentences | 16 pixels on a line of 26, in `#1d2421` on the page's paper: 15.0 to 1 | AA holds. A person's pages will be 18 pixels (§13) |
+| Small text | The language link 13.6 pixels; the Alpha's line under the header 14.4; the footer 14.7 and its build stamp 12.8; *Menu* 15.2; a table's cells 15.2 and its headings 12.8 | AA sets no least size. Under this plan's 16 for a person's pages |
+| The muted colour, `#5d6763` | 5.56 to 1 on the paper: the footer, the Alpha's line, the language link, a table's headings | AA holds (4.5). Under this plan's 7 |
+| A link in a sentence, `#146b60`, underlined | 6.04 to 1 | AA holds |
+| Targets that stand alone | The language link 71 by 29 pixels; *Menu* 85 by 37; the mark 112 by 28 | AA holds (24 by 24). Under this plan's 44 |
+| Focus | The browser's own ring | AA holds |
+| Sideways at 390 pixels | None. The site's test holds it for every page | Holds |
+| Sideways at 320 pixels | **Every English page: 3 pixels.** No Dutch page | Criterion 1.4.10. T15 |
+| The body's size is set in pixels (`site/build.mjs:384`) | It does not follow a reader who chose a larger standard size in the browser. The smaller texts are set in `rem` and do: at a standard of 20 pixels the footer is larger than the sentences | Zoom works, so criterion 1.4.4 holds. For the site's plan |
+| A field's edge on the estimate, `#e5e1d6` | 1.24 to 1 against the paper | Criterion 1.4.11 asks 3 to 1. Not a page of this plan: for the site's plan |
+
+**Plain Dutch, by the length of a sentence.**
+
+| Page | Sentences | Words a sentence | Over 20 words | Longest |
+|---|---|---|---|---|
+| The tester guide | 137 | 8.4 | 2 | 30 |
+| *Hoe het werkt* | 50 | 14.9 | 14 | 35 |
+| Pricing | 61 | 13.7 | 16 | 39 |
+| The accessibility statement | 43 | 17.7 | 15 | 58 |
+
+The tester guide is the plainest page of the site, and the one a tester is asked to read. Its
+hard words are the app's: *bestemming*, *doelmap*, *koppelen*, *experimenteel*. The
+accessibility statement is the hardest, and of these four the only one a person with a link is
+sent to. T15 splits the parts it changes. The privacy policy and the terms are the lawyer's
+words, and a person reads them in a translation that says the English is the text that
+applies (`site/copy.mjs:742-743`).
+
+**What follows for this plan.** The fault at 320 pixels and the statement are T15's, with
+step A. The rest is the site's own. It holds AA, and making three pages of the site as large
+and as dark as a person's pages is a choice about the whole site. It belongs in the site's
+plan (D17), with the story for families, so that the site is changed once.
