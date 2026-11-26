@@ -702,7 +702,7 @@ export const nl: Record<keyof typeof en, string> = {
   'view.failure.internalAddress':
     'Deze dienst maakt geen verbinding met het adres dat voor een van uw accounts is opgegeven. {who} kan het aanpassen.',
   'view.failure.sourceRefused':
-    'Uw oude omgeving gaf sommige items niet vrij. Deze gingen niet naar uw nieuwe omgeving.',
+    'Uw oude account gaf sommige items niet vrij. Deze gingen niet naar uw nieuwe account.',
   'view.failure.targetRefused': 'Uw nieuwe account kon sommige items niet in ontvangst nemen.',
   'view.failure.formatRefused':
     'Uw nieuwe account accepteert bepaalde bestandstypen niet. {who} kan dat aanpassen.',

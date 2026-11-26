@@ -134,5 +134,22 @@ is banned is same-entity drift and raw enum renders.
 
 ## Register
 
-NL is uniformly formal — **u**, never je/jij (verified across the whole
-dictionary 2026-08-09).
+NL is formal — **u**, never je/jij (verified across the whole dictionary
+2026-08-09) — but for one place, by the owner's decision of 2026-11-26
+(workplan 0176 T7, D8 (a): *je* or *u* per person). **A person's own two
+pages**, their link page and their progress page, **say *je*** to a person
+the member chose it for: *Dutch, with je*. Unset is *u*. The member's own
+screens stay *u*.
+
+The *je* lives in the informal layer, `informal.ts`: the twin of
+each sentence those pages say to the reader with *u* or *uw*, and nothing
+else. A sentence with no *u* in it has no twin (*Leg dit klaar*). A twin is
+its sentence turned: *u* becomes *je*, and *uw* becomes *je*, with *jouw*
+only where it carries stress (*van jouw oude aanbieder, niet van ons*). A
+verb before *je* drops its *-t* (*kunt u* → *kun je*). A reflexive *zich*
+after *u* is *je* (*u zich aanmeldt* → *je je aanmeldt*). A *u* that means
+two people is *jullie* (*als u elkaar ziet* → *als jullie elkaar zien*).
+Nothing else in the sentence changes: a word changed here is changed in
+both. `every-u-has-its-je.unit.test.ts` holds the layer to that. Until
+T7's main line stores the register and the pages read it, no screen says
+the layer: it is the draft the owner reads.
