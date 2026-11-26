@@ -634,8 +634,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   on a body checked first, a 409, a 429) is neither. An operation with a path parameter the seed
   makes no id for is not asked, and is listed as such. Its proof runs first, against the fixture's
   `another-organisation.yaml`: a door that serves whichever organisation the path names must be
-  read as a leak, and one that refuses as a refusal. Report only, as the scan is; a leak and an
-  answer without refusing are counted and never named in the summary. Held by
+  read as a leak, and one that refuses as a refusal. Report only, as the scan is; every verdict is
+  counted and no operation of the API is named in the summary. Held by
   `scripts/a-scan-that-tried-the-running-api.unit.test.ts`, which runs the report against a stubbed
   docker; its pin is the pin watch's row `schemathesis/schemathesis`.
 - `migration-locks.yml` — on a pull request and a push to `main` that touch either migration chain,

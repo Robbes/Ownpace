@@ -50,9 +50,8 @@
  * `another-organisation.yaml` has one door that serves whichever
  * organisation the path names and one that refuses, and the first must be
  * read as a leak and the second as a refusal, or the check is not believed
- * (`OTHERS`). A leak on the API, and a door that answered without refusing,
- * are counted and never named in the summary, for `ignored_auth`'s reason
- * below.
+ * (`OTHERS`). On the API every verdict is counted and no operation is named
+ * in the summary, for the reason below.
  *
  * WHERE IT RUNS (D3 (a), 0178 §6.1). On the GitHub-hosted runner the job
  * takes, never the self-hosted one, and never against the managed E2E's
@@ -195,8 +194,8 @@ export const MIN_ASKS = 100;
 /** The verdicts of the second identity, in the order the summary lists them. */
 export const VERDICTS = ['leak', 'answered', 'other', 'refused'];
 
-/** The verdicts whose API operations the public summary counts and never names. */
-export const OTHERS_WITHHELD = ['leak', 'answered'];
+/** The verdicts whose API operations the public summary counts and never names: all of them, and the operations not asked too. */
+export const OTHERS_WITHHELD = VERDICTS;
 
 /**
  * The first organisation's ids, as the stack's database holds them: the
@@ -416,23 +415,11 @@ export function report({ image = '', event = '', stopped = null, proof = null, o
   md.push('| Verdict | Asks | Operations |', '|---|---|---|');
   for (const v of VERDICTS) md.push(`| ${v} | ${others.asked.filter((a) => a.verdict === v).length} | ${withVerdict(others, v).length} |`);
   md.push(`| not asked | — | ${others.notAsked.length} |`, '');
-  for (const v of OTHERS_WITHHELD) {
+  for (const v of ['leak', 'answered']) {
     const ops = withVerdict(others, v);
-    if (!ops.length) continue;
-    md.push(`**${v === 'leak' ? 'Leaks' : 'Answered without refusing'}: ${plural(ops.length, 'operation')}, not named here.** ${v === 'leak' ? "Such an operation served the second member the first organisation's data" : "Such an operation answered the second member with nothing of the first organisation's, and did not refuse"}, and this summary is public. Repeat it on a stack of your own (docs/testing.md, *Schemathesis*) and hand a real one to the maintainer privately.`, '');
-    lines.push(`::warning::second identity: ${plural(ops.length, 'operation')} read as ${v}; see the summary`);
+    if (ops.length) lines.push(`::warning::second identity: ${plural(ops.length, 'operation')} read as ${v}; see the summary`);
   }
-  const otherAsks = others.asked.filter((a) => a.verdict === 'other');
-  if (otherAsks.length) {
-    md.push(`<details><summary>Neither refused nor answered: ${plural(otherAsks.length, 'ask')}</summary>`, '');
-    for (const a of otherAsks) md.push(`- \`${a.operation}\` by the ${a.via}: ${a.status}`);
-    md.push('', '</details>', '');
-  }
-  if (others.notAsked.length) {
-    md.push(`<details><summary>Not asked: ${plural(others.notAsked.length, 'operation')}</summary>`, '');
-    for (const n of others.notAsked) md.push(`- \`${n.operation}\`: ${n.why}`);
-    md.push('', '</details>', '');
-  }
+  md.push('**No operation of the API is named here, under any verdict.** This summary is public. Repeat the check on a stack of your own (docs/testing.md, *Schemathesis*) and hand what it finds to the maintainer privately.', '');
   lines.push(`second identity: ${VERDICTS.map((v) => `${v} ${others.asked.filter((a) => a.verdict === v).length}`).join(', ')}, not asked ${others.notAsked.length}`);
   if (!scan) return fail('the scan of the API did not run');
   if (scan.stopped) return fail(`the scan of the API: ${scan.stopped}`);

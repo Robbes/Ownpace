@@ -11,12 +11,9 @@ refuse. It runs before Schemathesis, whose deletes (signed as the first owner) w
 take the first organisation's seeded mapping and connection away. Its proof is the fixture's
 `another-organisation.yaml`: one door that serves whichever organisation it is asked for, read as
 a leak, and one that refuses. The guard is red when the leak is taken out of what it flagged.
-**Measured locally on this tree:** 213 asks, 0 leaks, 175 refused, 16 answered without
-refusing, with nothing of the first organisation's in the answer (read one by one: each answered
-with the caller's own organisation, or an empty list; the operations are the maintainer's, held
-privately), 22 neither (mostly a 400 on a body checked before the identity, so those doors are
-not yet asked by identity), and 27 operations not asked, for want of an id the seed makes.
-Open: fill request bodies from the description's examples, so the 400s are asked too.
+**Measured locally on this tree:** 213 asks and no leak; the rest of the reading is the
+maintainer's, held privately. Every verdict is counted in the summary and no operation of the
+API is named. Open: fill request bodies from the description's examples, so the 400s are asked too.
 
 **2026-11-26, T7 built (report only, not yet run on a hosted runner).** `.github/workflows/schemathesis.yml`
 runs `scripts/schemathesis-report.mjs` nightly on `main` and on dispatch, held by

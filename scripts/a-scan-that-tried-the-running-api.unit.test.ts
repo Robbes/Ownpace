@@ -54,8 +54,8 @@
  *     organisation's rows away. Its own proof first: the fixture's door that
  *     serves whichever organisation the path names must be read as a leak and
  *     its kept door as a refusal, and the reading is RED when the leak is
- *     taken out of what it flagged. A leak and a door that answered without
- *     refusing are counted on the API and never named.
+ *     taken out of what it flagged. On the API every verdict is counted and no
+ *     operation is named.
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -552,23 +552,23 @@ describe('the second identity: the first organisation’s ids with the second’
     expect(calls.some((c) => c.includes(`/src/${API_DESCRIPTION}`))).toBe(false);
   });
 
-  it('counts a leak and a door that answered on the API and never names either; lists the rest', () => {
-    expect(OTHERS_WITHHELD).toEqual(['leak', 'answered']);
+  it('counts every verdict on the API and names no operation, not asked ones included', () => {
+    expect(OTHERS_WITHHELD).toEqual(['leak', 'answered', 'other', 'refused']);
     const out = withOthers(othersOk(), apiOk([
       { operation: 'GET /api/a-leaking-door/{tenantId}', via: 'path', status: 200, carries: true },
       { operation: 'PUT /api/an-answering-door/{tenantId}', via: 'path', status: 200, carries: false },
       { operation: 'POST /api/a-body-first/{mappingId}', via: 'path', status: 400, carries: false },
     ]));
     expect(out.code).toBe(0);
-    for (const hidden of ['a-leaking-door', 'an-answering-door']) {
+    for (const hidden of ['a-leaking-door', 'an-answering-door', 'a-body-first', '/api/x/{link}', '/api/r0/']) {
       expect(out.markdown).not.toContain(hidden);
       expect(out.lines.join('\n')).not.toContain(hidden);
     }
-    expect(out.markdown).toContain('**Leaks: 1 operation, not named here.**');
-    expect(out.markdown).toContain('**Answered without refusing: 1 operation, not named here.**');
-    expect(out.markdown).toContain('- `POST /api/a-body-first/{mappingId}` by the path: 400');
-    expect(out.markdown).toContain('- `GET /api/x/{link}`: no id of the first organisation for {link}');
     expect(out.markdown).toContain('| leak | 1 | 1 |');
+    expect(out.markdown).toContain('| answered | 1 | 1 |');
+    expect(out.markdown).toContain('| other | 1 | 1 |');
+    expect(out.markdown).toContain('| not asked | — | 1 |');
+    expect(out.markdown).toContain('**No operation of the API is named here, under any verdict.**');
     // The fixture's doors are named: they are faults on purpose.
     expect(out.markdown).toContain('`GET /orgs/{tenantId}/things` must be read as a leak: it is');
   });
