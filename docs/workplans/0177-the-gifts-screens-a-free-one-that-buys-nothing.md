@@ -1,11 +1,38 @@
 # Workplan 0177 — The gift's screens: a free one that buys nothing, a door of its own, a card that reads alone
 
-> **In one line:** The screens a gift's giver and recipient see: a free gift becomes a recommendation that lets a person in at once and buys nothing; the code gets a door of its own; the card reads without a screen; the two mails say what happened; a paid gift code stays as 0172 left it.
+> **In one line:** The screens a gift's giver and recipient see: a free gift becomes a recommendation that lets a person in at once and buys nothing; the code gets a door of its own; the card reads without a screen; the two mails say what happened; the Alpha gets two ceilings; a paid gift code stays as 0172 left it.
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
-**2026-11-26, the owner's answers to D1 to D13 (T13). Nothing is built.** In the owner's
-words, in the plan's order:
+**2026-11-26, later: the owner's answers to D14 to D16, and a yes to building step A (T15).
+Nothing is built yet.** In the owner's words:
+
+- **D14:** *"a"*
+- **D15:** *"a"*
+- **D16:** *"alpha limited to 50 people I let in, en 50 max someone invites (each let in user
+  1 invite)."*
+- **Whether step A is built now, beside 0176's:** *"yes"*
+
+**What these change.** §15.2 says it for each one, and §20 works the third one out.
+
+- **D14:** the door's third step asks one question about a Google account. A yes is kept with
+  the request, and the owner's notice names the address to add at Google (§5).
+- **D15:** a code lets in a person whose request is already waiting. That waiting request is
+  the one granted (§5).
+- **D16: the Alpha has two ceilings.** The numbers are the owner's: 50, 50 and 1. How they
+  are counted, kept and shown is this plan's reading, and §20 marks it as one. Step A gains a
+  task for it, T16, and its migration now adds two numbers to one row.
+- **Step A is to be built.** Builders start once this plan is merged. It is built beside
+  0176's step A (§19). Its last part waits until that step is merged, which is #2180. §21
+  says for each part what done means.
+
+**Two questions are left for the owner,** D17 and D18 (T17, §15.3): whether the owner's own
+50 refuses a 51st yes or is only shown, and whether a person who came in by a recommendation
+may recommend somebody too. Each has advice, and says what the builder does until it is
+answered.
+
+**2026-11-26, the owner's answers to D1 to D13 (T13).** In the owner's words, in the plan's
+order:
 
 - **D1:** *"aanbeveling (recommendation). Don't mention 'geen sleutel', thats obvius)"*
 - **D2:** *"both"*
@@ -30,7 +57,7 @@ from the owner's words. In short:
 - **D6 changes the most, and it changes a decision of 0172.** A recommended person is let in
   straight away. The door no longer makes a request that waits for the owner. 0172's G1 said
   that a redeemed gift lets nobody in by itself; for a free one that no longer holds. §5 is
-  rewritten for it. Step A gains a managed migration, which adds no table and no column.
+  rewritten for it. Step A gains a managed migration, which adds no table.
 - **The free thing is a *recommendation* / *aanbeveling*** (D1), and no sentence says what it
   is not. The sentences that said *not a key* go.
 - **A card and a link** (D2). **`/code`** (D9). **Both mails as proposed** (D11, D12).
@@ -41,12 +68,9 @@ from the owner's words. In short:
 - **The half of D7 that said *the answer can always be no* falls away too.** It is no longer
   true of a recommendation.
 
-**Three questions are left for the owner,** D14 to D16 (T15, §15): how Ownpace learns of a
-Google address to add; an address that already has a request waiting; and a ceiling, now that
-nobody reads a recommendation first. Each has advice, and says what the builder does until it
-is answered.
-
-**When step A is built is the owner's to say.** Nothing here starts it.
+**These answers left three questions,** D14 to D16: how Ownpace learns of a Google address
+to add; an address that already has a request waiting; and a ceiling, now that nobody reads a
+recommendation first. The owner answered them later the same day: the entry above.
 
 **2026-11-26: planned, after a desk review.** The owner asked for the gift's screens to be
 reviewed before they join a plan, and decided what a free gift is (§1).
@@ -74,21 +98,23 @@ owner chose the new name and both mails' proposals (D1, D11, D12). Every sentenc
 **Every claim about the code below was read at `ae57042`,** which is `main` on 2026-11-26.
 Two changes came after 0172 was merged, and are in the lines cited: the privacy text's two
 additions about a gift (#2171), and the request form's package names in the page's language
-(#2175).
+(#2175). §20 and §21 were read at the same tree. `main` has moved since by two changes, and
+neither opens a file this plan names (#2182, #2184).
 
 **The order.** Three steps, each one mergeable by itself.
-- **Step A, words, screens and letting a person in:** T1 to T8, and T10. One new route. One
-  managed migration, which adds no table and no column.
+- **Step A, words, screens, letting a person in, and two ceilings:** T1 to T8, T10 and T16.
+  One new route. One managed migration, which adds no table: two numbers on one row, and what
+  the code's own transaction needs to let a person in.
 - **Step B, a little data:** T9.
 - **Step C, after the Alpha:** T12.
 
-T0 and T14 are the owner's. Step A can be built beside 0176's step A; only its last part
-waits for that one (§19).
+T0 and T14 are the owner's. Step A is built beside 0176's step A; only its last part waits
+for that one to be merged (§19, §21).
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The owner's hand test: from the mail that lets a person in to the first screen after signing in, word for word | owner | ⏳ **Owner** | §8. On a real phone, in Dutch and English. Blocks nothing; the yes mail's third step takes its words. |
-| T1 The door: the code first and alone, then let in at once | builder | 📋 Planned | §5. One new route, and a managed migration with no table and no column (D6). L. |
+| T1 The door: the code first and alone, then let in at once | builder | 📋 Planned | §5. One new route, and a managed migration with no table (D6). The question about Google (D14) and a request already waiting (D15) are part of it. L. |
 | T2 The card: a full sheet, in type that can be read, with steps that match the screens | builder | 📋 Planned | §6. S. |
 | T3 The words, EN and NL, and one name for the thing | builder | 📋 Planned | §7. D1 (a). The glossary first. Merged after the owner's read of the Dutch. M. |
 | T4 The two mails: what happened, in both languages alike | builder | 📋 Planned | §8. D11 (a), D12 (a). For every request. M. |
@@ -100,9 +126,11 @@ waits for that one (§19).
 | T10 What the giver hears: used, and so let in | builder | 📋 Planned | §9. Step A now, in words: under D6 *used* means *let in*, so no column is needed (D8). S. |
 | T11 A receipt by mail | builder | 📋 Planned | §12. Met by T1 and T4: under D6 the yes mail goes out at once, and it is the receipt (D10). No task of its own is left. |
 | T12 After the Alpha: a paid code at the same door | builder | 📋 Planned | §13. Step C. With payments; 0172's G2. Not designed here beyond the door. |
-| T13 The owner's decisions, D1 to D13 | owner | ✅ Answered 2026-11-26 | §15. In the owner's words, with what each changes. |
+| T13 The owner's decisions, D1 to D13 | owner | ✅ Answered 2026-11-26 | §15.1. In the owner's words, with what each changes. Later that day the owner also said yes to building step A now. |
 | T14 A first test with four people | owner | ⏳ **Owner** | §16. After step A is on a stack the owner can reach. |
-| T15 The owner's decisions after the answers, D14 to D16 | owner | ⏳ **Owner** | §15. Each has advice, and says what the builder does until it is answered. |
+| T15 The owner's decisions after the answers, D14 to D16 | owner | ✅ Answered 2026-11-26 | §15.2. In the owner's words. What D16's numbers mean in the code is this plan's reading (§20). |
+| T16 The Alpha's two ceilings: 50 people the owner lets in, 50 by a recommendation | builder | 📋 Planned | §20. D16. Step A. Two numbers on the operator's *Gifts* screen; both counts shown; a new card and the door keep to the second. M. |
+| T17 The owner's decisions on the ceilings, D17 and D18 | owner | ⏳ **Owner** | §15.3. Each has advice, and says what the builder does until it is answered. |
 
 ## 1. What the owner decided
 
@@ -119,6 +147,9 @@ The first three are restated here, not quoted. The answers to this plan's own de
   giver picks.
 - **2026-11-26, on this plan's D1 to D13:** §15. The one that reaches furthest is D6: a
   recommended person is let in straight away.
+- **2026-11-26, later, on D14 to D16:** §15.2. The Alpha has two ceilings: 50 people the owner
+  lets in, and 50 let in by a recommendation, one for each person let in. The same day the
+  owner said yes to building step A now, beside 0176's.
 - **From 0172** (2026-11-24 and 2026-11-25), still so: a gift is valid for two years; Ownpace
   never sends it, the giver does; nothing about the recipient is kept on the gift; each
   person gives one. **Changed by D6, for a free one:** 0172 said a gift lets nobody in by
@@ -332,31 +363,53 @@ D6 asks for it at the door, so this is what the door has to do.
   (`site/pages/en/alpha-guide.md:37-40`; NL `alpha-handleiding.md:68-71`). The privacy text
   says so: a person gives the address, and Ownpace enters it in that list
   (`site/legal/privacy.md:958-959`).
-- **Google's list ends at 100.** Google's help page *Manage App Audience* says that a project
-  whose publishing status is *Testing* is limited to 100 test users
-  (https://support.google.com/cloud/answer/15549945; seen in search results on 2026-11-26, the
-  page itself was not opened).
+- **Google's list ends at 100, and it counts addresses.** Google's page on getting an app
+  ready for production says that an app whose status is *Testing* is *"limited to a hard cap
+  of 100 test users"*, and that *"Only users explicitly added to the test user allowlist can
+  access the app"*
+  (https://developers.google.com/identity/protocols/oauth2/production-readiness/overview,
+  opened on 2026-11-26). Google's help page *Manage App Audience* gives the same number
+  (https://support.google.com/cloud/answer/15549945; seen in search results on 2026-11-26,
+  the page itself could not be opened). The page that was opened does not say whether an
+  address that is taken off the list gives its place back.
+- **Who is on Google's list.** Each Google address that connects: a member's, each family
+  member's whose account the member moves (`site/legal/alpha.md:340-342`), and any address
+  the owner tests with. Ownpace takes an address off when the account's data is erased
+  (`alpha.md:368-369`).
+- **Nothing counts today.** The operator's *Gifts* screen shows how many requests were
+  granted, how many wait, and how many cards are unused
+  (`apps/api/src/routes/gifts.ts:332-336`; `apps/web/src/pages/Gifts.tsx:96-112`), and says
+  under them that nothing refuses a grant past a number
+  (`apps/web/src/i18n/operator-strings.ts:452-453`). 0172 kept no cap, because the owner
+  counted by hand (§7, question 4 there).
+- **Only a grant makes an organisation.** No other route of the product writes one
+  (`apps/api/src/routes/access-requests.ts:574`), so the requests that were granted are the
+  people the Alpha let in. A request is erased with its account's data
+  (`packages/managed/src/offboarding.ts:254-274`), and a card that pointed to it then points
+  to nothing (`packages/managed/migrations/0065_a_place_given_as_a_present.sql:69-70`).
 
 ## 4. The design in one page
 
 1. **A name that is true** (T3, D1). A free one is a recommendation: the giver tells Ownpace
    that they know somebody, and that is enough. *Gift* is kept for a code that somebody paid
    for.
-2. **A door of its own** (T1). A short address. First the code, alone. Then one question, the
-   address and an optional name. Then the person is in, at once (D6).
+2. **A door of its own** (T1). A short address. First the code, alone. Then one question.
+   Then the address, an optional name, and one question about Google (D14). Then the person
+   is in, at once (D6).
 3. **A card that reads alone** (T2). A full sheet, large type, three steps that are the
    screens' own, and who to ask.
 4. **Two mails that say what happened** (T4), alike in both languages. For a code the yes
    mail goes out at once.
 5. **A giver who knows what they hand over** (T5, T10): that the person is let in at once,
    what they will read, and that the giver will see when the code is used.
-6. **Then, with a little data** (step B): who sent it, shown as something to check.
-7. **Later** (step C): a paid code at the same door.
+6. **Two ceilings** (T16, D16): 50 people the owner lets in, and 50 by a recommendation. A
+   card is made only while a place is free for it.
+7. **Then, with a little data** (step B): who sent it, shown as something to check.
+8. **Later** (step C): a paid code at the same door.
 
 ## 5. The door (T1)
 
-Serves R1, R3, R4, R5 and R6. One new route. A managed migration that adds no table and no
-column.
+Serves R1, R3, R4, R5 and R6. One new route. A managed migration that adds no table.
 
 **The address.** `/code`, which reads the same in both languages (D9). The card prints it
 (`Give.tsx:48`; `apps/api/src/routes/gifts.ts:81-84`).
@@ -383,6 +436,8 @@ code costs nothing and sends nothing about the person.
   service mails from, where one is set (`NOTIFY_FROM`; `apps/api/src/access-notify.ts:232`).
   So the page names no address that the mail does not come from. Step B adds the giver's
   name (T9).
+- A good code that the Alpha has no room for is answered apart: the Alpha is full (§20). The
+  code is kept, and the page says so before it asks for anything.
 - It is an open route, and joins the list of them with its note
   (`apps/api/src/knock-limit.unit.test.ts:197-209`): it writes nothing, and only the holder of
   a code made by somebody already let in gets a yes.
@@ -413,37 +468,59 @@ person is in.
 
 - The address, with which address is meant. A name that may be left empty. The address shown
   back in a sentence before the button.
-- One question about Google, if D14 goes as advised (§15).
+- One question about Google (D14), with two answers of one size: *Is this the email address
+  of a Google account that you want to move?* One line of help stands under it: *Gmail is a
+  Google account.* The page sends the answer with the address.
 - That the code works once, and is used by this step. The button says so: *Use my code*.
 - What is kept, in today's words for a request that is granted (`access.privacy`), with the
   privacy text and the Alpha conditions linked under it, as today (0139 T4).
 - No organisation, no note and no package: the page draws none and sends none. It sends the
-  code, the address, the name if one was typed, and the page's language. The form's trap
-  stays (0093 T2d).
+  code, the address, the name if one was typed, the answer about Google, and the page's
+  language. The form's trap stays (0093 T2d).
 
 **What the server does with it (D6).** In one transaction, all of it or none:
 
 - the request, written as granted, with nobody named as having decided it;
 - the organisation, named after the name the person typed, or else after their address;
 - its owner's invitation, bound to the address, as a grant writes it (§3.6);
-- the code, spent.
+- the code, spent, and pointing to the request.
+
+**A request that is already waiting (D15 (a)).** If the address has a request waiting, no
+second one is written. The waiting one is the one granted, and the code points to it. It
+keeps what the person wrote in it. Its organisation is named as a grant names it: after the
+organisation the person named, else their name, else the name typed at the door, else the
+address (`apps/api/src/routes/access-requests.ts:571-572`). The yes mail goes out in the
+door's language. A request that arrives from the same address in the same moment makes the
+write fail on the index that allows one waiting request for an address
+(`ux_access_request_one_open_per_email`); the door then tries once more, and finds it.
+
+**A yes to the question about Google (D14 (a))** is kept with the request, as one fixed
+English line in its note: *Said at the door: this address is a Google account to move.* A
+note the person wrote earlier stays above it. A no writes nothing. No column is added.
+
+**The ceiling (D16).** The server counts before it writes, behind one lock. At the ceiling
+it writes nothing, keeps the code, and answers that the Alpha is full (§20).
 
 After the commit it sends the yes mail to the person (§8), and a notice to the operator in
-new words: somebody was let in with a recommendation, and the queue shows whose. The queue
-shows the request as let in by a recommendation, and by nobody's decision.
+new words: somebody was let in with a recommendation, and the queue shows whose. After a yes
+to the question about Google the notice says that the address is to be added at Google. The
+queue shows the request as let in by a recommendation, and by nobody's decision.
 
 **The migration.** The code's own transaction may today read its gift, spend it and write a
-request (§3.6). It must now also write the organisation and the invitation, and nothing
-else. A managed migration lets it: policies, or one function, for a session that holds an
-unused code. It adds no table and no column. `gift-under-rls` holds that a session with no
-code, with a used one or with somebody else's can write none of it.
+request (§3.6). It must now do four more things, and nothing else: write the organisation;
+write the invitation; grant the one waiting request of the address it was given; and learn,
+as a yes or a no, whether the Alpha has room. A managed migration lets it: policies, or
+functions that run with their definer's rights, for a session that holds an unused code. The
+same migration adds the two ceilings to the rule's one row (§20). It adds no table.
+`gift-under-rls` holds that a session with no code, with a used one or with somebody else's
+can write none of it, and that no session of a code can read how many people are in.
 
 **Three answers that are not a yes.** In each the code is kept, and the page says so in the
 server's words (§7).
 
 - **A code that stopped working since step 1** is refused as there.
 - **An address that already has access:** the page says so, and offers to sign in.
-- **An address that already has a request waiting:** as today, until D15 is answered.
+- **The Alpha is full:** a calm screen, which says until when the code works (§20).
 
 **Let in.** One `h1`: the person is in. Then:
 
@@ -452,8 +529,9 @@ server's words (§7).
   (`packages/shared/src/registration-link.ts:58-60`). The sign-in service then mails a code
   to confirm the address;
 - that the same was sent by mail, to which address and from which, if it was sent;
-- with a Google address under D14: that the owner adds it at Google by hand and writes when
-  that is done, and that Google does not allow the connection until then;
+- after a yes to the question about Google (D14): that Ownpace adds the address at Google by
+  hand and writes when that is done, and that Google does not allow the connection until
+  then;
 - one exactly true safety sentence (§7), and where to write if the address was mistyped.
 
 **What the door does not show:** the Alpha's welcome (D13; the yes mail carries the owner's
@@ -535,6 +613,7 @@ and `{from}` the address the service mails from.
 | Giver, what is kept | *We never receive the name or the message on the card. We keep that you recommended someone, a fingerprint of the code, the card's language, its dates, and which request it became.* | *Wij ontvangen de naam en de boodschap op de kaart nooit. Wij bewaren dat u iemand aanbeval, een vingerafdruk van de code, de taal van de kaart, de datums, en welke aanvraag het werd.* |
 | Giver, the link (D2) | *Or send a link. Say in your own words what it is.* | *Of stuur een link. Zeg in uw eigen woorden wat het is.* |
 | Giver, none for now | *No new recommendation can be made for now.* | *U kunt nu even geen aanbeveling maken.* |
+| Giver, none for now, the Alpha is full (D16) | *The Alpha is full for now. No new recommendation can be made.* | *De Alpha is nu vol. U kunt nu geen aanbeveling maken.* |
 | Card, title | *A recommendation from {giver}* | *Een aanbeveling van {giver}* |
 | Card, what Ownpace does | *Ownpace copies your mail, calendars, contacts and files to a European provider. You switch from Google or Microsoft at your own pace. Until then Ownpace keeps the copy up to date.* | *Ownpace kopieert uw e-mail, agenda's, contacten en bestanden naar een Europese aanbieder. U stapt over van Google of Microsoft in uw eigen tempo. Tot dan houdt Ownpace de kopie bij.* |
 | Card, what this card does | *Ownpace is in a free Alpha. With this card you are let in at once.* | *Ownpace zit in een gratis Alpha. Met deze kaart wordt u meteen toegelaten.* |
@@ -561,23 +640,30 @@ and `{from}` the address the service mails from.
 | Door, no thank you | *That is fine. Nothing has been sent. Tell {giver}: they can then recommend someone else.* | *Dat mag. Er is niets verstuurd. Vertel het {giver}: die kan dan iemand anders aanbevelen.* |
 | Door, step 3, the address | *Your email address* · *You sign in with it. It may be the email address you use today.* | *Uw e-mailadres* · *Daarmee meldt u zich aan. Het mag het e-mailadres zijn dat u nu gebruikt.* |
 | Door, the name | *Your name (you may leave this empty)* | *Uw naam (mag, hoeft niet)* |
+| Door, the question about Google (D14) | *Is this the email address of a Google account that you want to move?* | *Is dit het e-mailadres van een Google-account waar u weg wilt?* |
+| Door, its answers, and its line of help | *Yes* · *No* · *Gmail is a Google account.* | *Ja* · *Nee* · *Gmail is een Google-account.* |
 | Door, shown back | *We send an email to {email}. The code works once: after this step it is used.* | *Wij sturen een e-mail naar {email}. De code werkt één keer: na deze stap is hij gebruikt.* |
 | Door, the button | *Use my code* | *Gebruik mijn code* |
 | Door, already has access, the server's | *This email address already has access to Ownpace. Your code is not used. Sign in with that email address.* | *Dit e-mailadres heeft al toegang tot Ownpace. Uw code is niet gebruikt. Meld u aan met dat e-mailadres.* |
-| Door, a request already waiting, the server's | *There is already a request from this email address waiting for an answer. Nothing was added, and your code is not used. Keep it: you can use it once that request is answered.* | *Er wacht al een aanvraag van dit e-mailadres op antwoord. Er is niets toegevoegd en uw code is niet gebruikt. Bewaar hem: u kunt hem gebruiken zodra die aanvraag is beantwoord.* |
+| Door, the Alpha is full, the heading (D16) | *The Alpha is full for now* | *De Alpha is nu vol* |
+| Door, the Alpha is full, the server's | *Nobody can be let in with a code right now. Your code is not used.* | *Met een code kan nu niemand worden toegelaten. Uw code is niet gebruikt.* |
+| Door, the Alpha is full, the page's line | *Keep your code. You can try again later, until {date}. Nothing about you has been kept.* | *Bewaar uw code. U kunt het later opnieuw proberen, tot {date}. Er is niets over u bewaard.* |
 | Let in | *You are in* | *U bent toegelaten* |
 | Let in, what is left | *One thing is left: make your account. The sign-in service mails a code to {email}. With it you confirm that the address is yours.* | *Er is nog één ding te doen: maak uw account aan. De aanmeldservice mailt een code naar {email}. Daarmee bevestigt u dat het e-mailadres van u is.* |
 | Let in, the button | *Create your account* | *Maak uw account aan* |
 | Let in, the mail | *We also sent you an email, from {from}. It says the same.* | *Wij hebben u ook een e-mail gestuurd, vanaf {from}. Daarin staat hetzelfde.* |
-| Let in, Google (D14) | *You want to move away from Google. We add {email} to a list at Google by hand, and write to you when that is done. Until then Google does not allow the connection.* | *U wilt weg bij Google. Wij zetten {email} met de hand op een lijst bij Google, en schrijven u als dat is gebeurd. Tot dan laat Google de koppeling niet toe.* |
+| Let in, and the yes mail, after a yes about Google (D14) | *You want to move away from Google. We add {email} to a list at Google by hand, and write to you when that is done. Until then Google does not allow the connection.* | *U wilt weg bij Google. Wij zetten {email} met de hand op een lijst bij Google, en schrijven u als dat is gebeurd. Tot dan laat Google de koppeling niet toe.* |
 | Let in, safety | *Ownpace never asks for your password by email or phone.* | *Ownpace vraagt nooit per e-mail of telefoon om uw wachtwoord.* |
 | Let in, a mistyped address | *Is {email} not right? Write to {support}.* | *Klopt {email} niet? Schrijf naar {support}.* |
 
 **What the drafts keep of the owner's words.** *Iemand die u dierbaar is* and *op een kaart*;
-*Ownpace zit in een gratis Alpha*; the refusal, whole, with *cadeaucode* become *code*; the
-sentence for a request already waiting, with *adres* become *e-mailadres*; and *aanbeveling*,
-which becomes the name. The card's sentence about what Ownpace does says what it says today,
-*in uw eigen tempo* included, in three sentences where the Dutch was one of 27 words.
+*Ownpace zit in een gratis Alpha*; the refusal, whole, with *cadeaucode* become *code*; and
+*aanbeveling*, which becomes the name. The card's sentence about what Ownpace does says what
+it says today, *in uw eigen tempo* included, in three sentences where the Dutch was one of 27
+words.
+
+**What D15 took out.** The owner's sentence for a request that is already waiting, kept as
+built on 2026-11-25. Under D15 (a) that request is granted, so nothing is left to say it of.
 
 **What D6 took out of the owner's words.** *En we laten mensen zelf toe. Met deze kaart
 vraagt u ons om u toe te laten* (2026-11-25) said that Ownpace decides. Under D6 the card
@@ -602,7 +688,11 @@ request first.
   they are accepted. That is D5 said to the recipient: the recommendation gives the free
   Alpha, and no free use after it.
 - **The Google sentence** says what the tester guide says today (§3.6), at the moment the
-  person needs it.
+  person needs it. The question before it is D14 (a)'s, with *address* become *email
+  address*. The Dutch avoids every form of *verhuizen*, as the glossary asks, and says *waar
+  u weg wilt*.
+- **The sentences for a full Alpha** are new, and this plan's (§20). They say *let in*, as
+  the card does, and name no place: *plaats* was one of the eight names.
 
 ## 8. The two mails (T4)
 
@@ -620,6 +710,10 @@ person; no promise the service cannot keep. The subjects stay.
 - **For a code, the yes mail goes out at once,** from the door (§5). It says in its first
   line that the person used a code from somebody they know. The door passes that to the mail
   as one true-or-false. After T9 the mail names the giver.
+- **After a yes to the question about Google** (D14) the mail carries the sentence the last
+  screen shows (§7), so that the two say the same. That is a second true-or-false.
+- **A request that was waiting and is granted by a code** (D15) gets this mail too, in the
+  door's language.
 - **A request without a code still waits for the owner,** and gets the yes mail or the no
   mail as before, in the new texts.
 - **No no mail is ever sent for a code,** so the no mail says nothing about a recommendation.
@@ -676,8 +770,10 @@ No promise of a later message.
 | Closes | *Do you think we misunderstood you? Reply to this email. A person reads it.* | *Denkt u dat wij u verkeerd begrepen? Beantwoord deze e-mail. Een mens leest uw antwoord.* |
 
 **The operator's notice,** English only, gets new words for a code: *Someone was let in with
-a recommendation. Nothing is waiting for you. The queue shows whose it was.* With D14 (a) it
-adds the Google address to add.
+a recommendation. Nothing is waiting for you. The queue shows whose it was.* It names the
+address, as today's notice does (`packages/shared/src/notifications.ts:1664`). After a yes to
+the question about Google (D14 (a)) it adds: *They said this address is a Google account
+they want to move. Add it to Google's list of test users, then write to them.*
 
 **T0, the owner's hand test.** From the yes mail to the first screen after signing in, on a
 real phone, in Dutch and in English. Written down word for word: what each screen of the
@@ -708,7 +804,9 @@ Serves R1, R2, R3 and R10. No schema.
   what is asked of them.
 - ***Shown only now* gets its other half:** a lost code is withdrawn and made again, which is
   true today (0172 §7, question 1). Under D6 it is also how a lost card is stopped.
-- **When no card can be made** (D7) the page says *none for now*, and offers no button.
+- **When no card can be made** the page says *none for now*, and offers no button: when the
+  number each person may give is nought (D7), and when the Alpha has no place left for a new
+  card (D16, §20).
 - **A link to the site's page,** the follow-up 0172's fifth answer left.
 - **Nothing about what the giver gets** (D4): they get nothing, and the page does not say so.
 
@@ -735,18 +833,22 @@ from the app's own palette:
   pinned in `site/site.unit.test.ts` change with it.
 - **The privacy text** (`site/legal/privacy.md` §4.4 and §9, and the Dutch), with step A now:
   the name of the thing; that a code lets a person in at once; that the giver sees that it
-  was used, where the text now says the giver can tell a decline; and the Google address
-  given at the door, if D14 goes as advised. With step B: that the giver's name is shown to
+  was used, where the text now says the giver can tell a decline; and that a person can say
+  at the door that their address is a Google account, which Ownpace then enters in Google's
+  list (D14). With step B: that the giver's name is shown to
   whoever holds the code. T7 asks the owner whether the texts are still changed in place
   under 1.0 before it changes them, as 0176's T10 does.
-- **Plan 0172** gets one dated line in its Status: its G1 is changed by D6 here.
-- **The tester guide's *Google addresses first*** (§3.6) says the door's way too, if D14 goes
-  as advised.
-- **`docs/ending-the-alpha.md`:** what a recommendation is after the Alpha (D5, §13).
+- **Plan 0172** gets one dated line in its Status: its G1 is changed by D6 here, and its
+  answer that there is no cap by D16.
+- **The tester guide's *Google addresses first*** (§3.6) says the door's way too (D14): a
+  person who came in with a code and said yes there need not mail that address again.
+- **`docs/ending-the-alpha.md`:** what a recommendation is after the Alpha (D5, §13), and
+  that the two ceilings are the Alpha's.
 - **The operator's *Gifts* screen** and the access queue, English only: the free thing's
-  name, and a request that is let in by a recommendation.
-- **`apps/api/docs/openapi.yaml`:** the new route, a ninth beside 0172's eight, and the
-  redeem's new answers.
+  name, a request that is let in by a recommendation, and the two ceilings with their counts
+  (§20).
+- **`apps/api/docs/openapi.yaml`:** the new route, a ninth beside 0172's eight, the redeem's
+  new answers, and the ceilings in the operator's answers.
 - **`CHANGELOG.md`**, per step.
 
 ## 12. Step B: who sent it
@@ -794,6 +896,8 @@ was free*. So, as this plan reads it:
 - One that nobody has used when the Alpha ends still works until its date. It is then a way
   in that says who sent the person, and it gives nothing that is not free for everybody.
 - The giver may turn it into a paid code (§1). How is step C's, with payments.
+- The two ceilings are the Alpha's (§20). What limits a recommendation after it is step C's
+  to say.
 
 ## 14. Proofs (T8)
 
@@ -802,25 +906,37 @@ Each written first, to fail on `main` for the reason it names.
 - **`apps/web/src/pages/a-code-with-a-door-of-its-own.unit.test.tsx`.** The first step holds
   one field and asks no address. A refused code stays in its field, under a heading that is
   tied to the field and announced; nothing else was asked. The third step has two fields, and
-  no organisation, note or package is drawn or sent. The address is shown back before the
+  no organisation, note or package is drawn or sent. It asks the question about Google, with
+  two answers of one size, and sends the answer. The address is shown back before the
   button, with the sentence that the code is used by this step. After it the page says the
   person is in, and holds *Create your account* with the address filled in. An address that
-  already has access, or a request waiting, keeps its code, and the page says so. Too many
-  tries are said in Dutch on the Dutch page. `/redeem` opens the door, and so does the plain
-  form's link. No welcome stands on the door. Fails today on the six fields.
+  already has access keeps its code, and the page says so. A full Alpha is a calm screen
+  with the code's last day, at the first step and at the third. Too many tries are said in
+  Dutch on the Dutch page. `/redeem` opens the door, and so does the plain form's link. No
+  welcome stands on the door. Fails today on the six fields.
 - **`apps/api/src/routes/gifts.unit.test.ts`,** new cases. The check writes nothing and
   spends nothing. Each kind of bad code gets the one body. The check and the redeem share one
   limit. Its 429 has a Dutch half. An accepted code is answered as let in, and the yes mail
-  and the operator's notice are sent after the commit, never before. A filled trap is
-  answered as let in, and nothing is written. **`apps/api/src/knock-limit.unit.test.ts`**
-  lists the route.
+  and the operator's notice are sent after the commit, never before. A yes to the question
+  about Google is the one fixed line in the request's note, and reaches the notice; a no
+  writes nothing. A filled trap is answered as let in, and nothing is written.
+  **`apps/api/src/knock-limit.unit.test.ts`** lists the route.
 - **`apps/api/src/routes/a-gift-turned-into-a-request.unit.test.ts`** turns round: a code
   makes a request that is granted, an organisation and its owner's invitation, or none of
-  the three. Never a seat in the giver's organisation, as today.
+  the three. An address with a request waiting gets that one granted, and no second one.
+  Never a seat in the giver's organisation, as today.
+- **`apps/api/src/routes/an-alpha-with-two-ceilings.unit.test.ts`,** new. Each count is
+  §20.1's: a request a card points to is never one of the owner's. No card is made while
+  the people let in by a recommendation and the cards not used yet fill the second number.
+  At that number the check and the redeem answer that the Alpha is full, and nothing is
+  written or spent. Two codes at the last place let one person in. A number set under the
+  count takes nobody out. The operator's answer carries both counts and both ceilings.
+  Fails today on the absent numbers.
 - **`packages/managed/src/gift-under-rls.unit.test.ts`,** new cases, on a real database where
   the suite runs one. A session that holds an unused code can write its own organisation and
   invitation, once. A session with no code, a used one, a withdrawn one or somebody else's
-  can write none of it, and can read nobody's.
+  can write none of it, and can read nobody's. No session of a code can read how many people
+  are in: it learns a yes or a no.
 - **`apps/web/src/i18n/one-name-for-a-free-gift.unit.test.ts`.** No sentence of the card, the
   door, the giver's page, the two mails or the site's page calls the free thing a *gift* or a
   *cadeau*, a *place* or a *plaats*; each says *recommendation* or *aanbeveling*; and none
@@ -828,11 +944,15 @@ Each written first, to fail on `main` for the reason it names.
 - **`apps/web/src/pages/a-gift-on-every-screen.unit.test.tsx`** moves with the words. Its
   case for the owner's words gets a new date and the sentences the owner read. New cases: the
   giver's page says that the person is let in at once, and that whoever has the code is; it
-  has no tick box; a used card says the day and *let in*; with a limit of nought it says
-  *none for now* and not *already given*, which fails today.
+  has no tick box; a used card says the day and *let in*; with a limit of nought, and with
+  a full Alpha, it says *none for now* and not *already given*, which fails today. The
+  operator's *Gifts* screen shows both counts with their ceilings and the two fields, and no
+  longer says that nothing refuses a grant. **`AccessRequests.unit.test.tsx`:** the queue
+  shows the owner's line.
 - **`packages/shared/src/notifications.unit.test.ts`** and **`what-the-mails-say.unit.test.ts`,**
   new cases. The yes mail has no sentence saying it holds no link, and its steps are
-  numbered. For a code it says so in its first line. The no mail's two languages say the
+  numbered. For a code it says so in its first line, and after a yes about Google it
+  carries that sentence. The no mail's two languages say the
   same things: the same paragraphs, the 30 days in both, a promise of a later message in
   neither. Fails today on all four. The cases of §8's *What stays as it is* stay green, and
   the no mail's event is still a kind and nothing else.
@@ -850,7 +970,7 @@ Each written first, to fail on `main` for the reason it names.
 Gates before a step is called done: lint, typecheck, the unit tests, the UI smoke.
 `CHANGELOG.md` in both languages. E2E is the maintainer's to dispatch.
 
-## 15. The owner's decisions (T13, T15)
+## 15. The owner's decisions (T13, T15, T17)
 
 ### 15.1 Answered on 2026-11-26: D1 to D13
 
@@ -908,36 +1028,62 @@ this plan's reading and not the owner's words, it says *reading*.
   *Reading:* the door's last screen now comes after the answer, and still carries no welcome
   of its own: the yes mail carries the owner's.
 
-### 15.2 Open: D14 to D16
+### 15.2 Answered on 2026-11-26, later: D14 to D16
+
+As §15.1: what was asked, the owner's words, what they change, and *reading* where it is one.
+
+- **D14. How Ownpace learns of a Google address to add.** (a) The door asks one question on
+  its third step. (b) As for every tester today: the person mails the address to support
+  first, and waits. (c) A Gmail address is recognised by its ending and added unasked. The
+  owner: *"a"*. **So:** the door asks, with two answers of one size. A yes is kept with the
+  request, in fixed words. The owner's notice names the address. The person reads that
+  Google does not allow the connection until Ownpace has written (§5, §7, §8). Any other
+  Google address is mailed to support, as the guide says.
+- **D15. An address that already has a request waiting.** (a) The code lets that person in
+  too: the request that waits is the one granted. (b) As today: the door says so and keeps
+  the code. The owner: *"a"*. **So:** (a), in §5. The door's sentence for a waiting request
+  goes, and so does that answer of the route.
+- **D16. A ceiling, now that nobody reads a recommendation first.** (a) None. (b) A number
+  the owner sets: at it the door lets nobody in, says so, and keeps the code. The owner:
+  *"alpha limited to 50 people I let in, en 50 max someone invites (each let in user 1
+  invite)."* **So:** a ceiling, with numbers: 50, 50 and 1. *Reading,* all of it worked out
+  in §20:
+  - the Alpha holds at most 50 people the owner lets in, and at most 50 let in by a
+    recommendation;
+  - each person let in has one recommendation: the number each person may give is 1, as it
+    is today;
+  - 50 and 50 is 100, the length of Google's list of test users (§3.6). The two numbers
+    count people and Google counts addresses, so the two are not the same thing (§20.5);
+  - at the second ceiling the door lets nobody in by a code, says so, and keeps the code;
+  - a card is made only while a place is free for it, so that a card on paper stays true;
+  - the people already in count; a test address counts like anybody's; and both numbers are
+    settings on the operator's *Gifts* screen, 50 unless the owner changes them;
+  - what it leaves open: D17 and D18.
+- **Whether step A is built now, beside 0176's step A.** The owner: *"yes"*. **So:** builders
+  start once this plan is merged (§19, §21).
+
+### 15.3 Open: D17 and D18
 
 Each has options, advice, and what the builder does until it is answered.
 
-- **D14. How Ownpace learns of a Google address to add.** The owner adds it at Google by hand
-  (D6). (a) The door asks one question on its third step, with two answers of one size: *Is
-  this the address of a Google account that you want to move?* A yes is kept with the request,
-  in fixed words; the operator's notice names the address; and the person reads that Google
-  will not allow the connection until Ownpace has written (§7). (b) As for every tester
-  today: the guide and the yes mail ask the person to mail the address to support first, and
-  to wait. (c) A Gmail address is recognised by its ending and added unasked. **Advice: (a).**
-  It is one tap for the common case, where the address a person gives is their Gmail address.
-  (b) lets a recommended person find it in the guide after Google has refused them. (c)
-  enters an address in a list at Google that the person did not ask for, which the privacy
-  text does not cover. Any other Google address is mailed to support, as the guide says.
-  **Until answered: (b).**
-- **D15. An address that already has a request waiting.** Today the door says so and keeps
-  the code (0172 §7, question 3, kept as built on 2026-11-25). (a) The code lets that person
-  in too: the request that waits is the one that is granted, and nothing is left waiting.
-  (b) As today. **Advice: (a).** D6 lets a recommended person in straight away, and (b) makes
-  the one person who asked earlier wait longest. **Until answered: (b).**
-- **D16. A ceiling, now that nobody reads a recommendation first.** 0172 kept no cap, because
-  the owner counted by hand (§7, question 4 there). Under D6 the owner's hand is no longer in
-  the way. Each person who is let in may recommend one more. Cards already made keep working
-  after the owner sets the number each person may give to nought (§3.6). And Google's list
-  ends at 100 addresses (§3.6). (a) No ceiling: one for each member is the limit, and the
-  owner is mailed for each person who is let in. (b) A number the owner sets on the *Gifts*
-  screen. At that number the door lets nobody in, says so, and keeps the code. **Advice:
-  (b).** It is one column in the migration step A already has, one check and one sentence.
-  **Until answered: (a),** which is what D6 says.
+- **D17. The owner's own 50: a 51st yes refused, or the number only shown.** Until now the
+  owner counted by hand, and the operator's screen says that nothing refuses a grant past a
+  number (§3.6). (a) Refused: at the number, the owner's next yes is answered with one
+  sentence that names the number and where to raise it, and nothing is written. (b) Only
+  shown: *People you let in: n of 50*, on the queue and on the *Gifts* screen, and nothing
+  is refused. **Advice: (a).** *Limited* is the owner's word. The limit that nobody at
+  Ownpace can lift is Google's, so one yes too many can let in a person whom Google then
+  refuses. And the number is a setting: a refusal never traps the owner, it makes the 51st a
+  choice. **Until answered: (b),** which both answers need anyway.
+- **D18. May a person who came in by a recommendation recommend somebody too.** The owner's
+  words fit both: *each let in user 1 invite*. (a) Yes, as today: every member has one, and
+  the second ceiling stops it at 50. (b) No: only the people the owner let in have one.
+  **Advice: (b).** It is the owner's own sum: 50 people, one each, makes 50. Each of the
+  owner's 50 is then sure of their one, where under (a) a member who came in by a
+  recommendation can use a place before a member the owner chose. And nobody reads a
+  recommendation first (D6): under (b) every person who comes in was named by somebody the
+  owner chose, and under (a) possibly by somebody nobody chose. §20.7 says what (b) takes.
+  **Until answered: (a),** which is what is built today.
 
 ## 16. A first test with four people (T14)
 
@@ -966,6 +1112,9 @@ The owner's. After step A is on a stack the owner can reach.
 - **The sign-in service's own screens.** T0 reads them; changing them is another plan.
 - **A route with no link for a person's own pages** (0176 §19). The door here is built so
   that one door could later take that code too; nothing of it is built.
+- **Counting Google's list.** Ownpace does not hold it: the owner keeps it at Google by hand.
+  The two ceilings count people (§20.5).
+- **A waiting list for a full Alpha,** or telling anybody when there is room again.
 
 ## 18. Risks
 
@@ -974,7 +1123,21 @@ The owner's. After step A is on a stack the owner can reach.
   code can be withdrawn, the door asks its question, and the owner is mailed for each person
   let in. The code is 80 bits behind a limit.
 - **Nobody reads a recommendation first, and each person let in may recommend one more.**
-  D16.
+  The second ceiling stops it at 50 (D16, §20). Who may recommend is D18.
+- **The two ceilings count people, and Google's list counts addresses.** A member who moves
+  three family members' Google accounts takes four places there, and each address the owner
+  tests with takes one. So 50 and 50 can be more than Google's 100. The numbers are settings
+  for that reason: the owner lowers one when Google's list fills first. Nothing in Ownpace
+  counts that list (§17).
+- **A place may not come back at Google when a person leaves.** Ownpace's count goes down
+  when a person's data is erased. Whether Google's list gives the place back is not known
+  here (§3.6). The owner sees it in Google's console.
+- **A card on paper says *let in at once*, and a full Alpha cannot keep that.** A card is
+  made only while a place is free for it, so this happens only after the owner lowers the
+  number while cards are out. The door then says so calmly, and keeps the code (§20.3).
+- **A code can let in an address the owner has not answered yet, or has declined.** That is
+  D6 and D15 (a): a member's word is enough. The owner is mailed for each person let in, and
+  the notice names the address.
 - **A mistyped address is let in.** The address is shown back before the button, and the
   page says where to write. The invitation is bound to an address that the sign-in service
   must verify, so only whoever reads that mailbox can take it up.
@@ -991,9 +1154,9 @@ The owner's. After step A is on a stack the owner can reach.
   refusal. Forty an hour is still nothing against 80 bits.
 - **Two calls where there was one.** A code can stop working between them. The third step
   refuses it in the same words, and nothing was written before it.
-- **Two answers tell a code's holder something about an address:** that it already has
-  access, or that it has a request waiting. 0172 accepted the second (§7, question 3 there);
-  the first is its like. Only a holder of an unused code can ask.
+- **One answer tells a code's holder something about an address:** that it already has
+  access. Only a holder of an unused code can ask. A request that waits is no longer told
+  (D15 (a)): it is granted.
 - **A name at the door makes a false page more convincing too.** It is shown as something to
   check; the question stays; and nothing on the server depends on the answer.
 - **The question can be answered *yes* by anybody.** It is there for the reader who was not
@@ -1001,8 +1164,8 @@ The owner's. After step A is on a stack the owner can reach.
 - **The address the mail comes from is a setting.** The door names it only from the server's
   own answer, never from the web build's.
 - **Two plans touch the member's name.** T9 reads what 0176's T3 writes, and waits for it.
-- **Three plans add managed migrations.** This step A's, and 0176's two in its step B, take
-  their numbers one after the other, never side by side.
+- **Two plans add three managed migrations.** This step A's one, and the two of 0176's step
+  B. This plan's comes after those two, never side by side with them (§19).
 
 ## 19. Building it in parts
 
@@ -1010,41 +1173,413 @@ As 0176 §23 does it. A key that no screen says is refused
 (`apps/web/src/i18n/a-word-nobody-says.unit.test.ts`), so words travel with their screen.
 Step A is one pull request, and its parts are branches that meet in it.
 
-**Beside 0176's step A.** Five files are both plans': the glossary, the language switch
-(`apps/web/src/components/LanguageSwitch.tsx`), `site/build.mjs`, the managed UI smoke and
-`CHANGELOG.md`. The four middle parts open none of them, so they can be built while 0176's
-step A is. Two parts wait. The glossary's two rows go in after 0176's glossary part. And the
-last part waits until 0176's step A is merged: it takes the language switch in full words
-from there (T6), and adds its one line to `site/build.mjs` (D9), its cases to the smoke and
-its lines to the changelog.
+**Beside 0176's step A,** which is #2180 and is not merged yet. The owner said yes to
+building this step A now (§15.2). Nine files are opened by both, as #2180's own list of
+files shows: the glossary, the language switch (`apps/web/src/components/LanguageSwitch.tsx`),
+`apps/web/src/index.css`, `site/build.mjs`, `site/site.unit.test.ts`, the tester guide in its
+two languages, the managed UI smoke and `CHANGELOG.md`.
+
+- **Two of the nine are changed at a place of their own,** so that the two steps merge
+  without a conflict. The glossary's two rows stand apart from the rows 0176 changes. The
+  site's cases for this plan's page are the ones that are there today
+  (`site/site.unit.test.ts:909` on).
+- **The other seven wait for the last part,** and the last part waits until #2180 is merged.
+  It takes the language switch in full words from there (T6); writes the card's print rule
+  in `index.css` (T2); adds its one line to `site/build.mjs` (D9); says the door's way in
+  the tester guide (D14); and adds its cases to the smoke and its lines to the changelog.
+- **The first part and the four middle parts open none of those seven,** so they are built
+  while #2180 is.
 
 | Part | Tasks | Files it owns |
 |---|---|---|
 | **First: the glossary** | T3's two rows | `apps/web/src/i18n/GLOSSARY.md` |
-| **The web** | T1's screens, T2, T5, T6, T10 and their words | `apps/web/src/pages/Give.tsx`; the door's new files under `apps/web/src/pages/`; `RequestAccess.tsx`; `apps/web/src/AppRoutes.tsx`; `apps/web/src/services/gifts.ts`; `apps/web/src/index.css` (print); `apps/web/src/i18n/strings/gifts.ts`; `apps/web/src/i18n/operator-strings.ts` (the free thing's name); `a-gift-on-every-screen.unit.test.tsx` and the two new web tests |
-| **The server** | T1's route, the limit, letting a person in, the server's sentences | `apps/api/src/routes/gifts.ts`, `packages/managed/src/gift-store.ts`, a new file under `packages/managed/migrations/`, `apps/api/docs/openapi.yaml`, `apps/api/src/routes/gifts.unit.test.ts`, `a-gift-turned-into-a-request.unit.test.ts`, `apps/api/src/knock-limit.unit.test.ts`, `packages/managed/src/gift-under-rls.unit.test.ts` |
-| **The mails** | T4, and the operator's notice | `packages/shared/src/notifications.ts`, `apps/api/src/access-notify.ts`, `apps/api/src/routes/access-requests.ts`, `notifications.unit.test.ts`, `what-the-mails-say.unit.test.ts` |
-| **The site and the documents** | T7 | `site/pages/nl/cadeau.md`, `site/pages/en/gift.md`, `site/site.unit.test.ts`, `docs/ending-the-alpha.md`, the privacy text if the owner says so, plan 0172's Status |
-| **Last** | T8's smoke; T6's language switch; D9's path on the site; the records | `test/ui/managed-ui.ui.test.ts`, `site/build.mjs`, `CHANGELOG.md`, this plan's Status |
+| **The web** | T1's screens, T2 on the screen, T5, T10, T16's screens, T6's sizes, and their words | `apps/web/src/pages/Give.tsx`; the door's new files under `apps/web/src/pages/`; `RequestAccess.tsx`; `Gifts.tsx`; `AccessRequests.tsx`; `apps/web/src/AppRoutes.tsx`; `apps/web/src/services/gifts.ts` and `access-requests.ts`; `apps/web/src/i18n/strings/gifts.ts`; `apps/web/src/i18n/operator-strings.ts`; `a-gift-on-every-screen.unit.test.tsx`, `AccessRequests.unit.test.tsx` and the two new web tests |
+| **The server** | T1's route, the limit, letting a person in (D6, D14, D15), T16's counts and ceilings, the server's sentences | `apps/api/src/routes/gifts.ts`; `apps/api/src/routes/access-requests.ts`; `packages/managed/src/gift-store.ts`; `packages/managed/src/schema-managed.ts`; one new file under `packages/managed/migrations/`; `apps/api/docs/openapi.yaml`; `apps/api/src/routes/gifts.unit.test.ts`, `a-gift-turned-into-a-request.unit.test.ts`, the new `an-alpha-with-two-ceilings.unit.test.ts`, `access-request-grant-alpha.unit.test.ts`; `apps/api/src/knock-limit.unit.test.ts`; `packages/managed/src/gift-under-rls.unit.test.ts` |
+| **The mails** | T4, and the operator's notice | `packages/shared/src/notifications.ts`, `apps/api/src/access-notify.ts`, `notifications.unit.test.ts`, `what-the-mails-say.unit.test.ts` |
+| **The site and the documents** | T7, but for the tester guide | `site/pages/nl/cadeau.md`, `site/pages/en/gift.md`, `site/site.unit.test.ts` (this page's cases), `docs/ending-the-alpha.md`, the privacy text if the owner says so, plan 0172's Status |
+| **Last** | T8's smoke; T2 in print; T6's language switch; D9's path on the site; D14 in the tester guide; the records | `test/ui/managed-ui.ui.test.ts`, `apps/web/src/index.css`, `apps/web/src/components/LanguageSwitch.tsx`, `site/build.mjs`, `site/pages/en/alpha-guide.md`, `site/pages/nl/alpha-handleiding.md`, `CHANGELOG.md`, this plan's Status |
 
-**The parts meet at three contracts,** fixed here so that none waits.
+**The parts meet at five contracts,** fixed here so that none waits.
 
 - **The check.** `POST /api/gifts/check` takes `{ code }`. It answers 200 with
   `{ ok: true, until, answersFrom }`, where `answersFrom` is left out when no mail is set up;
-  410 with the body `GIFT_REFUSAL` has; and 429 as the redeem does, with a Dutch half.
+  410 with the body `GIFT_REFUSAL` has; 409 `full`, with the server's sentence in both
+  languages and `until`; and 429 as the redeem does, with a Dutch half.
 - **The redeem.** `POST /api/gifts/redeem` takes the code, the address, a name if one was
-  typed, and the language. It answers 201 with `{ letIn: true, mailed }`; 410 for a bad code;
-  409 `already_in` for an address that already has access; 409 `already_asked` for one that
-  has a request waiting; and 429.
-- **The mails.** The event of the yes mail, and the operator's notice, each take one more
-  true-or-false: that it came with a code, and that the person was let in. The server passes
-  them; the mails' part says the words.
+  typed, `google` as true or false, and the language. It answers 201 with
+  `{ letIn: true, mailed }`; 410 for a bad code; 409 `already_in` for an address that already
+  has access; 409 `full`, as the check's; and 429. It has no answer for a request that
+  waits any more: that request is granted (D15).
+- **The giver's own.** `GET /api/gifts/mine` gains `room`, true or false: whether the Alpha
+  has a place for a new card. `POST /api/gifts` answers 409 `no_room` when it has none.
+- **The operator's.** The `alpha` of `GET /api/gifts/operator` gains `byOwner`,
+  `byRecommendation`, `ownerCeiling` and `recommendationCeiling`, beside the `unusedGifts`
+  it has. `PUT /api/gifts/operator/rule` takes either ceiling beside the number each person
+  may give. The queue reads the owner's line from that same answer. If D17 is answered (a),
+  `POST /api/access-requests/:id/grant` answers 409 `alpha_full` at the owner's number.
+- **The mails.** The event of the yes mail, and the operator's notice, each take two more
+  true-or-false: that it came with a code, and that the person said their address is a
+  Google account. The server passes them; the mails' part says the words.
 
 The path the card prints is `/code`, in both `Give.tsx` and `apps/api/src/routes/gifts.ts`.
 
+**The managed migration's place.** One file, and its place is after the two managed
+migrations of 0176's step B (T3 and T7 there), never side by side with them: no two open
+branches hold the same number. 0176's step A adds none. As both plans stand, this one reads
+nothing that those two add, so the order is one of numbers and not of content. The server's
+part writes the file against the tree as it is, and gives it its number last. If this step A
+is ready before 0176's step B is merged, the maintainer says which of the two takes the next
+number, and the other is renumbered before it merges.
+
 **What waits for what.** The four middle parts wait for the glossary, and for nothing else.
-The last part waits for the others. The owner's read of the Dutch comes after it, on §7's and
-§8's tables. D14 to D16 each say what is built until they are answered; an answer that comes
-later is a small change in one part.
+The last part waits for the others, and for #2180 to be merged. The owner's read of the
+Dutch comes after it, on §7's and §8's tables. D17 and D18 each say what is built until they
+are answered; an answer that comes later is a small change in the server's part and one
+sentence in the web's. §21 says for each part what done means.
 
 **Step B is one task:** T9, after 0176's T3.
+
+## 20. The Alpha's two ceilings (T16)
+
+The owner, on D16: *"alpha limited to 50 people I let in, en 50 max someone invites (each let
+in user 1 invite)."* The numbers are the owner's: 50, 50 and 1. Everything else in this
+section is this plan's reading of them, for the owner to correct. Serves R1 and R3. Step A.
+Where only the operator reads, English only.
+
+### 20.1 What is counted
+
+- **People the owner let in:** requests that are granted, and that no card points to.
+- **People let in by a recommendation:** requests that a card points to, granted or still
+  waiting. The waiting ones are requests made with a code before step A, which the owner
+  still answers (§8).
+- **Cards not used yet** are places promised: a card that is not used, not withdrawn and not
+  expired (`giftState`, `packages/managed/src/gift-store.ts:120-128`).
+
+Four things follow. Each is a reading.
+
+- **The people already in count,** whichever way they came. The Alpha holds them, and
+  Google's list holds their addresses.
+- **A person whose data is erased leaves the count.** Their request is erased with it, and
+  the card that pointed to it then points to nothing (§3.6). A declined request does not
+  count either.
+- **A test address counts like anybody's.** It is a request that was granted, and its
+  address is on Google's list like any other. An owner who wants more room for people
+  raises the number.
+- **Nothing keeps a running total.** Each count is read from the requests and the cards at
+  the moment it is needed, so it cannot drift.
+
+### 20.2 Where the two numbers live
+
+Two numbers on the rule's one row (`gift_rule`,
+`packages/managed/src/schema-managed.ts:996-1001`), beside the number each person may give.
+Each is 50 unless the owner changes it. The owner sets them on the operator's *Gifts*
+screen, where *Gifts per person* is set today (`apps/web/src/pages/Gifts.tsx:118-140`;
+`PUT /api/gifts/operator/rule`, `apps/api/src/routes/gifts.ts:375`).
+
+Settings and not constants, for three reasons. Google's list counts addresses and not people
+(§20.5), so the owner may need a lower number before 50 is reached. A constant changes only
+with a release. And the row, its screen and its route exist: this is two columns in the
+migration step A already has, and two fields.
+
+A number can be set under what is already counted. Nobody is taken out. Nobody new comes in
+until the count is under it again.
+
+### 20.3 What the second ceiling does
+
+1. **A card is made only while a place is free for it.** The people let in by a
+   recommendation and the cards not used yet are counted together. While they fill the
+   number, no member can make a card, and the giver's page says *none for now* (§9). The
+   card says on paper *With this card you are let in at once* (§7). This rule keeps that
+   true (R3), and keeps the review's fourth finding from coming back (§3.5).
+2. **The door is the backstop.** It counts the people let in by a recommendation. At the
+   number it lets nobody in: the check and the last step both answer that the Alpha is
+   full, the code is kept, and nothing is written. With rule 1 this happens only after the
+   owner lowers the number while cards are out.
+3. **Counted and written behind one lock,** as a giver's cards are counted today
+   (`gift-store.ts:280`). Two codes at the last place let one person in.
+4. **A code's session learns a yes or a no, never a number.** How many people are in is the
+   operator's to read.
+
+**The screen for a full Alpha** is calm, and is not an error on a field: one `h1`, the
+server's sentence, until when the code works, and that nothing about the reader was kept
+(§7). Its one button goes back. It makes no promise about when there is room.
+
+### 20.4 What the first ceiling does
+
+**Shown, in step A:** *People you let in: n of 50*, on the access queue above the requests,
+and on the *Gifts* screen. At the number and past it the line stands out, and not by colour
+alone.
+
+**Whether the owner's next yes is then refused is D17.** Until it is answered, nothing
+refuses it. With (a), the grant counts first, behind the same lock; at the number it writes
+nothing and answers with one sentence (§20.6). A request that a card points to is never
+refused by this ceiling: it is counted under the second.
+
+### 20.5 What the two numbers do not count: Google's list
+
+50 and 50 is 100, and Google's list of test users ends at 100 (§3.6). The two are the same
+only while each person moves one Google account and nobody else is on the list.
+
+- **Google counts addresses.** A member who moves three family members' Google accounts
+  takes four places. A person who moves from Microsoft takes none.
+- **Every address that connects must be on it,** the owner's own test addresses too (§3.6).
+- **Ownpace does not hold the list.** The owner keeps it at Google by hand, and reads its
+  length there.
+
+So the *Gifts* screen says in one sentence that the two numbers count people and that Google
+counts addresses (§20.6). Nothing in Ownpace counts that list (§17). When Google's list
+fills first, the owner lowers a number.
+
+### 20.6 What the operator reads
+
+English only (`apps/web/src/i18n/operator-strings.ts`). Drafts, for the owner's read.
+
+| Where | The words |
+|---|---|
+| *Gifts*, the counts | *People you let in: {n} of {max}* · *People let in by a recommendation: {n} of {max}* · *Cards not used yet: {n}* |
+| *Gifts*, under the counts | *At its number a recommendation lets nobody in, and no new card is made. Nothing refuses your own yes past yours.* |
+| *Gifts*, under the counts, if D17 is answered (a) | *At its number a recommendation lets nobody in, and no new card is made. At yours, a grant is refused until you raise it.* |
+| *Gifts*, the two fields | *The most people you let in* · *The most people let in by a recommendation* |
+| *Gifts*, about Google | *These count people. Google's list of test users counts addresses, and ends at 100: each family member's address and your own test addresses are on it too.* |
+| The queue, above the requests | *People you let in: {n} of {max}* |
+| The queue, a refused grant, if D17 is answered (a) | *The Alpha holds {max} people you let in, and {n} are in. Raise the number on the Gifts screen to let in more.* |
+
+The sentence that goes: *Nothing refuses a grant past a number: the limit on how many people
+the Alpha lets in is yours to keep* (`gifts.count.noCap`, `operator-strings.ts:452-453`).
+
+### 20.7 If D18 is answered (b)
+
+Only the people the owner let in have a recommendation. A member whose own organisation was
+made by a request that a card points to has none. The server answers their limit as nought.
+Their page says, where it says *none for now*: *During the Alpha, the people Ownpace let in
+itself can recommend someone.* / *Tijdens de Alpha kunnen de mensen die Ownpace zelf toeliet
+iemand aanbevelen.* How a member's own session learns it is the server's to build under the
+database's rules, as a yes or a no. A card such a member made before stays as it is.
+
+## 21. Step A, part by part: what done means
+
+For each part of §19: what done means, the tests to write first, and what must not change. A
+test written first fails on `main` for the reason it names. The tree was read at `ae57042`.
+Whoever builds a part checks its lines first.
+
+**What step A must not touch.**
+
+- No new table, and no migration but the one. Nothing in the shared chain
+  (`packages/ledger/migrations`): a gift is the managed edition's.
+- The code: its form, its 80 bits, its two years, shown once and kept as a fingerprint
+  (0172).
+- Nothing about the recipient on the gift's row
+  (`apps/api/src/routes/a-gift-that-keeps-no-recipient.unit.test.ts`).
+- The plain request form's questions, and that its request waits for the owner (§17). One
+  thing changes on it: *I have a gift code* becomes a link.
+- The no mail's event: a kind and nothing else. The Alpha's paragraph and the sentence about
+  backups in the yes mail, word for word (§8).
+- The mail that invites a member into an organisation (§17).
+- The appliance. It has no gift, no door and no operator. Nothing in `packages/` but
+  `packages/managed` may come to need the managed edition (hard rule 5).
+- 0176's step A: none of its files but the nine of §19.
+
+### 21.1 First: the glossary
+
+Done means:
+
+1. One row for the free thing: *recommendation* / *aanbeveling*, with the names it does not
+   take: *gift*, *cadeau*, *place*, *plaats*, *plek*, *invitation* and *uitnodiging*.
+2. One row that keeps *gift* / *cadeau* for a code that somebody paid for.
+3. Both rows stand apart from the rows 0176's step A changes (§19).
+
+No test is written first for it: `one-name-for-a-free-gift` is the web's.
+
+### 21.2 The web
+
+T1's screens, T2 on the screen, T5, T10, T16's screens, T6's sizes. Done means:
+
+**The door.**
+
+1. `/code` opens the door. `/redeem` and the site's link open it too. On the plain form *I
+   have a gift code* is a link to it. A code after a `#` fills the field, and nothing is
+   sent until the reader presses the button.
+2. The first step holds one `h1`, one field, one button, one line of help, and the link for
+   a reader with no code. It asks for no address, and sends the code and nothing else.
+3. A refused code stays in its field, under a heading that is tied to the field and
+   announced, with the server's sentence in the page's language and the page's own line.
+   Too many tries are said in the page's language.
+4. The second step says §5's lines and asks the one question, with three answers of one
+   size. *Not yet* and *I do not want this* each end calmly and send nothing. The answer is
+   neither sent nor stored.
+5. The third step holds the address, the name that may be left empty, and the question
+   about Google with two answers of one size. The address is shown back before the button,
+   with the sentence that the code is used by this step. No organisation, note or package
+   is drawn or sent.
+6. A full Alpha is a calm screen, at the first step and at the third: the server's
+   sentence, the code's last day, and that nothing was kept.
+7. An address that already has access keeps its code. The page says so and offers to sign
+   in.
+8. Let in: one `h1`. *Create your account* opens the sign-in page with the address filled
+   in. The mail's line stands only when a mail was sent, and the Google lines only after a
+   yes. Then the safety sentence, and where to write.
+9. The steps are as §5 has them: a history entry each, one `h1` that takes the focus, the
+   tab named after the step, *Step n of 3* in words. Back after the person is let in does
+   not use the code twice.
+10. The door shows no welcome of the Alpha, no link to sign in before the person is in, and
+    no sentence that says whose page it is. The build stamp and the accessibility statement
+    stand at its foot.
+
+**The giver's page and the card.**
+
+11. The page says first, at reading size, what a recommendation does; then how many; that
+    whoever has the code is let in; and what the giver will see.
+12. The list says each card's state in words, with the day it was used and *let in*.
+13. A link stands beside the card, with one line and no written message. The code stands
+    after a `#`.
+14. One fold, *What they will see*. No tick box. Nothing about what the giver gets.
+15. *None for now*, and no button, when the limit is nought and when the Alpha has no place
+    for a new card. Never *already given* for either.
+16. On the screen the card is shown as it prints, in §6's order, with the door's three
+    steps and no square to scan. Its code is on one line at every width. The print rule is
+    the last part's.
+
+**The operator's screens (T16).**
+
+17. *Gifts* shows both counts with their ceilings and the cards not used yet, two fields
+    that set the ceilings, and the sentence about Google. The sentence that nothing refuses
+    a grant is gone.
+18. The queue shows *People you let in: n of max* above the requests. At the number and
+    past it the line stands out, and not by colour alone. A request that was let in by a
+    recommendation says so, and names nobody as having decided it.
+
+**Words and sizes.**
+
+19. Every sentence of §7 is in the dictionary in both languages
+    (`apps/web/src/i18n/strings/gifts.ts`). The operator's are English only
+    (`operator-strings.ts`). No sentence calls the free thing a *gift*, a *cadeau*, a
+    *place* or a *plaats*, and none says *key* or *sleutel*. A key that leaves is gone from
+    both languages.
+20. §10's sizes hold on the door, its endings and the giver's page.
+21. The pull request holds one table of every new or changed Dutch sentence, for the
+    owner's read.
+
+Written first: `apps/web/src/pages/a-code-with-a-door-of-its-own.unit.test.tsx`, one case
+for each of 1 to 10. `apps/web/src/i18n/one-name-for-a-free-gift.unit.test.ts`, for 19. New
+cases in `a-gift-on-every-screen.unit.test.tsx` for 11 to 15 and 17, and in
+`AccessRequests.unit.test.tsx` for 18. The sizes of 20 and the card in print are held by the
+smoke, in the last part.
+
+### 21.3 The server
+
+T1's route, letting a person in, D14, D15, and T16's counts. Done means:
+
+1. `POST /api/gifts/check` answers as §19's contract has it. It writes nothing and spends
+   nothing. Every kind of bad code gets the one body.
+2. The check and the redeem share one limit of forty an hour. Its 429 has a Dutch half.
+3. The check is on the list of open routes, with its note.
+4. The redeem lets a person in, in one transaction: the request as granted with nobody
+   named as having decided it, the organisation, its owner's invitation, and the code spent
+   and pointing to the request. All of it or none.
+5. An address with a request waiting gets that request granted. No second one is written
+   (D15 (a)).
+6. A yes to the question about Google is the one fixed line in the request's note. A no
+   writes nothing (D14 (a)).
+7. An address that already has access is answered 409 `already_in`. Nothing is written,
+   and the code is kept.
+8. The yes mail and the operator's notice go out after the commit, never before, each with
+   its two true-or-false. A filled trap is answered as let in: nothing is written, and
+   nothing is sent.
+9. The migration is one file. It adds the two numbers to the rule's row, each 50. It gives
+   a session that holds an unused code what 4 and 5 need, and the room's yes or no, and
+   nothing else. It adds no table.
+10. The counts are §20.1's. No card is made while the people let in by a recommendation and
+    the cards not used yet fill the second number. `GET /api/gifts/mine` says so as `room`,
+    and `POST /api/gifts` answers 409 `no_room`.
+11. At the second number the check and the redeem answer 409 `full`. Nothing is written or
+    spent. Two codes at the last place let one person in.
+12. The operator's answer carries both counts and both ceilings. The rule's route sets
+    either ceiling: a whole number, nought or more.
+13. The queue's answer marks a request that was let in by a recommendation, with nobody
+    named as having decided it.
+14. Nothing refuses the owner's own yes, until D17 is answered.
+15. `apps/api/docs/openapi.yaml` holds the new route, the redeem's new answers and the new
+    fields.
+16. The log names a gift and a request by their ids, never by a code or an address, as
+    today.
+
+Written first: new cases in `apps/api/src/routes/gifts.unit.test.ts` for 1, 2, 6, 7, 8 and
+11. `apps/api/src/knock-limit.unit.test.ts` for 3.
+`a-gift-turned-into-a-request.unit.test.ts`, turned round, for 4 and 5.
+`packages/managed/src/gift-under-rls.unit.test.ts` for 9: what a session with an unused
+code may write, once, and that a session without one may write none of it and read no count.
+The new `apps/api/src/routes/an-alpha-with-two-ceilings.unit.test.ts` for 10 to 14.
+
+### 21.4 The mails
+
+T4, and the operator's notice. Done means:
+
+1. The yes mail opens with what happened: one line for a request, another for a code.
+2. Three numbered steps. Under the link, why it ends in the person's own address. The
+   guide's address before the person starts. The sentence that explains *organisation*.
+3. *There is no link or code in this email: it is safe to forward* is gone from this mail,
+   and stays in the mail that invites a member.
+4. After a yes to the question about Google, the mail carries the last screen's sentence
+   about Google.
+5. The no mail is one text, the same in both languages: §8's five things, and no promise
+   of a later message.
+6. The operator's notice for a code says §8's words and the address, and the line about
+   Google after a yes.
+7. What stays: one sign-in address and no token; the sentence about backups; the Alpha's
+   paragraph and its two addresses; no address in the no mail; the subjects; and the no
+   mail's event.
+8. T0's words go into the third step when the owner has them. Until then the step is §8's.
+
+Written first: new cases in `packages/shared/src/notifications.unit.test.ts` and
+`what-the-mails-say.unit.test.ts` for 1 to 6. They fail today on the sentence that says the
+mail holds no link, on the steps without numbers, on the first line, and on the no mail's
+two languages.
+
+### 21.5 The site and the documents
+
+T7, but for the tester guide. Done means:
+
+1. The site's page says in both languages what the door says, under the one name, and no
+   longer says *not a key*.
+2. `site/site.unit.test.ts` holds the page's new words, and that the door's *read more* is
+   a file the site writes. Only this page's cases change.
+3. `docs/ending-the-alpha.md` says what a recommendation is after the Alpha (D5), and that
+   the two ceilings are the Alpha's.
+4. The privacy text, in both languages, changes only after the owner has said whether it
+   is still changed in place: the name; let in at once; that the giver sees that the code
+   was used; and the answer about Google at the door.
+5. Plan 0172's Status has one dated line: its G1 is changed by D6 here, and its answer
+   that there is no cap by D16.
+
+### 21.6 Last
+
+After the other parts, and after #2180 is merged. Done means:
+
+1. The managed UI smoke has entries for the giver's page and the door, as a walk in both
+   languages, at 390 and at 320 pixels.
+2. In print the card is at least nine tenths of the page's width, on one sheet, upright,
+   on A4 and on Letter. No text is under 14 point. The code is on one line.
+3. On the door no text is under 16 pixels, each target and edge is as §10 has it, and
+   nothing goes sideways at 320 pixels.
+4. The language switch says *English* and *Nederlands* on the door, as 0176's T9 built it.
+5. The site's link to the door is `/code`.
+6. The tester guide's *Google addresses first* says the door's way too, in both languages.
+7. `CHANGELOG.md` has its entry in both languages, and this plan's Status says what was
+   proved.
+
+**Gates before step A is called done:** lint, typecheck, the unit tests and the UI smoke,
+on all parts together. Then the owner reads the Dutch. E2E is the maintainer's to dispatch.
+
+### 21.7 Asked of every part, and where the answer is
+
+| The question | The answer |
+|---|---|
+| Is each sentence plain Dutch? | §7's rules: one idea, at most fifteen words, *u*, and no word to look up. The owner reads every Dutch sentence before the step merges |
+| Does step A keep new personal data? | One thing: a yes to the question about Google, as a fixed line in the request's note (D14). The address and the name are what a request holds today. The answer to the second step's question is neither sent nor stored |
+| Does the privacy text change? | Yes, with step A (§11), and only after the owner has said whether it is still changed in place |
+| Can somebody with a code do more than before? | Yes, and that is D6: the code lets its holder in. The giver hands it over by hand and can withdraw it unused; the door asks its question; the owner is mailed for each person; and the second ceiling ends it at 50 |
+| Can somebody without a code learn anything? | No. The check and the redeem answer every bad code alike, behind one limit. A full Alpha is told only to the holder of a good code |
+| Can a session of a code read the Alpha's numbers? | No. It learns a yes or a no (§20.3) |
+| Is a card on paper still true? | Yes: a card is made only while a place is free for it. Only an owner who lowers the number can make it untrue, and the door then says so calmly |
+| Do the two ceilings keep Google's list from filling? | No. They count people, and Google counts addresses (§20.5). The owner watches that list at Google |
+| What does a real person make of it? | Not known. T14 is the first test, and what it finds outranks all of this |
