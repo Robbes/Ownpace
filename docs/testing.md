@@ -433,6 +433,22 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   the source over IMAPS, builds + starts the self-host appliance, and runs the restart-resume
   idempotency gate, then tears down. Installs `stalwart-cli` itself (same install
   step as `integration-tests`, see below) since it drives `setup-stalwart.sh`'s provisioning phase.
+  **The upgrade gate** (workplan 0179 T5), last, on the Postgres night and a Postgres dispatch
+  only: `scripts/previous-release.mjs` names the release to upgrade from (the newest
+  `CHANGELOG.md` release whose tag is published and is not this commit, so on the tagged commit
+  itself it is the release before), the step reads its index digest from GHCR and runs both
+  `cosign verify` calls of `scripts/release-verify.mjs` on that digest, and
+  `test/e2e/selfhost-upgrade.e2e.test.ts` starts that appliance by digest in a compose project of
+  its own (`deploy/selfhost/compose.upgrade.yml`: its own container names and config directory),
+  lets it copy the seeded sources under a target folder of its own, starts this build's image on
+  the same volumes, and checks that the migrations apply on top and end at this build's newest,
+  that the ledger's counts per data type and state are the ones read before, and that a pass
+  after the upgrade completes and changes none of them. Every status is read through
+  `statusAfterAPass`. It says when the two sides carry the same migrations: the upgrade is then
+  of the code only. Not covered: a newer Postgres, PGlite's state directory (by hand,
+  `scripts/upgrade-drill.sh`) and the managed edition. Its pure parts are held by
+  `scripts/the-release-an-upgrade-starts-from.unit.test.ts` and
+  `test/e2e/upgrade-gate-lib.unit.test.ts`.
 - `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the machine: the managed-edition
   gate, run against a long-lived configured stack, so it does not prove bring-up from scratch.
   The jobs run on pg-boss, in the `worker` service (ADR-0054); alpha.18 removed Trigger.dev's
