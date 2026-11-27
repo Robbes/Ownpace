@@ -299,6 +299,27 @@ export async function getDomainStatusFor(mappingId: string, domain: string): Pro
   return getDomainStatusOf(status, mappingId, domain);
 }
 
+/**
+ * Ask for a pass, and read the named mapping's domain once no pass is running.
+ *
+ * The fixtures schedule a pass every minute (`* * * * *`). A pass the schedule
+ * starts can begin between the pass asked for and the read that follows it,
+ * and the read then finds the domain `in_progress`: the zip gate's second
+ * import did, on PGlite, across a minute's turn (2026-11-27). Asking again
+ * joins the pass that is running and answers when it ends, so this asks again
+ * while the read finds one, three asks at most, and answers what it read last.
+ * Held by a-read-that-caught-the-schedules-pass.unit.test.ts.
+ */
+export async function statusAfterAPass(mappingId: string, domain: string, asks = 3): Promise<DomainStatus | null> {
+  let status: DomainStatus | null = null;
+  for (let asked = 0; asked < asks; asked++) {
+    await runPassNow(mappingId);
+    status = await getDomainStatusFor(mappingId, domain);
+    if (status?.state !== 'in_progress') break;
+  }
+  return status;
+}
+
 function getDomainStatusOf(status: StatusPayload, mappingId: string, domain: string): DomainStatus | null {
   const mapping = (status.mappings ?? []).find((m) => m.mappingId === mappingId);
   return mapping?.domains?.find((d) => d.domain === domain) ?? null;

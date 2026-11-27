@@ -2,7 +2,17 @@
 
 > **In one line:** Whether this repository needs more static analysis (SAST) and a test of the running app (DAST): each class of fault against what catches it today, the tools weighed, and four guards, CodeQL and Schemathesis advised, each with its first step, its proof and what blocks.
 
-## Status — 2026-11-26 (update this block at the end of every session)
+## Status — 2026-11-27 (update this block at the end of every session)
+
+**2026-11-27: alpha.21 carries T1 to T5, T7 and T10; T6's reading goes on.** alpha.21, tagged at
+`c34b30f8` (0146), carries the four guards (T1 to T4, #2191), CodeQL report only (T5, #2194, and
+#2202 after its first runs), Schemathesis against the running API (T7, #2192) and the second
+identity at every door (T10, #2193), with three changes from T6's reading (#2203, #2205, #2207).
+Schemathesis's first runs on a hosted runner, both dispatched on `main`, passed: run 45926079250 on
+`18901d3f` (T7 alone) and run 45928370787 on `4372445e` (with T10). What they found is the
+maintainer's, held privately. Its nightly run counts from here, and T8 waits for fourteen quiet
+nights (D4). The rest of CodeQL's first list waits on the maintainer's word, alert by alert (T6),
+and T9 after it.
 
 **2026-11-26, T10 built (report only, in T7's job).** `scripts/another-organisations-ids.mjs`
 asks every secured operation that takes an id for the first seeded organisation's ids with the
@@ -190,16 +200,16 @@ one before it to be quiet on `main`.
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The owner's decisions, D1 to D9 | owner | ✅ Answered 2026-11-26 | §9. *"D1–D9: as advised."* All built in alpha.21 but T8 and T9, which keep their own rules. |
-| T1 Guard: no HTML put into a page as HTML, outside a named list | builder | 📋 Planned, alpha.21 | §5.1 G1. Zero spots today, so it blocks at once. S. By the analyst session, after alpha.21's builds (D9). |
-| T2 Guard: raw SQL only at named places, each with its check | builder | 📋 Planned, alpha.21 | §5.1 G2. Today's places listed with their checks. Blocks. S. By the analyst session, after alpha.21's builds (D9). |
-| T3 Guard: every door either signs in, or is public in the code and in the API description alike | builder | 📋 Planned, alpha.21 | §5.1 G3. The static half of class 9. Blocks. M. By the analyst session, after alpha.21's builds (D9). |
-| T4 Guard: a secret-named key handed to the logger | builder | 📋 Planned, alpha.21 | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
-| T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 🔄 Built 2026-11-26; proof dispatch and first run on `main` to come | §4.1, §8 step 2. D1. Not on pull requests. `codeql.yml`, its report, its fixture and its guard; the Status entry of that day. |
-| T6 CodeQL's first list, read alert by alert | builder | 🔄 Begun 2026-11-26: the runs read, the list still to read | §8 step 2. As 0166 read Trivy's and Semgrep's. 312 alerts under 17 queries on `b31ccaaf`; the Status entry of that evening. |
-| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 🔨 Built; D9 lifted 2026-11-27 with alpha.21's builds on `main` and merged in; its first hosted run is the dispatch on `main` after the merge | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
+| T1 Guard: no HTML put into a page as HTML, outside a named list | builder | ✅ Merged, alpha.21 (#2191, `11e1df10`) | §5.1 G1. Zero spots today, so it blocks at once. S. By the analyst session, after alpha.21's builds (D9). |
+| T2 Guard: raw SQL only at named places, each with its check | builder | ✅ Merged, alpha.21 (#2191, `11e1df10`) | §5.1 G2. Today's places listed with their checks. Blocks. S. By the analyst session, after alpha.21's builds (D9). |
+| T3 Guard: every door either signs in, or is public in the code and in the API description alike | builder | ✅ Merged, alpha.21 (#2191, `11e1df10`) | §5.1 G3. The static half of class 9. Blocks. M. By the analyst session, after alpha.21's builds (D9). |
+| T4 Guard: a secret-named key handed to the logger | builder | ✅ Merged, alpha.21 (#2191, `11e1df10`) | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
+| T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | ✅ Merged, alpha.21 (#2194, `b31ccaaf`; #2202 after its first runs) | §4.1, §8 step 2. D1. Not on pull requests. `codeql.yml`, its report, its fixture and its guard; the Status entry of that day. |
+| T6 CodeQL's first list, read alert by alert | builder | 🔄 Read in alpha.21; three changes merged (#2203, #2205, #2207); the rest waits on the maintainer, alert by alert | §8 step 2. As 0166 read Trivy's and Semgrep's. 312 alerts under 17 queries on `b31ccaaf`; the Status entry of that evening. |
+| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | ✅ Merged, alpha.21 (#2192, `18901d3f`); first hosted run 45926079250, green | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
 | T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |
 | T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6's reading and the owner's word per query (D8), so it may fall after alpha.21's release. S each. |
-| T10 A second identity: another organisation's ids refused at every door | builder | 🔨 Built in T7's job, report only; merges after T7 | §6.3, §8 step 6. D7. M. By the T7 session, after T7. |
+| T10 A second identity: another organisation's ids refused at every door | builder | ✅ Merged, alpha.21 (#2193, `4372445e`); first hosted run 45928370787, green | §6.3, §8 step 6. D7. M. By the T7 session, after T7. |
 | T11 ZAP, baseline or API scan | — | 🅿️ Parked | §6.4. D5. Trigger: the app gains cookies, or pages the server renders beyond today's. |
 
 ## 1. Why, and the doctrine
