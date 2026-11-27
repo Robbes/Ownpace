@@ -60,6 +60,7 @@ Two kinds of words render; only the first belongs to this glossary:
 | The technical identifier | **mapping** (id) | **mapping**(-id) | Only where the id itself is shown (config key, API path). Renaming those is out of scope. |
 | A person being moved: one card on Migrations, holding their migrations (ADR-0050, amended 2026-09-28; 0153 D6) | **person** / **people** | **persoon** / **personen** | On a card a person is only their name: the grouping has no noun. *people* / *personen* is said in a count (*"2 people · 1 needs you"*) and on the few controls that make one (*Add a person* / *Persoon toevoegen*). The appliance's one person has no name, and its card says *Your migrations* / *Uw migraties*. In code the word is `person`, never *move*: `/moves` is the moved-items queue. |
 | A person a member migrates for who is family: the tester guide's part for their link, and the home page's block for families (workplan 0176 T15, D17 (b); the owner, 2026-11-26) | **family member** | **familielid** | Never *gezinslid*. The owner, 2026-11-26: *"Use familielid (gezinslid is to limited to one household)"*. The article stays *het*, as for any *lid*: *uw familielid*, *een familielid*. Step A's new Dutch says it: the guide's part *Als een familielid een link krijgt* (id `familielid-link`), its sentence under *Als Google opnieuw vraagt*, and the block *Migreren voor een familielid*. The whole tester guide says it, its two older sentences on the list of test users too. **Still to follow:** the legal texts (`site/legal/privacy.nl.md`, `alpha.nl.md`, `terms.nl.md`) say *gezinslid*. They are versioned, and change at their next version, with the lawyer. |
+| Whom a member may help, said where a text says it: family first, and acquaintances too (workplan 0176 D19; the owner, 2026-11-26) | **acquaintance**; the phrase **family and acquaintances** | **kennis**, *de kennissen*; the phrase **familie en kennissen** | The owner, 2026-11-26: *"D19: familie of kennissen. I also want to support people helping out each other."*, and then: *"Or perhaps 'familie en kennissen', with a focus on family"*. Family comes first: a family member stays *familielid*, and the home page's block for families keeps its family. A text that says whom a member may help names acquaintances once, with the phrase: the tester guide's part *Als een familielid een link krijgt*, in its last sentence (*Zo werkt het voor familie en kennissen die u helpt.*). *Kennis* also means knowledge, so say it in the phrase, or as *een kennis die u helpt*. **Still to follow:** the legal texts say it in their next version, with the lawyer (0176 §18 has the drafted sentence). Until then they stand. |
 
 ## Feature names
 
@@ -93,7 +94,8 @@ Two kinds of words render; only the first belongs to this glossary:
 | The cutover's grace period: from execute until it ends, a migration that was running keeps copying (workplan 0128 T2) | grace period | **overgangsperiode** | Not *respijt*/*gratieperiode* (a payment's grace). The period is a transition, both systems live, and the prose around it calls the cutover *overstap*, as `lane.title` does. |
 | One data type of a running migration no longer following the source, and following it again (workplan 0128 T4) | stop / resume; *stopped by you* | **stoppen** / **hervatten**; *door u gestopt* | Not *pauzeren*: a pause holds the whole migration, a stop one data type. Not *uitschakelen* either: *switched off* / *uitgeschakeld* stays the word for one the mapping file turned off, whose way back is the file and not a button. |
 | A person stopping Ownpace from reading one of their accounts, on their own progress page (workplan 0176 D2; the owner, 2026-11-26) | **Stop copying**; its question *Stop copying from* {account}*?* with *No, do not stop* · *Yes, stop*; afterwards *Copying has stopped* | **Kopiëren stoppen**; *Kopiëren uit* {account} *stoppen?* met *Nee, niet stoppen* · *Ja, stoppen*; daarna *Het kopiëren is gestopt* | Names what the reader sees stop. It was *Withdraw access* / *Toegang intrekken*, which nothing on a person's pages says any more. Not the row above's *stoppen*: that holds one data type and is resumed from the member's screen, where this ends the reading of a whole account, and continuing needs a new link. The question is a screen of its own, and its two answers are one size, *No* first, neither filled and neither red. {account} is the page's own name for the account, *your Google account* / *uw Google-account*, never an address. A destination's *Remove my password* / *Mijn wachtwoord verwijderen* keeps its words. A migration's own progress link, sent before 2026-10-03, takes the same words. |
-| Who sent a person their link, as the link page's box of facts names them (workplan 0176 §5.1, T3) | **Sender** | **Afzender** | Was *Asked by* / *Gevraagd door* on a person's link page; a migration's own link, sent before 2026-10-03, keeps those words. In step A the label only, over the address of the member who made the link. T3 adds a name, how the reader knows them, and a number to check. |
+| Who sent a person their link, as the link page's box of facts names them (workplan 0176 §5.1, §7, T3) | **Sender** | **Afzender** | Was *Asked by* / *Gevraagd door* on a person's link page; a migration's own link, sent before 2026-10-03, keeps those words. Since step B (T3) the box names the member by the name they gave, *as the people they send a link to know them* (on Team, or where they make a person's link), and their sign-in address under the name. Nothing says how the reader knows them: D7's fixed list is gone, the owner, 2026-11-26: *"Does the relationship matter and need to be registered? I would like not to..."* A member who gave no name is named by their address, as in step A. Every `{who}` on a person's two pages is that name. |
+| The number on a person's page (workplan 0176 §7, D11) | *{who}'s number: {phone}. Or use the number you already have for {who}.* | *Nummer van {who}: {phone}. Of gebruik het nummer dat u al van {who} hebt.* | Something to check, never proof: a false page would print a number too. The member's own number where they gave one (Team), else the organisation's, and then the sentence names whose it is: *The number of {organisation}* / *Nummer van {organisation}*. Never *phone* as a fact with a label, as step A's box had it. |
 | A customer guide at `/docs` (workplan 0148 T1): written for the person who connects an account | guide / setup guide | **handleiding** / **instelhandleiding** | The nav says *Handleidingen*. A guide never names the operator: it says *deze dienst* / *this service*, and where the reader needs help, *wie deze dienst beheert* / *whoever runs it*. |
 | The operator and self-host documents in the repository's `docs/` (workplan 0148 D9) | operator documents | **beheerdersdocumenten** | Named only in the appliance's `/docs` line, whose reader runs the appliance. Not *operatordocumenten*. |
 | An app a person creates at Google, Dropbox or Microsoft instead of this service's (workplan 0148 T2) | your own app | **eigen oauth-app** | The owner's word (2026-10-10; was *eigen app*): the Dutch names the kind of app, *uw eigen oauth-app*. The service's is *de eigen app van deze dienst* in a guide; in the app, under *Use your own Google client*, it is Ownpace's (*Ownpace heeft een eigen Google-app; vul beide alleen in om uw eigen oauth-app te gebruiken*, the owner, 2026-10-14; was *Deze installatie heeft een eigen Google-oauth-client*). The guide's fold reads *Alleen als u een eigen oauth-app wilt gebruiken*. |
@@ -134,5 +136,26 @@ is banned is same-entity drift and raw enum renders.
 
 ## Register
 
-NL is uniformly formal — **u**, never je/jij (verified across the whole
-dictionary 2026-08-09).
+NL is formal — **u**, never je/jij (verified across the whole dictionary
+2026-08-09) — but for one place, by the owner's decision of 2026-11-26
+(workplan 0176 T7, D8 (a): *je* or *u* per person). **A person's own two
+pages**, their link page and their progress page, **say *je*** to a person
+the member chose it for: *Dutch, with je*. Unset is *u*. The member's own
+screens stay *u*.
+
+The *je* lives in the informal layer, `informal.ts`: the twin of
+each sentence those pages say to the reader with *u* or *uw*, and nothing
+else. A sentence with no *u* in it has no twin (*Leg dit klaar*). A twin is
+its sentence turned: *u* becomes *je*, and *uw* becomes *je*, with *jouw*
+only where it carries stress (*van jouw oude aanbieder, niet van ons*). A
+verb before *je* drops its *-t* (*kunt u* → *kun je*). A reflexive *zich*
+after *u* is *je* (*u zich aanmeldt* → *je je aanmeldt*). A *u* that means
+two people is *jullie* (*als u elkaar ziet* → *als jullie elkaar zien*).
+Nothing else in the sentence changes: a word changed here is changed in
+both. `every-u-has-its-je.unit.test.ts` holds the layer to that. The
+member chooses where a link is made, the person keeps it (`person.voice`),
+and both pages read the layer first for a person whose pages say *je*
+(`InTheirVoice` in `index.tsx`). So do the message the member sends with a
+link (*Bel me als je wilt beginnen*: the sender speaks there, not the page)
+and the server's own sentences on a person's link, each written with its
+twin beside it (`nlJe`, `every-server-u-has-its-je.unit.test.ts`).

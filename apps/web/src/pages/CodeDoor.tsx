@@ -442,8 +442,9 @@ const CodeDoor: React.FC = () => {
             <p id={ids.question} className="mt-6 text-lg font-semibold text-gray-900">
               {t('code.question')}
             </p>
-            {/* Three answers of one size, and none louder: not yet is as good an answer. */}
-            <div role="group" aria-labelledby={ids.question} data-answers className="mt-3 space-y-3">
+            {/* Three answers of one size, and none louder: not yet is as good an answer. One
+                size whatever wraps: each row of the grid is as tall as the tallest answer. */}
+            <div role="group" aria-labelledby={ids.question} data-answers className="mt-3 grid auto-rows-fr gap-3">
               <button type="button" data-main className={MAIN_OUTLINED} onClick={() => go('address')}>
                 {t('code.yes')}
               </button>

@@ -31,7 +31,7 @@ openapi: 3.1.0
 
 info:
   title: Ownpace — managed API
-  version: 0.2.0-alpha.20
+  version: 0.2.0-alpha.21
   summary: Migrate mail, calendar, contacts and files off US cloud, on your own schedule.
   description: |
     The multi-tenant managed edition. Every request is scoped to one tenant by
@@ -1326,6 +1326,10 @@ paths:
     get:
       tags: [Tenants]
       summary: List members
+      description: |
+        Each member with its role and status, and since workplan 0176 step B
+        (T3) the name and number each said of themselves for the people they
+        send a person's link to (`displayName`, `phone`; null when not given).
       responses:
         '200':
           description: The tenant's members.
@@ -1379,6 +1383,53 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /api/tenants/{tenantId}/members/me:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    put:
+      tags: [Tenants]
+      summary: Your name and number on a person's page
+      description: |
+        What you say of yourself to the people you send a person's link to
+        (workplan 0176 §7, T3; D11): your name as they know you, and your own
+        number. Your own row only, whatever your role. Each optional: left out
+        is left as it is; empty or null clears it. A name takes letters,
+        spaces and `' - .`, at most 60 characters, and no web address; a
+        number takes digits, spaces and `+ ( ) - . /`, with 6 to 15 digits.
+        Answers what is stored now.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                displayName: { type: [string, 'null'] }
+                phone: { type: [string, 'null'] }
+      responses:
+        '200':
+          description: What is stored now.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [displayName, phone]
+                additionalProperties: false
+                properties:
+                  displayName: { type: [string, 'null'] }
+                  phone: { type: [string, 'null'] }
+        '400':
+          description: |
+            `sender_name_refused` or `sender_phone_refused`, with the English
+            in `message`, which the page says in its own language; or a body
+            with anything else in it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: 'You are no member of this organisation.' }
 
   /api/tenants/{tenantId}/members/{memberId}:
     parameters:
@@ -6827,6 +6878,16 @@ paths:
               properties:
                 purpose: { type: string, enum: [grant, view], default: grant }
                 expiryDays: { type: integer, enum: [1, 7, 30, 90, 180] }
+                voice:
+                  type: [string, 'null']
+                  enum: [nl-u, nl-je, en, null]
+                  description: |
+                    How the person's pages speak to them (workplan 0176 §11, T7,
+                    D8): Dutch with *u*, Dutch with *je*, or English. Kept with
+                    the person, so every link of theirs says it, and only once a
+                    link is made. Left out, it stays as it was; null clears it,
+                    which is the browser's language with *u*. Anything else is
+                    refused with `400`, and no link is made.
       responses:
         '201':
           description: The link, said once.
@@ -6844,7 +6905,26 @@ paths:
                   asksAgain:
                     type: boolean
                     description: A grant link made while every account of the person's was connected, which asks each again.
-        '400': { description: '`purpose` or `expiryDays` was not one of the offered values.' }
+                  voice:
+                    type: [string, 'null']
+                    enum: [nl-u, nl-je, en, null]
+                    description: How the person's pages speak to them now (workplan 0176 T7), for the message the member sends.
+                  copies:
+                    type: object
+                    description: |
+                      A grant link only (workplan 0176 T8, §12): what it asks for, as data
+                      types in the scope table's order and the destinations' kinds in the
+                      order met, for the message the member sends with it, which the screen
+                      words in the person's language. Never an address.
+                    required: [domains, to]
+                    properties:
+                      domains:
+                        type: array
+                        items: { type: string, enum: [email, calendar, contact, file, task] }
+                      to:
+                        type: array
+                        items: { type: string }
+        '400': { description: '`purpose`, `expiryDays` or `voice` was not one of the offered values.' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404':
@@ -7345,6 +7425,7 @@ paths:
   /api/scope-manifest:
     get:
       tags: [Discovery]
+      security: []
       summary: What this product carries, and what it does not
       description: |
         The per-domain manifest the confirm screen renders: what migrates, what
@@ -10341,6 +10422,14 @@ components:
             sign-in (ADR-0050, amended 2026-11-19). Worked out by the server;
             no account id is sent. Always false on the appliance, which has no
             sign-in.
+        voice:
+          type: [string, 'null']
+          enum: [nl-u, nl-je, en, null]
+          description: |
+            How the person's own pages speak to them (workplan 0176 T7), as the
+            member chose it where a link is made: the form offers it again.
+            Null until chosen; absent on the appliance and from a server
+            before alpha.21's step B.
         migrations:
           type: array
           description: Oldest first.
@@ -10462,6 +10551,22 @@ components:
           description: When its data is removed from the service; null when the close's own row could not say.
       required: [error, message, reason, closedAt, purgeAfter]
 
+    SenderOnAPage:
+      type: object
+      description: |
+        The member who sent a person their link, as the person's pages show
+        them (workplan 0176 §7; D11). Each value is what the member said of
+        themselves, read through the rule it was written under, and null when
+        not given. Nothing says how the person knows them (D7, reversed by the
+        owner on 2026-11-26).
+      required: [name, phone]
+      properties:
+        name:
+          type: [string, 'null']
+          description: The name the member gave, as the people they send a link to know them.
+        phone:
+          type: [string, 'null']
+          description: The member's own number, shown as a number to check (D11).
     PersonGrantPage:
       type: object
       description: |
@@ -10476,8 +10581,36 @@ components:
         kind: { type: string, enum: [person] }
         organisation: { type: string }
         checkedCompany: { type: string, nullable: true }
-        askedBy: { type: string, nullable: true }
+        askedBy:
+          type: string
+          nullable: true
+          description: The sign-in address of the member who made the link; null when they are no member any more.
+        sender:
+          nullable: true
+          description: |
+            Who that member is, as the page shows them (workplan 0176 §7, T3):
+            the name they gave and their own number, each null when not
+            given. Null when no member stands
+            behind the link. The page shows `organisationPhone` where the
+            member gave no number, and says whose it is (D11). Absent from a
+            server before alpha.21's step B.
+          allOf: [{ $ref: '#/components/schemas/SenderOnAPage' }]
         organisationPhone: { type: string, nullable: true }
+        language:
+          type: [string, 'null']
+          enum: [nl, en, null]
+          description: |
+            The language the member chose for the person (workplan 0176 §11,
+            T7): the page opens in it until the reader picks another with the
+            switch. Null is the browser's language, as before. Absent from a
+            server before alpha.21's step B.
+        register:
+          type: string
+          enum: [formal, informal]
+          description: |
+            How the page's Dutch speaks to the person (T7, D8): *u* or *je*.
+            The server's own Dutch on this answer (`reasonNl`) says it too.
+            Absent from a server before alpha.21's step B, which is *u*.
         accounts:
           type: array
           items:
@@ -10639,7 +10772,10 @@ components:
         mapping id, no tenant id, no account's address: the Google account a
         migration reads is named by an opaque `ref`, which a withdrawal sends
         back. The one exception is `addressChanges` (workplan 0168 §4.4, D6):
-        the person's own address changes, to confirm or send back.
+        the person's own address changes, to confirm or send back. Since
+        workplan 0176 step B it also names who sent the link (`sender`,
+        never an address) and says per migration whether the organisation
+        can open the copy (`theOrganisationOpensIt`).
       required: [kind, organisation, expiresAt, migrations, accounts, addressChanges]
       properties:
         kind: { type: string, enum: [person] }
@@ -10677,6 +10813,42 @@ components:
                   at: { type: string, format: date-time }
                   what: { type: string, enum: [source, destination] }
                   destination: { type: string, description: "With `what` destination, the destination's kind." }
+              theOrganisationOpensIt:
+                type: boolean
+                description: |
+                  Whether the destination is the organisation's, so whoever set this
+                  up can open the copy there too (workplan 0176 T6, §10), by the rule
+                  the grant page's answer uses. A yes or no, naming nothing. Absent
+                  from a server before alpha.21's step B.
+        sender:
+          nullable: true
+          description: |
+            Who sent the link (workplan 0176 T6; §7, T3), as the grant page names
+            them: the name the member gave and their own number. Never an
+            address. A progress link the ending handed over
+            after a sign-in names the member who sent the grant link it was
+            signed in through. Null when no member stands behind the link any
+            more; the page then names the organisation. Absent from a server
+            before alpha.21's step B.
+          allOf: [{ $ref: '#/components/schemas/SenderOnAPage' }]
+        organisationPhone:
+          type: [string, 'null']
+          description: "The organisation's number, which the page shows where the member gave none, saying whose it is (D11)."
+        language:
+          type: [string, 'null']
+          enum: [nl, en, null]
+          description: |
+            The language the member chose for the person (workplan 0176 §11,
+            T7): the page opens in it until the reader picks another with the
+            switch. Null is the browser's language, as before. Absent from a
+            server before alpha.21's step B.
+        register:
+          type: string
+          enum: [formal, informal]
+          description: |
+            How the page's Dutch speaks to the person (T7, D8): *u* or *je*.
+            The server's own Dutch on this answer (`reasonNl`) says it too.
+            Absent from a server before alpha.21's step B, which is *u*.
         accounts:
           type: array
           items:

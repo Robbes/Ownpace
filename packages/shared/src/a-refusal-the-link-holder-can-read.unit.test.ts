@@ -216,6 +216,10 @@ describe('two applications for one account name its own provider (0171 T3)', () 
       nl:
         'Het kopiëren uit dit account is ingesteld met twee verschillende Google-applicaties, dus ' +
         'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om het met één in te stellen.',
+      // And with je, for a person whose pages say je (0176 T7, §11).
+      nlJe:
+        'Het kopiëren uit dit account is ingesteld met twee verschillende Google-applicaties, dus ' +
+        'één aanmelding kan ze niet allebei bedienen. Vraag degene die je deze link stuurde om het met één in te stellen.',
     });
   });
 

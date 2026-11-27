@@ -13,7 +13,9 @@
      wat Ownpace vraagt een vinkje heeft." Change them in both places. The
      part for a family member says "kopiëren" for what that person sees
      (0176 D1); the rest of this page speaks to the member and says
-     "migreren".
+     "migreren". That part names acquaintances once, in its last sentence,
+     with the glossary's phrase "familie en kennissen" (0176 D19): family
+     comes first, and "familielid" stays its word.
 
      Rendered only when the site is built for the alpha (OWNPACE_STAGE=alpha;
      site/build.mjs, ALPHA_ONLY), outside the nav. [[REQUEST_ACCESS]] is
@@ -21,7 +23,12 @@
      file never names an app's address.
 
      Not a contract: the Alpha conditions (site/legal/alpha.nl.md) bind, and
-     this page promises nothing they or the code do not.
+     this page promises nothing they or the code do not, but for one
+     sentence the owner chose to ship in alpha.21 before the lawyer's read
+     (0176 D19): "Zo werkt het voor familie en kennissen die u helpt." The
+     conditions say "uw gezin" until their next version, which the lawyer
+     reads together with that sentence. Until then, where the two differ,
+     the conditions apply, as this page's first lines say.
 
      The target folder is promised for mail, and for files only on a WebDAV
      or Nextcloud destination: only the WebDAV writer applies the folder to
@@ -136,15 +143,25 @@ uw familielid geeft zelf toestemming.
 1. **Vertel het eerst zelf.** Bel, of zeg het als u elkaar ziet: er komt een link van u, en
    waarvoor die is. De pagina vraagt uw familielid of u dat hebt gedaan. Is het antwoord nee, dan
    wacht de pagina.
-2. **Maak de link.** Open de persoon bij *Migraties* en kies *Toegangslink maken*. Stuur de link
-   zelf, zoals u die persoon altijd bereikt. Wij sturen hem nooit.
+2. **Maak de link.** Open de persoon bij *Migraties* en kies *Toegangslink maken*. Kies hoe de
+   pagina uw familielid aanspreekt: Nederlands met *u*, Nederlands met *je*, of Engels. Vink aan
+   dat u het hebt verteld. Bij de link hoort een bericht, dat u mag aanpassen. Stuur ze zelf,
+   zoals u die persoon altijd bereikt. Wij sturen hem nooit.
 3. **Doe de stap bij Google het liefst samen:** aan de telefoon, of aan tafel. Uw familielid typt
-   het eigen wachtwoord zelf. U hoeft het niet te weten, en u vraagt er niet om.
+   het eigen wachtwoord zelf. U hoeft het niet te weten, en u vraagt er niet om. Aan tafel helpt
+   papier: *Een vel voor … afdrukken* opent alles wat de link zegt op één pagina.
 4. **Laat Google de verbinding niet toe?** Dan staat het adres nog niet op de lijst van Google.
    Mail het ons, en wacht op ons antwoord. Daarna opent uw familielid de link opnieuw.
 
+De pagina toont uw familielid uw naam en uw nummer, zodat uw familielid kan nagaan dat de link
+van u is. Vul uw naam en nummer in bij *Team*. Hebt u geen eigen
+nummer ingevuld, dan toont de pagina dat van uw organisatie, als die er een heeft, en zegt van wie
+het is.
+
 Daarna heeft uw familielid een eigen pagina. Daar staat hoe ver het kopiëren is. Daar kan uw
 familielid het ook stoppen.
+
+Zo werkt het voor familie en kennissen die u helpt.
 
 ### Als Google opnieuw vraagt {#google-opnieuw}
 

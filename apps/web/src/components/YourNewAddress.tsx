@@ -26,6 +26,7 @@
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useT } from '../i18n/index.tsx';
+import { usePersonsPage } from './persons-page.tsx';
 import { serverMessage } from '../services/api.ts';
 import { answerAddressChangeByLink, type LinkAddressChange } from '../services/link-address-service.ts';
 
@@ -47,6 +48,8 @@ export const YourNewAddress: React.FC<{
   queryKey: ReadonlyArray<unknown>;
 }> = ({ door, link, changes, queryKey }) => {
   const t = useT();
+  // Who sees an address that waits: the sender, by name since step B (0176 T3, §6).
+  const who = usePersonsPage()?.who ?? '';
   const queryClient = useQueryClient();
   const idBase = React.useId();
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -90,11 +93,11 @@ export const YourNewAddress: React.FC<{
             )}
             {answered?.state === 'proposed' && (
               <p role="status" className="mt-1 text-lg text-gray-900">
-                {t('addresses.grant.returned')}
+                {t('addresses.grant.returned', { who })}
               </p>
             )}
             {now === 'proposed' && answered === undefined && (
-              <p className="mt-1 text-lg text-gray-800">{t('addresses.grant.leaveIt')}</p>
+              <p className="mt-1 text-lg text-gray-800">{t('addresses.grant.leaveIt', { who })}</p>
             )}
             <div className="mt-2 flex flex-wrap gap-2">
               {now === 'proposed' ? (

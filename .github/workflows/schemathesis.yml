@@ -1,0 +1,99 @@
+# Schemathesis against the API, on a stack this job composes itself, REPORT
+# ONLY (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of
+# 2026-11-26).
+#
+# scripts/schemathesis-report.mjs does the work and its header says it in
+# full. In short: the API from this checkout, with Postgres, both migration
+# chains and the demo seed's two organisations, in local sign-in mode with a
+# signing secret the run makes for itself, and a jobs database on the same
+# Postgres (the bring-up's jobs role and the worker's queues), so a sync or a
+# cutover is enqueued for real; then Schemathesis, from
+# apps/api/docs/openapi.yaml, once with a seeded member's token and once
+# without, with the checks ignored_auth, not_a_server_error,
+# status_code_conformance and response_schema_conformance. What each found
+# goes to the job's summary.
+#
+# THE PROOF COMES FIRST. Before the API, the same Schemathesis runs against
+# scripts/fixtures/schemathesis-known-bad/, a server with one fault per
+# operation on purpose, and must flag both, or the scan of the API is not
+# believed and the job is red.
+#
+# THE SECOND IDENTITY (0178 T10) runs in the same job, before Schemathesis
+# scans the API: scripts/another-organisations-ids.mjs asks every secured
+# operation that takes an id for the first seeded organisation's ids with the
+# second organisation's owner's token, and each must refuse. Its own proof
+# comes first, against the fixture's another-organisation.yaml: a door that
+# serves whichever organisation it is asked for must be read as a leak.
+#
+# IT BLOCKS NOTHING YET. The job fails only when the scan did not finish
+# (security-scan.yml's rule). Per pull request, blocking ignored_auth and
+# not_a_server_error, is T8, after 14 quiet nights on main; so there is no
+# pull_request trigger here, and nothing here is a required check.
+#
+# WHERE IT RUNS (D3 (a)). On a GitHub-hosted runner only, never the
+# self-hosted one, never the managed E2E's stack, the live service or the
+# acceptance stack. Every container of the stack shares ONE network namespace
+# that has nothing but loopback (Postgres is started with `--network none`
+# and the rest join it), so nothing the scan makes the API do can reach past
+# the runner. It reads no repository secret and takes no `environment:`: the
+# run makes its own values and masks each. It shares no concurrency group
+# with an E2E workflow. Its night, 02:47 UTC, is clear of the E2E's firings.
+#
+# WHICH IMAGES. SCHEMATHESIS_IMAGE below, by tag and index digest, which the
+# pin watch's row `schemathesis/schemathesis` (scripts/idp-pin-watch.mjs)
+# reads, since Dependabot reads no workflow env. Postgres and Node are not
+# pinned here: they are read from deploy/compose/postgres/Dockerfile and from
+# apps/api/Dockerfile's `base` stage, which Dependabot moves.
+#
+# scripts/a-scan-that-tried-the-running-api.unit.test.ts holds this file and
+# the script.
+name: Schemathesis
+
+on:
+  schedule:
+    - cron: '47 2 * * *'
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "Schemathesis's seed, digits only, to repeat a run; empty for a new one"
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schemathesis-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  schemathesis:
+    name: Schemathesis
+    # GitHub-hosted, always (WHERE IT RUNS, above).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      # Schemathesis 4.34.0 by its index digest, `7aa27b2085e9…`, with
+      # linux/amd64 (`68858daa…`) and linux/arm64 (`c05a3e49…`) in it, read
+      # on 2026-11-26 as the Docker-Content-Digest of the tag's manifest from
+      # Docker Hub's registry, whose body hashes to it, and the same digest
+      # from Docker Hub's tag API, which gives its push as 2026-11-22 18:29:03
+      # UTC, past its three-day floor (CONTRIBUTING.md). 4.34.1 and 4.34.2
+      # were pushed on 2026-11-23 and 2026-11-24, inside it.
+      SCHEMATHESIS_IMAGE: schemathesis/schemathesis:4.34.0@sha256:7aa27b2085e944c81f5225c52c29bf072778bb5d59e6b27e1876b4757e266a14
+      SCHEMATHESIS_SEED: ${{ inputs.seed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - name: Compose the stack, run the proof, then scan the API, and write what was found to the summary
+        run: node scripts/schemathesis-report.mjs

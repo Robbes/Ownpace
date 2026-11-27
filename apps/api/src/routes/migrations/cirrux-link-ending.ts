@@ -90,6 +90,11 @@ export const DRIVE_AFTER_THE_PASSWORD: Bilingual = {
     'Dit Cirrux-account heeft nog geen app-wachtwoord, en Cirrux Drive wordt pas daarna verbonden, ' +
     'dus er is niets opgeslagen. Open uw link opnieuw, verbind het account eerst met zijn ' +
     'app-wachtwoord en verbind daarna Cirrux Drive.',
+  // With je, for a person whose pages say je (workplan 0176 T7, §11).
+  nlJe:
+    'Dit Cirrux-account heeft nog geen app-wachtwoord, en Cirrux Drive wordt pas daarna verbonden, ' +
+    'dus er is niets opgeslagen. Open je link opnieuw, verbind het account eerst met zijn ' +
+    'app-wachtwoord en verbind daarna Cirrux Drive.',
 };
 
 /** What the store found. */
@@ -161,7 +166,7 @@ export async function storePersonDriveGrant(
           ),
         )
         .for('update');
-      if (live.length === 0) return { ok: false, ...reasonPair(LINK_SPENT) };
+      if (live.length === 0) return { ok: false, ...reasonPair(LINK_SPENT, target.register) };
 
       // Only what the page showed: still this person's, still into this account.
       const listed: { mappingId: string; domains: readonly string[] }[] = [];
@@ -181,14 +186,14 @@ export async function storePersonDriveGrant(
         if (!rows?.target || rows.target.id !== target.connectionId || rows.target.kind !== 'cirrux') continue;
         listed.push({ mappingId, domains: rows.includedDomains });
       }
-      if (listed.length === 0) return { ok: false, ...reasonPair(NOTHING_LEFT_TO_GRANT), linkStillWorks: true };
+      if (listed.length === 0) return { ok: false, ...reasonPair(NOTHING_LEFT_TO_GRANT, target.register), linkStillWorks: true };
 
       // The app password first (§4.4): the Drive card is offered only after it.
       const conn = await readGrantRows(db, target.tenantId, listed[0]!.mappingId);
       const keys = credentialKeys(storedCredentials(conn?.target?.secretRef ?? null));
       const needed = new Set(listed.flatMap((m) => targetPasswordKeysNeeded('cirrux', m.domains)));
       if (![...needed].every((k) => keys.includes(k))) {
-        return { ok: false, ...reasonPair(DRIVE_AFTER_THE_PASSWORD), linkStillWorks: true };
+        return { ok: false, ...reasonPair(DRIVE_AFTER_THE_PASSWORD, target.register), linkStillWorks: true };
       }
 
       const stored = await storeCirruxDriveGrantIn(
@@ -203,10 +208,10 @@ export async function storePersonDriveGrant(
           },
         },
       );
-      if (stored === 'no_account') return { ok: false, ...reasonPair(NOTHING_LEFT_TO_GRANT), linkStillWorks: true };
+      if (stored === 'no_account') return { ok: false, ...reasonPair(NOTHING_LEFT_TO_GRANT, target.register), linkStillWorks: true };
       if (stored === 'another_workspace') {
         await recordRefused(db, target, 'another_workspace');
-        return { ok: false, ...reasonPair(ANOTHER_CIRRUX_WORKSPACE), linkStillWorks: true };
+        return { ok: false, ...reasonPair(ANOTHER_CIRRUX_WORKSPACE, target.register), linkStillWorks: true };
       }
       if (stored !== 'stored') return { ok: false, reason: stored.refused.en, reasonNl: stored.refused.nl, linkUnused: true };
 
@@ -260,7 +265,7 @@ export async function storePersonDriveGrant(
       return { ok: true, granted, linkSpent };
     });
   } catch (error) {
-    if (error instanceof HeldByAnother) return { ok: false, ...reasonPair(error.said), linkStillWorks: true };
+    if (error instanceof HeldByAnother) return { ok: false, ...reasonPair(error.said, target.register), linkStillWorks: true };
     throw error;
   }
 }

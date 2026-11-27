@@ -4,6 +4,85 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, T10 built (report only, in T7's job).** `scripts/another-organisations-ids.mjs`
+asks every secured operation that takes an id for the first seeded organisation's ids with the
+second organisation's owner's token, by the path and by the organisation header, and each must
+refuse. It runs before Schemathesis, whose deletes (signed as the first owner) were measured to
+take the first organisation's seeded mapping and connection away. Its proof is the fixture's
+`another-organisation.yaml`: one door that serves whichever organisation it is asked for, read as
+a leak, and one that refuses. The guard is red when the leak is taken out of what it flagged.
+**Measured locally on this tree:** 213 asks and no leak; the rest of the reading is the
+maintainer's, held privately. Every verdict is counted in the summary and no operation of the
+API is named. Open: fill request bodies from the description's examples, so the 400s are asked too.
+
+**2026-11-26, T7 built (report only, not yet run on a hosted runner).** `.github/workflows/schemathesis.yml`
+runs `scripts/schemathesis-report.mjs` nightly on `main` and on dispatch, held by
+`scripts/a-scan-that-tried-the-running-api.unit.test.ts`. What was found and decided while building it:
+
+- **The API starts alone.** With Postgres and nothing else, in local sign-in mode, measured on
+  this checkout: both chains applied, `/health` answering, a seeded owner's token accepted by
+  `/api/me`. So §12's risk did not happen, and no fake is composed.
+- **One network namespace, loopback only.** Postgres runs with `--network none` and the API, the
+  fixture and Schemathesis join it, so the kernel gives nothing a route out, not even a host
+  Schemathesis made up for a connection test. Postgres and Node are not pinned in the workflow:
+  they are read from `deploy/compose/postgres/Dockerfile` and `apps/api/Dockerfile`'s `base`,
+  which Dependabot moves. The API connects as `app_user`, whose password the run sets.
+- **Schemathesis 4.34.0, not 4.34.2:** 4.34.2 was pushed on 2026-11-24, inside the three-day
+  floor. The pin watch's new row `schemathesis/schemathesis` lists 4.34.2 as newer.
+- **The proof:** `scripts/fixtures/schemathesis-known-bad/`, run first in every run. Measured
+  locally with 4.34.0: both faults flagged. The guard is red when either is taken out of what
+  Schemathesis flagged, and a run whose proof does not hold never scans the API.
+- **What the public summary names.** Every check is counted, and no operation of the API is
+  named under any of them (the maintainer's answer, the same day: counts, no names); the seed is
+  given so that a run can be repeated on a stack of one's own (docs/testing.md).
+- **The first list, measured locally** at 100 cases per operation (1 min 53 s, 200 operations),
+  is the maintainer's, held privately, and goes to the owner as a question.
+- **The jobs database (the maintainer's answer, the same day).** The stack gets one on its own
+  Postgres: `deploy/compose/jobs-role.sql` as it is, a password of the run's own, and pg-boss's
+  queues installed by the worker's own runner. A sync and a cutover then answer 202 with their jobs
+  waiting, measured locally, where without one they answered 500.
+- **D9 lifted on 2026-11-27:** alpha.21's builder pull requests are on `main`, and `origin/main`
+  is merged in, with the routes they add in the description the scan reads.
+- **Open:** the first run on a hosted runner (its minutes, and whether the container setup works
+  there as composed), dispatched on `main` once this merges.
+
+**2026-11-26, later still: step 1's four guards built, on
+`claude/ownpace-public-readiness-y7orc6-a21-sast-guards`, from `main` at `3c61e83`. Not merged:
+under D9 the pull request waits for alpha.21's builder pull requests.**
+
+- **The guards.** Each is a `scripts/*.unit.test.ts`; all four parse with the TypeScript
+  compiler through one shared reader, `scripts/sast-guard-source.ts`, so a comment or a string
+  that only names a thing is never a spot. Each has a named list of places with a reason per
+  place, and fails on one more, one fewer, or a file not listed.
+  - **G1 (T1)**, `a-page-given-html-as-html`: none in shipped code; two test files, listed.
+  - **G2 (T2)**, `sql-a-value-is-put-into`: 28 spots in ten files, each listed with the check
+    or the constant that makes it safe.
+  - **G3 (T3)**, `a-door-public-in-one-place-only`: 29 public routes, each with the
+    description's operations it serves and its reason; the link routes are held to `linkAuth`.
+  - **G4 (T4)**, `a-secret-handed-to-the-logger`: measured first. Four spots, all in two
+    commands an operator runs by hand, each printing what that operator asked for. Listed, so
+    it blocks (D2).
+- **Each was seen failing on its fixture.** With the four detectors made to find nothing, 11 of
+  the 17 cases failed, every fixture case among them; with the detectors, all 17 pass.
+- **G3 found two faults in the API description on `main`,** both the description's, neither a
+  hole: `POST /api/gifts/redeem` and `GET /api/scope-manifest` are public on purpose in the
+  code, and the description said they need sign-in. Both now carry `security: []`, so the
+  description has 33 opt-outs, not the 31 §5.1 counted.
+- **Against the builders' branches,** read on 2026-11-26: #2188 and #2189 change nothing any
+  guard reads. 0177 step A's back half adds `POST /api/gifts/check`, public, and gives the
+  redeem `security: []` too. When it merges, G3's list gains the new door, and the two edits to
+  the redeem's description become one. No branch read adds raw SQL or a secret-named log.
+- **After 0177 step A (#2198) reached `main` at `f9f24bef`,** merged in: G3 named one new door,
+  `POST /api/gifts/check`, public on purpose and described so, and it is in G3's list with its
+  reason, so 30 public routes. The redeem's two `security: []` became one. G1, G2 and G4 named
+  nothing new: the step's migration is SQL in a `.sql` file, which G2 does not read, and its log
+  calls hand over no secret-named value. 0176 step B (#2196) is still to come.
+- **After 0176 step B (#2196) reached `main` at `b0f1e140`,** merged in with #2199, #2200,
+  #2202 to #2205: the API's routers register 192 routes, one more, and the new one signs a
+  session in, so G3's list is unchanged at 30 public routes. G1 finds 2 (the two tests), G2 28
+  and G4 4, as before. D9 is lifted.
+- **T1 to T4 stay 📋 until the pull request merges.**
+
 **2026-11-26, evening: T5's two runs on `main`, and T6 begun.** #2194 merged as `b31ccaaf`.
 
 - **The first push run, 45886149663**, ran from 19:46:40 to 19:53:45 UTC and passed. CodeQL says it scanned all 2,500 TypeScript files, 66 of 66 JavaScript files, 19 of 19 GitHub Actions files and 1 of 1 HTML file. The report counted 2,689 files extracted. The strict file match held, and so did the floor of 1,000. So the two extraction IDs the report reads are the ones CodeQL writes, and §12's risk, files CodeQL's TypeScript cannot read, did not happen. It found **312 alerts under 17 queries**, uploaded to code scanning.
@@ -117,10 +196,10 @@ one before it to be quiet on `main`.
 | T4 Guard: a secret-named key handed to the logger | builder | 📋 Planned, alpha.21 | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
 | T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 🔄 Built 2026-11-26; proof dispatch and first run on `main` to come | §4.1, §8 step 2. D1. Not on pull requests. `codeql.yml`, its report, its fixture and its guard; the Status entry of that day. |
 | T6 CodeQL's first list, read alert by alert | builder | 🔄 Begun 2026-11-26: the runs read, the list still to read | §8 step 2. As 0166 read Trivy's and Semgrep's. 312 alerts under 17 queries on `b31ccaaf`; the Status entry of that evening. |
-| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 📋 Planned, alpha.21 | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
+| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 🔨 Built; D9 lifted 2026-11-27 with alpha.21's builds on `main` and merged in; its first hosted run is the dispatch on `main` after the merge | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
 | T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |
 | T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6's reading and the owner's word per query (D8), so it may fall after alpha.21's release. S each. |
-| T10 A second identity: another organisation's ids refused at every door | builder | 📋 Planned, alpha.21 | §6.3, §8 step 6. D7. M. By the T7 session, after T7. |
+| T10 A second identity: another organisation's ids refused at every door | builder | 🔨 Built in T7's job, report only; merges after T7 | §6.3, §8 step 6. D7. M. By the T7 session, after T7. |
 | T11 ZAP, baseline or API scan | — | 🅿️ Parked | §6.4. D5. Trigger: the app gains cookies, or pages the server renders beyond today's. |
 
 ## 1. Why, and the doctrine

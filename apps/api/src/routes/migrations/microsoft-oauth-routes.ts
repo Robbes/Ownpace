@@ -188,6 +188,8 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
   // callback has, in `microsoft-link-ending.ts`. The token goes into the
   // database and stops there; the page is drawn from the decision alone.
   if (pending.link ?? pending.personLink) {
+    // How a person's pages speak to them (workplan 0176 T7): their ending says it.
+    const register = pending.personLink?.register;
     const finish = GRANT_PROVIDERS.microsoft?.finish;
     const decided = await decideMicrosoftLinkEnding(
       pending,
@@ -220,14 +222,16 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
             ...(decided.more ? { more: decided.more } : {}),
           },
           locale,
+          register,
         )
       : grantResultPage(
           {
             ok: false,
-            reason: typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale),
+            reason: typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale, register),
             ...(decided.link ? { link: decided.link } : {}),
           },
           locale,
+          register,
         );
     return page(decided.status, html);
   }

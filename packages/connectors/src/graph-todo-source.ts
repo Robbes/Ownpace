@@ -330,13 +330,36 @@ function descriptionOf(task: GraphTodoTask): string | undefined {
   return parts.length > 0 ? parts.join('\n\n') : undefined;
 }
 
+/**
+ * `html` without its tags: what `html.replace(/<[^>]+>/g, '')` answered, read
+ * in one pass. That pattern scanned from every `<` to the next `>`, so a body
+ * of many `<` and no `>` took time quadratic in it. A `<` with no `>` after it
+ * is kept, and so is every later one: none of them has a `>` either.
+ */
+export function withoutTags(html: string): string {
+  let kept = '';
+  let at = 0;
+  for (let lt = html.indexOf('<'); lt !== -1; lt = html.indexOf('<', at)) {
+    const gt = html.indexOf('>', lt + 1);
+    if (gt === -1) break;
+    if (gt === lt + 1) {
+      // `<>` holds nothing, which `[^>]+` does not match: kept, and read on from the `>`.
+      kept += html.slice(at, gt + 1);
+      at = gt + 1;
+      continue;
+    }
+    kept += html.slice(at, lt);
+    at = gt + 1;
+  }
+  return kept + html.slice(at);
+}
+
 /** Graph bodies are text or HTML; a VTODO description is text. */
 export function bodyText(content: string, contentType?: 'text' | 'html'): string {
   if (contentType !== 'html') return content.replace(/\r\n/g, '\n').trim();
-  return content
-    .replace(/<\s*br\s*\/?>/gi, '\n')
-    .replace(/<\/\s*(p|div|li|h[1-6]|tr)\s*>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
+  return withoutTags(
+    content.replace(/<\s*br\s*\/?>/gi, '\n').replace(/<\/\s*(p|div|li|h[1-6]|tr)\s*>/gi, '\n'),
+  )
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')

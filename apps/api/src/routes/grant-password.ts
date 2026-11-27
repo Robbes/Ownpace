@@ -68,6 +68,7 @@ import { LINK_SPENT, log, pinnedToPublished, reasonPair, type Bilingual, type Di
 import { HostInsideOurNetwork, reachableHost } from '@openmig/shared/reachable-host';
 import { withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
+import { registerOfPerson } from '../person-register.ts';
 import { createKnockLimiter, type KnockLimiter } from '../knock-limit.ts';
 import { probeAnswers } from '../probe-answer.ts';
 import { serverFault } from '../server-fault.ts';
@@ -109,6 +110,10 @@ export const SERVER_NOT_A_NAME: Bilingual = {
   nl:
     'Deze link noemt de server met een nummer in plaats van een naam, dus uw wachtwoord wordt er niet ' +
     'naartoe gestuurd. Laat het de persoon weten die u de link stuurde.',
+  // With je, for a person whose pages say je (workplan 0176 T7, §11).
+  nlJe:
+    'Deze link noemt de server met een nummer in plaats van een naam, dus je wachtwoord wordt er niet ' +
+    'naartoe gestuurd. Laat het de persoon weten die je de link stuurde.',
 };
 
 type PersonLink = NonNullable<PersonLinkRequest['personLink']>;
@@ -128,6 +133,9 @@ export const SERVER_NOT_PUBLIC: Bilingual = {
   nl:
     'Deze link noemt een server in een afgeschermd netwerk, dus uw wachtwoord wordt er niet ' +
     'naartoe gestuurd. Laat het de persoon weten die u de link stuurde.',
+  nlJe:
+    'Deze link noemt een server in een afgeschermd netwerk, dus je wachtwoord wordt er niet ' +
+    'naartoe gestuurd. Laat het de persoon weten die je de link stuurde.',
 };
 
 /**
@@ -327,9 +335,11 @@ export function passwordThroughLink(pool: PoolSource, deps: PasswordRouteDeps = 
       if (account.granted && !asksAgainFor(link, account)) {
         return void res.status(409).json({ error: 'already_connected' });
       }
+      // The person's register (0176 T7): each sentence below says its Dutch in it.
+      const register = await registerOfPerson(pool(), link.tenantId, link.personId);
       // A password is sent to a name, never a number (§5.8, D3 (a)).
       if (account.server && !account.server.published && account.server.hosts.some(isAddressLiteral)) {
-        return void res.status(409).json({ error: 'server_not_a_name', ...reasonPair(SERVER_NOT_A_NAME) });
+        return void res.status(409).json({ error: 'server_not_a_name', ...reasonPair(SERVER_NOT_A_NAME, register) });
       }
       // Nor to a name inside a private network (§5.8, D3 (a)): refused before
       // a try is claimed, so nothing is counted and nothing is sent.
@@ -338,7 +348,7 @@ export function passwordThroughLink(pool: PoolSource, deps: PasswordRouteDeps = 
         for (const host of account.server.hosts) {
           if (await inside(host)) {
             log.info(`[grant] a password on a person's link: server_not_public (ref ${account.ref})`);
-            return void res.status(409).json({ error: 'server_not_public', ...reasonPair(SERVER_NOT_PUBLIC) });
+            return void res.status(409).json({ error: 'server_not_public', ...reasonPair(SERVER_NOT_PUBLIC, register) });
           }
         }
       }
@@ -388,7 +398,7 @@ export function passwordThroughLink(pool: PoolSource, deps: PasswordRouteDeps = 
         log.info(`[grant] a tested password was not stored: ${stored.code} (ref ${account.ref})`);
         const status = stored.code === 'link_spent' ? 401 : 409;
         const reason = stored.code === 'link_spent' ? LINK_SPENT : stored.reason;
-        return void res.status(status).json({ error: stored.code, ...reasonPair(reason) });
+        return void res.status(status).json({ error: stored.code, ...reasonPair(reason, register) });
       }
       log.info(`[grant] a password on a person's link: connected (ref ${account.ref})`);
       // After the commit, as a sign-in's ending: neither can undo the grant.

@@ -4,6 +4,28 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, later still: the owner's answers on the privacy text (Q1) and the menu's icon
+(Q3), and the read of step A's Dutch.** Step A is merged (#2198), with E2E managed, Postgres
+and PGlite green on its tree. In the owner's words:
+
+- **Q1, the privacy text:** *"Q1: yes"*. It is changed in place under 1.0, once the lawyer
+  has read it, as for 0176. Nothing in `site/legal` changes now: #2198's drafts for §4.4, §5
+  and §9, and the shorter sentence for a declined request that came with a code, are on the
+  lawyer's list (T7, §11).
+- **Q3, the menu's icon:** *"Q3: yes as advised"*. *Recommend someone* / *Iemand
+  aanbevelen* is drawn with the handshake the card carries, so the menu and the card match
+  (`Layout.tsx`); the operator's *Gifts* keeps its gift box. A case in `Layout.unit.test.tsx`
+  holds it, and failed on the gift box before.
+- **The Dutch of #2198:** *"Dutch read 2 (#2198's sentences): ok, as advised"*. The owner
+  had the seven groups the pull request flagged first, with the advice *all ok*, and the
+  rest of its table. No word changes. Every row of that table marked *drafted (here)*, a
+  sentence step A wrote that this plan does not give, is *owner (read) 2026-11-26* (§7).
+  The door's two field hints stay one sentence each, as the copy budget holds (0118):
+  §7's first sentences for them are not wanted, and nothing goes in the budget's `RAISED`.
+
+**Open:** T0 and T14. The rows marked *drafted (plan)* and the operator's English keep the
+marks they had in #2198, as the read was passed on.
+
 **2026-11-26, later still: step A is built, its two halves met on the pull request's branch
 (`claude/ownpace-public-readiness-y7orc6-a21-gift-step-a`), in review.** The back's half, the
 server and the mails, was built on its own branch and merged in; the front's was built against
@@ -184,7 +206,7 @@ for that one to be merged (§19, §21).
 | T4 The two mails: what happened, in both languages alike | builder | 📋 Planned | §8. D11 (a), D12 (a). For every request. M. |
 | T5 The giver's page: what it is, and what the other person will read | builder | 🚧 Built, in review | §9. With a link beside the card (D2). M. |
 | T6 Size, contrast and targets on the door and the giver's page | builder | 🚧 Built, in review | §10. S. |
-| T7 What follows: the site's page, the glossary, the privacy text, the records | builder | 📋 Planned | §11. With each step. S. |
+| T7 What follows: the site's page, the glossary, the privacy text, the records | builder | 📋 Planned | §11. With each step. S. The privacy text: *"Q1: yes"* (the owner, 2026-11-26), changed in place under 1.0 once the lawyer has read it, as for 0176; #2198's drafts are on the lawyer's list. |
 | T8 Proofs | builder | 📋 Planned | §14. With each step. |
 | T9 Who sent it: the giver's name at the door and in the yes mail | builder | 📋 Planned | §12. Step B. D3 (a). After 0176's T3, which holds the name. M. |
 | T10 What the giver hears: used, and so let in | builder | 🚧 Built, in review | §9. Step A now, in words: under D6 *used* means *let in*, so no column is needed (D8). S. |
@@ -668,7 +690,14 @@ and `{from}` the address the service mails from.
 
 **What the owner has read.** On 2026-11-26 the owner read the Dutch that D6 changed, and
 said: *"The G6 Dutch: all ok"*. G6 is D6 here. Those sentences are the rows marked *read*
-below, and the yes mail's opening for a code (§8). Every other row is a draft.
+below, and the yes mail's opening for a code (§8). Every other row is a draft. Later that
+day the owner read step A's table of every new or changed Dutch sentence, in #2198: *"Dutch
+read 2 (#2198's sentences): ok, as advised"*. Its rows marked *drafted (here)*, the
+sentences step A wrote that this table does not give, are the owner's now. Among them are
+the door's two field hints, one sentence each as the copy budget holds (0118): *Capitals
+and dashes do not matter.* / *Hoofdletters en streepjes maken niet uit.* and *It may be the
+email address you use today.* / *Het mag het e-mailadres zijn dat u nu gebruikt.* The first
+sentences drafted below for those two are not wanted.
 
 | Where | EN | NL |
 |---|---|---|
@@ -914,7 +943,9 @@ from the app's own palette:
   at the door that their address is a Google account, which Ownpace then enters in Google's
   list (D14). With step B: that the giver's name is shown to
   whoever holds the code. T7 asks the owner whether the texts are still changed in place
-  under 1.0 before it changes them, as 0176's T10 does.
+  under 1.0 before it changes them, as 0176's T10 does. **Answered** (Q1, 2026-11-26):
+  *"Q1: yes"*, in place under 1.0, once the lawyer has read it. Step A's drafts (#2198) are
+  on the lawyer's list; nothing in `site/legal` changes before that.
 - **Plan 0172** gets one dated line in its Status: its G1 is changed by D6 here, and its
   answer that there is no cap by D16.
 - **The tester guide's *Google addresses first*** (§3.6) says the door's way too (D14): a
@@ -1706,7 +1737,7 @@ on all parts together. Then the owner reads the Dutch. E2E is the maintainer's t
 |---|---|
 | Is each sentence plain Dutch? | §7's rules: one idea, at most fifteen words, *u*, and no word to look up. The owner reads every Dutch sentence before the step merges |
 | Does step A keep new personal data? | One thing: a yes to the question about Google, as a fixed line in the request's note (D14). The address and the name are what a request holds today. The answer to the second step's question is neither sent nor stored |
-| Does the privacy text change? | Yes, with step A (§11), and only after the owner has said whether it is still changed in place |
+| Does the privacy text change? | Yes, in place under 1.0, once the lawyer has read it: the owner's *"Q1: yes"* (§11). Not in step A's pull request; its drafts are on the lawyer's list |
 | Can somebody with a code do more than before? | Yes, and that is D6: the code lets its holder in. The giver hands it over by hand and can withdraw it unused; the door asks its question; the owner is mailed for each person; and the second ceiling ends it at 50 |
 | Can somebody without a code learn anything? | No. The check and the redeem answer every bad code alike, behind one limit. A full Alpha is told only to the holder of a good code |
 | Can a session of a code read the Alpha's numbers? | No. It learns a yes or a no (§20.3) |

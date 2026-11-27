@@ -71,6 +71,7 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts) — A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
 - [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
@@ -194,6 +195,11 @@ reading a file drops off its entry by itself.
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 
+### `.github/workflows/schemathesis.yml`
+
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
+
 ### `.github/workflows/script-images.yml`
 
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
@@ -221,6 +227,7 @@ reading a file drops off its entry by itself.
 
 - [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
+- [a-page-given-html-as-html](../scripts/a-page-given-html-as-html.unit.test.ts) — A PAGE GIVEN HTML AS HTML: nothing in `apps/`, `packages/` or `site/` puts text into a page as markup, outside a named list (workplan 0178 §5.1, G1; the owner's D2 of 2026-11-26).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 
 ### `.github/workflows/windows-payload.yml`
@@ -287,6 +294,7 @@ reading a file drops off its entry by itself.
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-worker-image-on-the-apis-base](../scripts/a-worker-image-on-the-apis-base.unit.test.ts) — A WORKER IMAGE ON ANOTHER BASE THAN THE API'S (workplan 0167 T7).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
@@ -298,6 +306,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/docs/openapi.yaml`
 
+- [a-door-public-in-one-place-only](../scripts/a-door-public-in-one-place-only.unit.test.ts) — A DOOR PUBLIC IN ONE PLACE ONLY: every route the API registers either signs a session in, or is public in the code and in `apps/api/docs/openapi.yaml` alike, with its reason (workplan 0178 §5.1, G3; the owner's D2 of 2026-11-26).
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
@@ -311,6 +320,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/access-log.ts`
 
 - [a-log-that-kept-the-link](../scripts/a-log-that-kept-the-link.unit.test.ts) — A LOG THAT KEPT THE LINK, on the web image's nginx.
+- [a-secret-handed-to-the-logger](../scripts/a-secret-handed-to-the-logger.unit.test.ts) — A SECRET HANDED TO THE LOGGER: no code in `apps/` or `packages/` hands the logger a value named as a credential or a mail address, outside a named list (workplan 0178 §5.1, G4; the owner's D2 of 2026-11-26: measured first, then blocking …
 
 ### `apps/api/src/access-notify.ts`
 
@@ -338,6 +348,7 @@ reading a file drops off its entry by itself.
 - [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-door-public-in-one-place-only](../scripts/a-door-public-in-one-place-only.unit.test.ts) — A DOOR PUBLIC IN ONE PLACE ONLY: every route the API registers either signs a session in, or is public in the code and in `apps/api/docs/openapi.yaml` alike, with its reason (workplan 0178 §5.1, G3; the owner's D2 of 2026-11-26).
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
@@ -368,6 +379,7 @@ reading a file drops off its entry by itself.
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-refusal-that-links-its-guide](../scripts/a-refusal-that-links-its-guide.unit.test.ts) — A REFUSAL THAT LINKS ITS GUIDE (workplan 0148 T7, the second half).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [a-sentence-two-files-must-agree-on](../scripts/a-sentence-two-files-must-agree-on.unit.test.ts) — A SENTENCE TWO FILES MUST AGREE ON, AND NOTHING MADE THEM.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -376,6 +388,10 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+
+### `apps/api/src/openapi-spec.unit.test.ts`
+
+- [a-door-public-in-one-place-only](../scripts/a-door-public-in-one-place-only.unit.test.ts) — A DOOR PUBLIC IN ONE PLACE ONLY: every route the API registers either signs a session in, or is public in the code and in `apps/api/docs/openapi.yaml` alike, with its reason (workplan 0178 §5.1, G3; the owner's D2 of 2026-11-26).
 
 ### `apps/api/src/problem-report.ts`
 
@@ -418,6 +434,10 @@ reading a file drops off its entry by itself.
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 
+### `apps/api/src/routes/migrations/a-progress-link-you-can-copy.unit.test.ts`
+
+- [a-page-given-html-as-html](../scripts/a-page-given-html-as-html.unit.test.ts) — A PAGE GIVEN HTML AS HTML: nothing in `apps/`, `packages/` or `site/` puts text into a page as markup, outside a named list (workplan 0178 §5.1, G1; the owner's D2 of 2026-11-26).
+
 ### `apps/api/src/routes/migrations/cirrux-consent.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
@@ -451,6 +471,7 @@ reading a file drops off its entry by itself.
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts) — A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
+- [a-page-given-html-as-html](../scripts/a-page-given-html-as-html.unit.test.ts) — A PAGE GIVEN HTML AS HTML: nothing in `apps/`, `packages/` or `site/` puts text into a page as markup, outside a named list (workplan 0178 §5.1, G1; the owner's D2 of 2026-11-26).
 
 ### `apps/api/src/routes/migrations/google-consent.unit.test.ts`
 
@@ -563,6 +584,10 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 
+### `apps/api/src/scripts/operator-housekeeping.ts`
+
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
+
 ### `apps/api/src/scripts/operator-jobs.ts`
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
@@ -576,8 +601,10 @@ reading a file drops off its entry by itself.
 
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+- [a-secret-handed-to-the-logger](../scripts/a-secret-handed-to-the-logger.unit.test.ts) — A SECRET HANDED TO THE LOGGER: no code in `apps/` or `packages/` hands the logger a value named as a credential or a mail address, outside a named list (workplan 0178 §5.1, G4; the owner's D2 of 2026-11-26: measured first, then blocking …
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
 
 ### `apps/api/src/scripts/seed-managed.ts`
 
@@ -586,6 +613,8 @@ reading a file drops off its entry by itself.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
+- [a-secret-handed-to-the-logger](../scripts/a-secret-handed-to-the-logger.unit.test.ts) — A SECRET HANDED TO THE LOGGER: no code in `apps/` or `packages/` hands the logger a value named as a credential or a mail address, outside a named list (workplan 0178 §5.1, G4; the owner's D2 of 2026-11-26: measured first, then blocking …
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
@@ -835,6 +864,10 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
+### `apps/web/src/pages/a-bill-nobody-will-send.unit.test.tsx`
+
+- [a-page-given-html-as-html](../scripts/a-page-given-html-as-html.unit.test.ts) — A PAGE GIVEN HTML AS HTML: nothing in `apps/`, `packages/` or `site/` puts text into a page as markup, outside a named list (workplan 0178 §5.1, G1; the owner's D2 of 2026-11-26).
+
 ### `apps/web/src/pages/a-guide-you-can-read-before-you-sign-in.unit.test.tsx`
 
 - [the-alpha-said-to-a-visitor](../scripts/the-alpha-said-to-a-visitor.unit.test.ts) — THE ALPHA, SAID TO A VISITOR WHO WAS NOT INVITED (workplan 0152 T1 (a), open question 5; the owner, 2026-10-05: *"Do suggestions for non alpha viewers"*).
@@ -946,6 +979,7 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/cli/measure-google-sync.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
 
 ### `apps/worker/src/index.ts`
 
@@ -1002,6 +1036,7 @@ reading a file drops off its entry by itself.
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
 
 ### `apps/worker/src/jobs/refuse-internal-addresses.ts`
 
@@ -1377,6 +1412,7 @@ reading a file drops off its entry by itself.
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 
 ### `deploy/compose/live-pass-check.sh`
@@ -1584,6 +1620,7 @@ reading a file drops off its entry by itself.
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/compose/redact-evidence.sh`
@@ -2236,6 +2273,7 @@ reading a file drops off its entry by itself.
 - [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 
 ### `docs/windows-appliance-runbook.md`
 
@@ -2589,10 +2627,22 @@ reading a file drops off its entry by itself.
 
 - [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, which 0070's trigger guarantees, and this guard warns of any update that names it before the merge (workplan 0162 T1, §3; the owner's §2…
 
+### `packages/ledger/src/cutover-grace.ts`
+
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
+
+### `packages/ledger/src/db.ts`
+
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
+
 ### `packages/ledger/src/direct-url.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+
+### `packages/ledger/src/driver.ts`
+
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
 
 ### `packages/ledger/src/mapping-status-audit.ts`
 
@@ -2610,6 +2660,7 @@ reading a file drops off its entry by itself.
 - [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
 - [a-lock-a-migration-takes](../scripts/a-lock-a-migration-takes.unit.test.ts) — A lock a migration takes, read before the merge, and reported only (workplan 0165).
 - [a-zip-no-windows-had-started](../scripts/a-zip-no-windows-had-started.unit.test.ts) — A ZIP NO WINDOWS HAD STARTED: every release tag attached a Windows zip that no Windows machine had run, because the only Windows check was a person's, by hand, and it was owed (workplan 0119, Status 2026-11-02).
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
 
 ### `packages/ledger/src/retention.ts`
 
@@ -2644,6 +2695,10 @@ reading a file drops off its entry by itself.
 ### `packages/managed/src/books-read-back.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
+### `packages/managed/src/gift-store.ts`
+
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
 
 ### `packages/managed/src/legal-versions.ts`
 
@@ -2694,6 +2749,7 @@ reading a file drops off its entry by itself.
 ### `packages/managed/src/offboarding.ts`
 
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
 
 ### `packages/managed/src/pricing.ts`
 
@@ -2828,6 +2884,7 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
 
 ### `packages/shared/src/a-grant-mail-that-says-alpha.unit.test.ts`
 
@@ -2935,6 +2992,10 @@ reading a file drops off its entry by itself.
 
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 
+### `packages/shared/src/logger.ts`
+
+- [a-secret-handed-to-the-logger](../scripts/a-secret-handed-to-the-logger.unit.test.ts) — A SECRET HANDED TO THE LOGGER: no code in `apps/` or `packages/` hands the logger a value named as a credential or a mail address, outside a named list (workplan 0178 §5.1, G4; the owner's D2 of 2026-11-26: measured first, then blocking …
+
 ### `packages/shared/src/microsoft-deployment-client.ts`
 
 - [a-refusal-that-links-its-guide](../scripts/a-refusal-that-links-its-guide.unit.test.ts) — A REFUSAL THAT LINKS ITS GUIDE (workplan 0148 T7, the second half).
@@ -3008,6 +3069,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/remote-refusal.ts`
 
 - [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+- [a-tag-read-by-a-pattern-that-backtracks](../scripts/a-tag-read-by-a-pattern-that-backtracks.unit.test.ts) — A TAG READ BY A PATTERN THAT BACKTRACKS.
 
 ### `packages/shared/src/remote-refusal.unit.test.ts`
 
@@ -3032,6 +3094,10 @@ reading a file drops off its entry by itself.
 - [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 - [a-domain-the-readme-forgot](../scripts/a-domain-the-readme-forgot.unit.test.ts) — DOCUMENTATION IS A FAN-OUT SITE, AND PROSE HAS NO TYPE CHECKER.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+
+### `packages/shared/src/xml-elements.ts`
+
+- [a-tag-read-by-a-pattern-that-backtracks](../scripts/a-tag-read-by-a-pattern-that-backtracks.unit.test.ts) — A TAG READ BY A PATTERN THAT BACKTRACKS.
 
 ### `packages/testing/fixtures/stalwart/Dockerfile`
 
@@ -3163,6 +3229,10 @@ reading a file drops off its entry by itself.
 ### `scripts/an-integration-test-is-handed-its-database.unit.test.ts`
 
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
+
+### `scripts/another-organisations-ids.mjs`
+
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 
 ### `scripts/app-headers.mjs`
 
@@ -3322,6 +3392,10 @@ reading a file drops off its entry by itself.
 
 - [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 
+### `scripts/fixtures/schemathesis-known-bad/server.mjs`
+
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
+
 ### `scripts/gate-coverage.unit.test.ts`
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -3478,9 +3552,20 @@ reading a file drops off its entry by itself.
 
 - [a-fixture-with-ten-seconds](../scripts/a-fixture-with-ten-seconds.unit.test.ts) — A hook that builds a database gets more than ten seconds to do it.
 
+### `scripts/sast-guard-source.ts`
+
+- [a-door-public-in-one-place-only](../scripts/a-door-public-in-one-place-only.unit.test.ts) — A DOOR PUBLIC IN ONE PLACE ONLY: every route the API registers either signs a session in, or is public in the code and in `apps/api/docs/openapi.yaml` alike, with its reason (workplan 0178 §5.1, G3; the owner's D2 of 2026-11-26).
+- [a-page-given-html-as-html](../scripts/a-page-given-html-as-html.unit.test.ts) — A PAGE GIVEN HTML AS HTML: nothing in `apps/`, `packages/` or `site/` puts text into a page as markup, outside a named list (workplan 0178 §5.1, G1; the owner's D2 of 2026-11-26).
+- [a-secret-handed-to-the-logger](../scripts/a-secret-handed-to-the-logger.unit.test.ts) — A SECRET HANDED TO THE LOGGER: no code in `apps/` or `packages/` hands the logger a value named as a credential or a mail address, outside a named list (workplan 0178 §5.1, G4; the owner's D2 of 2026-11-26: measured first, then blocking …
+- [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts) — SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
+
 ### `scripts/sbom-complete.mjs`
 
 - [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
+
+### `scripts/schemathesis-report.mjs`
+
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 
 ### `scripts/seed-managed.unit.test.ts`
 
@@ -3553,6 +3638,7 @@ reading a file drops off its entry by itself.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
+- [a-page-given-html-as-html](../scripts/a-page-given-html-as-html.unit.test.ts) — A PAGE GIVEN HTML AS HTML: nothing in `apps/`, `packages/` or `site/` puts text into a page as markup, outside a named list (workplan 0178 §5.1, G1; the owner's D2 of 2026-11-26).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
 - [claims-you-can-check](../scripts/claims-you-can-check.unit.test.ts) — CLAIMS YOU CAN CHECK (workplan 0152 T8 (a), (b)).
@@ -4490,6 +4576,17 @@ Reads:
 - `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
 
+### [a-door-public-in-one-place-only](../scripts/a-door-public-in-one-place-only.unit.test.ts)
+
+A DOOR PUBLIC IN ONE PLACE ONLY: every route the API registers either signs a session in, or is public in the code and in `apps/api/docs/openapi.yaml` alike, with its reason (workplan 0178 §5.1, G3; the owner's D2 of 2026-11-26).
+
+Reads:
+
+- `apps/api/docs/openapi.yaml`
+- `apps/api/src/index.ts`
+- `apps/api/src/openapi-spec.unit.test.ts`
+- `scripts/sast-guard-source.ts`
+
 ### [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts)
 
 The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
@@ -5144,6 +5241,19 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
 
+### [a-page-given-html-as-html](../scripts/a-page-given-html-as-html.unit.test.ts)
+
+A PAGE GIVEN HTML AS HTML: nothing in `apps/`, `packages/` or `site/` puts text into a page as markup, outside a named list (workplan 0178 §5.1, G1; the owner's D2 of 2026-11-26).
+
+Reads:
+
+- `.github/workflows/semgrep.yml`
+- `apps/api/src/routes/migrations/a-progress-link-you-can-copy.unit.test.ts`
+- `apps/api/src/routes/migrations/google-consent.ts`
+- `apps/web/src/pages/a-bill-nobody-will-send.unit.test.tsx`
+- `scripts/sast-guard-source.ts`
+- `site/build.mjs`
+
 ### [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts)
 
 A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -5268,6 +5378,7 @@ Reads:
 - `.github/workflows/idp-pin-watch.yml`
 - `.github/workflows/images.yml`
 - `.github/workflows/release.yml`
+- `.github/workflows/schemathesis.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/semgrep.yml`
 - `.github/workflows/zizmor.yml`
@@ -5820,6 +5931,24 @@ Reads:
 
 - `.github/workflows/security-scan.yml`
 
+### [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts)
+
+A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/schemathesis.yml`
+- `apps/api/Dockerfile`
+- `apps/api/src/middleware/auth.ts`
+- `apps/api/src/scripts/seed-managed.ts`
+- `deploy/compose/jobs-role.sql`
+- `deploy/compose/postgres/Dockerfile`
+- `docs/testing.md`
+- `scripts/another-organisations-ids.mjs`
+- `scripts/fixtures/schemathesis-known-bad/server.mjs`
+- `scripts/schemathesis-report.mjs`
+
 ### [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts)
 
 A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
@@ -5912,6 +6041,18 @@ Reads:
 - `docs/o365-setup.md`
 - `scripts/gitleaks-report.mjs`
 - `scripts/redact-evidence.unit.test.ts`
+
+### [a-secret-handed-to-the-logger](../scripts/a-secret-handed-to-the-logger.unit.test.ts)
+
+A SECRET HANDED TO THE LOGGER: no code in `apps/` or `packages/` hands the logger a value named as a credential or a mail address, outside a named list (workplan 0178 §5.1, G4; the owner's D2 of 2026-11-26: measured first, then blocking …
+
+Reads:
+
+- `apps/api/src/access-log.ts`
+- `apps/api/src/scripts/operator.ts`
+- `apps/api/src/scripts/seed-managed.ts`
+- `packages/shared/src/logger.ts`
+- `scripts/sast-guard-source.ts`
 
 ### [a-secret-kept-where-its-job-is](../scripts/a-secret-kept-where-its-job-is.unit.test.ts)
 
@@ -6203,6 +6344,15 @@ Reads:
 - `scripts/fixtures/sbom/bom.json`
 - `scripts/release-cut-tag.mjs`
 - `scripts/release-dispatch.mjs`
+
+### [a-tag-read-by-a-pattern-that-backtracks](../scripts/a-tag-read-by-a-pattern-that-backtracks.unit.test.ts)
+
+A TAG READ BY A PATTERN THAT BACKTRACKS.
+
+Reads:
+
+- `packages/shared/src/remote-refusal.ts`
+- `packages/shared/src/xml-elements.ts`
 
 ### [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts)
 
@@ -7360,6 +7510,25 @@ Reads:
 - `test/e2e/no-workspace-imports.unit.test.ts`
 - `test/e2e/seed-imap-source.mjs`
 - `test/e2e/selfhost-verification.e2e.test.ts`
+
+### [sql-a-value-is-put-into](../scripts/sql-a-value-is-put-into.unit.test.ts)
+
+SQL A VALUE IS PUT INTO: SQL text is built from a value only at named places, each with the check that comes first (workplan 0178 §5.1, G2; the owner's D2 of 2026-11-26).
+
+Reads:
+
+- `apps/api/src/scripts/operator-housekeeping.ts`
+- `apps/api/src/scripts/operator.ts`
+- `apps/worker/src/cli/measure-google-sync.ts`
+- `apps/worker/src/jobs/managed-sync-tick.ts`
+- `packages/ledger/src/cutover-grace.ts`
+- `packages/ledger/src/db.ts`
+- `packages/ledger/src/driver.ts`
+- `packages/ledger/src/migrate.ts`
+- `packages/managed/src/gift-store.ts`
+- `packages/managed/src/offboarding.ts`
+- `packages/scheduler/src/pg-boss/job-runner.ts`
+- `scripts/sast-guard-source.ts`
 
 ### [status-page](../scripts/status-page.unit.test.ts)
 

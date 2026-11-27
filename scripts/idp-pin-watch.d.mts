@@ -55,6 +55,10 @@ export declare const SEMGREP_WORKFLOW: string;
 export declare const SEMGREP_NOTE: string;
 /** The one image semgrep.yml names, semgrep/semgrep by a release tag and its index digest; throws for any other line. */
 export declare function semgrepPin(workflow: string): Omit<Image, 'line'>;
+export declare const SCHEMATHESIS_WORKFLOW: string;
+export declare const SCHEMATHESIS_NOTE: string;
+/** The one image schemathesis.yml names, schemathesis/schemathesis by a release tag and its index digest; throws for any other line. */
+export declare function schemathesisPin(workflow: string): Omit<Image, 'line'>;
 export declare const ZIZMOR_WORKFLOW: string;
 export declare const ZIZMOR_NOTE: string;
 /** The one image zizmor.yml names, ghcr.io/zizmorcore/zizmor by a release tag and its index digest; throws for any other line. */

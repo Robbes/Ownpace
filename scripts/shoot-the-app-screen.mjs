@@ -101,6 +101,23 @@ const LAYOUT = {
     operator: false,
     invitations: [],
   },
+  // Your own row of the team, which the person's page reads where their link
+  // is made, to ask your name once while you have given none (workplan 0176
+  // T3). Not in the picture: the link sits below the parts it takes.
+  [`GET /api/tenants/${TENANT}/members`]: {
+    members: [
+      {
+        id: 'a0000000-0000-4000-8000-0000000000c2',
+        tenantId: TENANT,
+        userId: 'app-screen',
+        email: 'owner@example.org',
+        role: 'owner',
+        status: 'active',
+        displayName: null,
+        phone: null,
+      },
+    ],
+  },
 };
 /** The answers for the language being photographed: its names are in it. */
 let answers = {};

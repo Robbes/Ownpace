@@ -148,6 +148,10 @@ const PersonSchema = z.object({
   // The signed-in member's own person (ADR-0050, amended 2026-11-19): what
   // *Who is it for?* chooses first. The server says it; no account id comes.
   you: z.boolean(),
+  // How the person's own pages speak to them (0176 T7), for the link form to
+  // offer again. Absent on the appliance and from a server before step B;
+  // a value this screen does not know reads as none.
+  voice: z.enum(['nl-u', 'nl-je', 'en']).nullable().optional().catch(null),
   migrations: z.array(PersonMigrationSchema),
   counts: z.object({
     paused: z.number(),

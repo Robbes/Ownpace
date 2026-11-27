@@ -30,7 +30,7 @@ import type {
   PropfindResponse,
 } from './webdav-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
-import { davRefusalBody, STREAM_FILES_LARGER_THAN_BYTES, STREAMED_REQUEST_INIT, withoutTrailing } from '@openmig/shared';
+import { davRefusalBody, STREAM_FILES_LARGER_THAN_BYTES, STREAMED_REQUEST_INIT, withoutTrailing, davElement, firstPlainTextOf, textsOf } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import {
   TRASHBIN_PROPFIND_BODY,
@@ -40,6 +40,10 @@ import {
 } from './webdav-trashbin.ts';
 import { RemoteRefusal, davRefusalParts } from '@openmig/shared';
 import { splitByWindow } from './file-window.ts';
+
+/** The prefixes a PROPFIND reply is read by, as the patterns before them named them: `D:` and `Q:`, in any case. */
+const DAV_PREFIX = /^D:/i;
+const QUOTA_PREFIX = /^Q:/i;
 
 /**
  * WebDAV source connector implementation.
@@ -467,12 +471,10 @@ export class WebdavFileSource implements FileSource {
   private parsePropfindResponse(body: string): PropfindResponse {
     const responses: PropfindResponseEntry[] = [];
     
-    // Parse each response element
-    const responseRegex = /<D:response[^>]*>([\s\S]*?)<\/D:response>/gi;
-    let match: RegExpExecArray | null;
-    
-    while ((match = responseRegex.exec(body)) !== null) {
-      const responseContent = match[1];
+    // Parse each response element, a tag at a time (`davElement`): a pattern
+    // `<D:response[^>]*>…` read a body that opens an element and never closes
+    // it in time quadratic in it.
+    for (const responseContent of textsOf(body, davElement('response', DAV_PREFIX))) {
       if (responseContent) {
         const entry = this.parsePropfindEntry(responseContent);
         if (entry) {
@@ -489,20 +491,20 @@ export class WebdavFileSource implements FileSource {
    */
   private parsePropfindEntry(content: string): PropfindResponseEntry | null {
     // Extract href
-    const hrefMatch = content.match(/<D:href[^>]*>([^<]+)<\/D:href>/i);
-    if (!hrefMatch || !hrefMatch[1]) {
+    const hrefMatch = firstPlainTextOf(content, davElement('href', DAV_PREFIX), true);
+    if (!hrefMatch) {
       return null;
     }
     
-    const href = this.normalizePath(hrefMatch[1].trim());
+    const href = this.normalizePath(hrefMatch.trim());
     
     // Extract status
-    const statusMatch = content.match(/<D:status[^>]*>([^<]+)<\/D:status>/i);
-    const status = statusMatch?.[1]?.trim() ?? 'HTTP/1.1 200 OK';
+    const statusMatch = firstPlainTextOf(content, davElement('status', DAV_PREFIX), true);
+    const status = statusMatch?.trim() ?? 'HTTP/1.1 200 OK';
     
     // Extract display name
-    const displayNameMatch = content.match(/<D:displayname[^>]*>([^<]*)<\/D:displayname>/i);
-    const displayName = displayNameMatch?.[1]?.trim();
+    const displayNameMatch = firstPlainTextOf(content, davElement('displayname', DAV_PREFIX), false);
+    const displayName = displayNameMatch?.trim();
     
     // Extract resource type
     const resourceType: ('collection' | 'resource')[] = [];
@@ -513,32 +515,32 @@ export class WebdavFileSource implements FileSource {
     }
     
     // Extract content type
-    const contentTypeMatch = content.match(/<D:getcontenttype[^>]*>([^<]+)<\/D:getcontenttype>/i);
-    const getContentType = contentTypeMatch?.[1]?.trim();
+    const contentTypeMatch = firstPlainTextOf(content, davElement('getcontenttype', DAV_PREFIX), true);
+    const getContentType = contentTypeMatch?.trim();
     
     // Extract content length
-    const contentLengthMatch = content.match(/<D:getcontentlength[^>]*>([^<]+)<\/D:getcontentlength>/i);
-    const getContentLength = contentLengthMatch?.[1] ? parseInt(contentLengthMatch[1], 10) : undefined;
+    const contentLengthMatch = firstPlainTextOf(content, davElement('getcontentlength', DAV_PREFIX), true);
+    const getContentLength = contentLengthMatch ? parseInt(contentLengthMatch, 10) : undefined;
     
     // Extract last modified
-    const lastModifiedMatch = content.match(/<D:getlastmodified[^>]*>([^<]+)<\/D:getlastmodified>/i);
-    const getLastModified = lastModifiedMatch?.[1]?.trim();
+    const lastModifiedMatch = firstPlainTextOf(content, davElement('getlastmodified', DAV_PREFIX), true);
+    const getLastModified = lastModifiedMatch?.trim();
     
     // Extract created date
-    const createdMatch = content.match(/<D:creationdate[^>]*>([^<]+)<\/D:creationdate>/i);
-    const getCreated = createdMatch?.[1]?.trim();
+    const createdMatch = firstPlainTextOf(content, davElement('creationdate', DAV_PREFIX), true);
+    const getCreated = createdMatch?.trim();
     
     // Extract ETag
-    const etagMatch = content.match(/<D:getetag[^>]*>([^<]+)<\/D:getetag>/i);
-    const getEtag = etagMatch?.[1]?.trim();
+    const etagMatch = firstPlainTextOf(content, davElement('getetag', DAV_PREFIX), true);
+    const getEtag = etagMatch?.trim();
     
     // Extract quota used
-    const quotaUsedMatch = content.match(/<Q:quota-used-bytes[^>]*>([^<]+)<\/Q:quota-used-bytes>/i);
-    const quotaUsed = quotaUsedMatch?.[1] ? parseInt(quotaUsedMatch[1], 10) : undefined;
+    const quotaUsedMatch = firstPlainTextOf(content, davElement('quota-used-bytes', QUOTA_PREFIX), true);
+    const quotaUsed = quotaUsedMatch ? parseInt(quotaUsedMatch, 10) : undefined;
     
     // Extract quota available
-    const quotaAvailableMatch = content.match(/<Q:quota-available-bytes[^>]*>([^<]+)<\/Q:quota-available-bytes>/i);
-    const quotaAvailable = quotaAvailableMatch?.[1] ? parseInt(quotaAvailableMatch[1], 10) : undefined;
+    const quotaAvailableMatch = firstPlainTextOf(content, davElement('quota-available-bytes', QUOTA_PREFIX), true);
+    const quotaAvailable = quotaAvailableMatch ? parseInt(quotaAvailableMatch, 10) : undefined;
     
     return {
       href,
