@@ -39,6 +39,15 @@ info:
     row-level security, so a token for tenant A cannot read tenant B even if a
     route forgets to filter.
 
+    **Every operation under `/api` may answer 429**, but `/api/ready`, which
+    is never limited (workplan 0178 T6). One request limit covers the whole
+    API: per caller's address, 1,200 a minute unless the deployment sets
+    `API_MAX_REQUESTS_PER_MINUTE`. On a deployment without `TRUST_PROXY` every
+    caller shares that one budget. The answer is
+    `#/components/responses/TooManyRequests`, with `Retry-After`. It is said
+    here once rather than under each operation; the doors with stricter limits
+    of their own also list their 429 where they are described.
+
     **Two ideas run through the whole surface and explain most of its shape:**
 
     - *Nothing consequential happens without a person.* Deleting on the target,
@@ -9807,6 +9816,20 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/PlatformHeld' }
+    TooManyRequests:
+      description: |
+        More requests from one address in a minute than the API takes from
+        anybody (workplan 0178 T6): 1,200 unless `API_MAX_REQUESTS_PER_MINUTE`
+        says otherwise. Any operation under `/api` but `/api/ready` may answer
+        it. `Retry-After` says when to try again; `reason` and `reasonNl` say
+        it to a person in English and Dutch.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds to wait.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/TooManyRequests' }
     TooManyTests:
       description: |
         More tests than one member makes by hand: sixty an hour, shared by the
@@ -10475,6 +10498,16 @@ components:
           type: array
           description: The person's migrations, which belong to nobody again. None was deleted.
           items: { type: string, format: uuid }
+
+    TooManyRequests:
+      type: object
+      description: The whole API's request limit, refused (workplan 0178 T6).
+      properties:
+        error: { type: string, const: Too many requests }
+        message: { type: string }
+        reason: { type: string }
+        reasonNl: { type: string }
+      required: [error, message, reason, reasonNl]
 
     Error:
       type: object

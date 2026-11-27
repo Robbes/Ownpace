@@ -160,6 +160,18 @@ export const FIXTURE = {
 export const MAX_EXAMPLES = 100;
 export const PHASES = 'examples,coverage,fuzzing';
 
+/**
+ * The API's request limit for the scan (workplan 0178 T6). The API limits
+ * every `/api` request per address, 1,200 a minute by default
+ * (`apps/api/src/api-rate-limit.ts`), and the scan sends all of its requests
+ * from one: 200 operations at up to 100 cases each, measured locally at about
+ * 1 minute 53, so around ten thousand a minute, and a hosted runner may be
+ * faster. At the default most of it would be answered 429 and test nothing.
+ * So the run raises the limit through `API_MAX_REQUESTS_PER_MINUTE`, the
+ * setting every operator has, and the limiter still runs as it ships.
+ */
+export const SCAN_API_REQUESTS_PER_MINUTE = 1_000_000;
+
 /** The fewest operations a finished scan of the API tests. */
 export const MIN_OPERATIONS = 150;
 
@@ -580,7 +592,7 @@ export async function run({
 
     const owner = `postgresql://ownpace:${secrets.dbPassword}@${LOOPBACK}:5432/ownpace`;
     const app = `postgresql://app_user:${secrets.appPassword}@${LOOPBACK}:5432/ownpace`;
-    const apiEnv = { DATABASE_URL: owner, JWT_SECRET: secrets.jwtSecret, SECRET_ENCRYPTION_KEY: secrets.encryptionKey, NODE_ENV: 'development' };
+    const apiEnv = { DATABASE_URL: owner, JWT_SECRET: secrets.jwtSecret, SECRET_ENCRYPTION_KEY: secrets.encryptionKey, NODE_ENV: 'development', API_MAX_REQUESTS_PER_MINUTE: String(SCAN_API_REQUESTS_PER_MINUTE) };
     const workdir = join(root, 'apps/api');
     // The seed applies both chains and seeds the two organisations. What it
     // prints (its own demo tokens among it) is kept out of the log.

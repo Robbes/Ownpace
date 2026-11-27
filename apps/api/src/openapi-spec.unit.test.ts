@@ -260,8 +260,11 @@ describe('the spec and the routers agree', () => {
     //
     // index.ts is the truth about what is served, so it is read directly rather
     // than compared against a second hand-kept list. `app.use(express.json())`
-    // and friends are excluded by requiring a quoted path.
-    const mounted = [...read('src/index.ts').matchAll(/app\.use\(\s*'([^']+)'/gm)].map((m) =>
+    // and friends are excluded by requiring a quoted path. So is the whole
+    // API's request limit (workplan 0178 T6), the one middleware mounted on a
+    // path, by its name: it serves no route, and its place before every router
+    // is held by `one-limit-for-the-whole-api.unit.test.ts`.
+    const mounted = [...read('src/index.ts').matchAll(/app\.use\(\s*'([^']+)'(?!,\s*apiRateLimit\()/gm)].map((m) =>
       toSpecPath(m[1]!),
     );
     expect(mounted.length, 'index.ts should mount several routers').toBeGreaterThan(5);

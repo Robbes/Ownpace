@@ -30,6 +30,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   The Soverin guides, in English and Dutch, say what the Test says and warn to activate Suite
   before calendars and contacts move. A mailbox with a Suite licence is not yet told apart, and
   no files go to Suite: both wait for a measured run on a real Suite mailbox (0175 T0).
+- **One request limit for the whole API** (workplan 0178 T6; the maintainer's decision of
+  2026-11-27). Every request under `/api` now counts against one limit per caller's address, 1,200
+  a minute unless `API_MAX_REQUESTS_PER_MINUTE` says otherwise, and over it the API answers 429 with
+  `Retry-After` and the reason in English and Dutch. `/api/ready` is never limited, and the public
+  doors keep their stricter limits behind it. It is keyed by the address `TRUST_PROXY` makes of a
+  request, as the doors' limits are: per visitor on live, and on a stack without `TRUST_PROXY` one
+  budget for every caller, sized never to be reached there, which the API says at start. It uses
+  `express-rate-limit` (MIT), a library code scanning recognises, so the routes it counted as
+  unlimited are counted as limited from the next scan of `main`. The nightly scan of the running
+  API raises the limit through the same setting.
 - **The managed gate walks a recommendation's code, a person's grant that starts their migration,
   and their stop** (workplan 0179 T2 to T4; the maintainer's D1 (a) of 2026-11-27). Two new
   sections of `deploy/compose/smoke-managed.sh`, run by E2E (managed). The first makes a
