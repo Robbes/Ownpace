@@ -4,6 +4,44 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
+**2026-11-27, later: the maintainer's decision on T6's rate-limit question, and the limit built
+(alpha.22, on `claude/ownpace-public-readiness-y7orc6-a22-api-rate-limit`; not merged).** CodeQL's
+largest group on `main`, *missing rate limiting*, counted about 185 results, roughly one per API
+route: it recognises only the common libraries, so the doors' own limiters do not count, and the
+signed-in routes had none. **The maintainer decided:** one request limit for the whole API, in the
+API itself, with `express-rate-limit`, generous and per caller, the doors' stricter limits kept.
+Asked how a stack without `TRUST_PROXY` is keyed, the maintainer answered the same day: by
+`req.ip` under the configured `trust proxy` on every stack, as the doors are, so without
+`TRUST_PROXY` it is one budget for every caller, sized never to bite there; live is per caller
+(`stand-up-live.sh` refuses a `TRUST_PROXY` that is not 2 or 3). Not to make `TRUST_PROXY`
+mandatory, not to switch the limit off without it, and not to key by anything but the address.
+
+- **Built:** `apps/api/src/api-rate-limit.ts`, mounted once in `index.ts` with
+  `app.use('/api', …)` before every `/api` route, `/api/problem-reports` included. 1,200 a minute
+  per address, `API_MAX_REQUESTS_PER_MINUTE` to change it, 429 with `Retry-After` and `reason` and
+  `reasonNl` as the gift door answers, `/api/ready` never limited, and one line at start saying
+  whether this stack's budget is per caller or shared. The billing webhooks stay under it: Mollie
+  retries until it gets a 200 and the handler is idempotent (`routes/billing/webhooks.ts`), so a
+  429 there is applied later, once. The appliance is its own server and does not run this API.
+- **Measured for the default:** `smoke-managed.sh` calls the API from 142 lines, in order, and
+  polls every 2 s, so about 175 in its heaviest minute; the managed UI smoke has no API. The
+  Schemathesis job sends about ten thousand a minute from one address, so it starts the API with
+  the limit raised through the same variable (`SCAN_API_REQUESTS_PER_MINUTE`).
+- **Held by** `apps/api/src/one-limit-for-the-whole-api.unit.test.ts` (the mount before every
+  `/api` route, seen red with a router moved above it; the burst, `/api/ready`, two addresses,
+  the variable on the real app), `scripts/a-limit-the-api-was-never-handed.unit.test.ts` (the
+  variable reaches the api container and is documented beside `TRUST_PROXY`) and
+  `scripts/a-scan-that-tried-the-running-api.unit.test.ts` (the scan's raised limit). Each was
+  seen failing first.
+- **Expected on the next scan of `main` after it merges:** that query's count falls to about
+  zero. What may stay counted: the handful of routes the API serves outside `/api`, which the
+  limiter does not cover.
+- **The maintainer's dismissals, the same day:** 96 of CodeQL's alerts dismissed with the reasons
+  reviewed under T6 (test-only code, false positives and won't-fix), and 5 reviewed groups had
+  already closed on their own. Six more after a second read the same day: five of CodeQL's (four
+  in test code, one a false positive, its pattern measured linear on large inputs) and one of
+  Semgrep's (a false positive: a link the API issued, not an address a person typed).
+
 **2026-11-27: alpha.21 carries T1 to T5, T7 and T10; T6's reading goes on.** alpha.21, tagged at
 `c34b30f8` (0146), carries the four guards (T1 to T4, #2191), CodeQL report only (T5, #2194, and
 #2202 after its first runs), Schemathesis against the running API (T7, #2192) and the second
@@ -205,7 +243,7 @@ one before it to be quiet on `main`.
 | T3 Guard: every door either signs in, or is public in the code and in the API description alike | builder | ✅ Merged, alpha.21 (#2191, `11e1df10`) | §5.1 G3. The static half of class 9. Blocks. M. By the analyst session, after alpha.21's builds (D9). |
 | T4 Guard: a secret-named key handed to the logger | builder | ✅ Merged, alpha.21 (#2191, `11e1df10`) | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
 | T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | ✅ Merged, alpha.21 (#2194, `b31ccaaf`; #2202 after its first runs) | §4.1, §8 step 2. D1. Not on pull requests. `codeql.yml`, its report, its fixture and its guard; the Status entry of that day. |
-| T6 CodeQL's first list, read alert by alert | builder | 🔄 Read in alpha.21; three changes merged (#2203, #2205, #2207); the rest waits on the maintainer, alert by alert | §8 step 2. As 0166 read Trivy's and Semgrep's. 312 alerts under 17 queries on `b31ccaaf`; the Status entry of that evening. |
+| T6 CodeQL's first list, read alert by alert | builder | 🔄 Read in alpha.21; three changes merged (#2203, #2205, #2207); 102 alerts dismissed by the maintainer 2026-11-27 (96, then six more: five of CodeQL's, one of Semgrep's); the whole API's request limit built for alpha.22 (the maintainer's decision of 2026-11-27), not merged | §8 step 2. As 0166 read Trivy's and Semgrep's. 312 alerts under 17 queries on `b31ccaaf`; the Status entry of that evening. |
 | T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | ✅ Merged, alpha.21 (#2192, `18901d3f`); first hosted run 45926079250, green | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
 | T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |
 | T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6's reading and the owner's word per query (D8), so it may fall after alpha.21's release. S each. |

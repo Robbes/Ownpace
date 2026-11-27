@@ -103,6 +103,7 @@ import {
   readRun,
   report,
   run,
+  SCAN_API_REQUESTS_PER_MINUTE,
   scanArgs,
   SIGNED_IN_AT,
   stackImages,
@@ -472,6 +473,21 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
     expect(api).toBeGreaterThan(install);
     expect(calls[api]!.args).toEqual(expect.arrayContaining(['--env', 'JOBS_DATABASE_URL']));
     expect(calls[api]!.env?.JOBS_DATABASE_URL).toBe(calls[install]!.env?.JOBS_DATABASE_URL);
+  });
+
+  it('starts the API with a request limit raised for the scan, through the setting an operator has (0178 T6)', async () => {
+    // The API limits every /api request per address (apps/api/src/api-rate-limit.ts),
+    // and the scan sends about ten thousand a minute from one. Raised, not
+    // switched off: the limiter runs as it ships, and nothing in the API knows
+    // a scan from a caller. Its default would answer most of the scan 429.
+    const { DEFAULT_API_RATE_LIMIT } = await import('../apps/api/src/api-rate-limit.ts');
+    expect(SCAN_API_REQUESTS_PER_MINUTE).toBeGreaterThanOrEqual(50 * DEFAULT_API_RATE_LIMIT.max);
+    const { calls, docker } = stub(FIXTURE_FLAGGED(), reportJson());
+    const { v } = await go(docker);
+    expect(v.code).toBe(0);
+    const api = calls.find((c) => c.args[0] === 'run' && c.args.includes(CONTAINERS.api))!;
+    expect(api.args).toEqual(expect.arrayContaining(['--env', 'API_MAX_REQUESTS_PER_MINUTE']));
+    expect(api.env?.API_MAX_REQUESTS_PER_MINUTE).toBe(String(SCAN_API_REQUESTS_PER_MINUTE));
   });
 
   it('stops, as a scan that did not finish, when the jobs role or its queues are not made', async () => {

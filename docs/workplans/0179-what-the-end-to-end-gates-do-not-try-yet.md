@@ -20,6 +20,16 @@ writer does not apply the prefix to files at all, the gap 0144 already names. Th
 keeps making its own folder: the release it upgrades from keeps the gap. Waits for the E2E
 (self-hosted, Postgres and PGlite) and the managed E2E.
 
+**2026-11-27, T5 merged.** #2220 merged as `8858cd67`, after E2E (self-hosted, Postgres)
+46000058137 on `7c9e10f2` passed: the upgrade gate took about two minutes, and all four of its
+tests passed, so alpha.21's appliance, with the seeded sources copied, upgraded in place to this
+build with its migrations applied, its ledger's counts kept, and a pass after the upgrade that
+completed and changed none of them. E2E (self-hosted, PGlite) 46001198346 on the same commit
+passed too, the gate's steps skipped there, as on every PGlite run. Both signature checks of the
+release's digest held in both Postgres runs. The product gap the first run found, a root-level
+file under a destination folder that does not exist yet written before that folder, waits for
+the maintainer's decision; it is not this plan's to fix.
+
 **2026-11-27, T5's first E2E, and its fix.** E2E (self-hosted, Postgres) 45992857614 ran #2220 at
 `41275b5e`: two of the gate's four tests passed (the migrations, the ledger kept), and two failed,
 both on files. The released appliance PUT every root-level file into the gate's target folder,
@@ -92,7 +102,7 @@ lines and §4.2 were read again there.
 | T2 The recommendation door, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Run 45987424991 passed, after 45976766670's one failure was fixed. |
 | T3 A grant that copies, and *Stop copying*, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Runs 45976766670 and 45987424991 passed. |
 | T4 The voice chosen for a person, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Inside T3's section; both runs passed. |
-| T5 The appliance upgraded from the previous release | builder | 🔧 Built, self-hosted Postgres E2E to run | D2 (a): the last steps of `e2e.yml`, Postgres only; `selfhost-upgrade.e2e.test.ts`. |
+| T5 The appliance upgraded from the previous release | builder | ✅ Merged as #2220 (`8858cd67`), E2E 46000058137 and 46001198346 passed | D2 (a): the last steps of `e2e.yml`, Postgres only; `selfhost-upgrade.e2e.test.ts`. |
 | T6 The owner's appliance flows | — | 🕓 After alpha.22 | |
 | T7 A real browser against the real managed API | — | 🕓 After alpha.22 | D4 (b). |
 | T8 Soverin | — | 🕓 Later | D3 (a): stand-ins first, a real account later. |
