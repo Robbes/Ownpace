@@ -55,10 +55,11 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { PROVIDER_ACCOUNT_KINDS, providerAccountFacts } from '@openmig/shared';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 router.get('/', (_req: Request, res: Response) => {
   // Built from the kinds table rather than written out: a provider gaining a

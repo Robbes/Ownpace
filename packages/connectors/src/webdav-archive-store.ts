@@ -37,6 +37,7 @@ import { DEFAULT_TREE_READ_BYTES, type ArchiveTree, type TreeEntry } from './arc
 import { joinStorePath, splitStorePath, type ArchiveStore, type StoreEntry } from './archive-store.ts';
 import { ZipUnreadable, type RandomAccessSource } from './zip-archive.ts';
 import { createFileHttpClient } from './webdav-source.ts';
+import { withoutTrailing } from '@openmig/shared';
 
 /** Where the target is and how to sign in: the same three things every DAV endpoint carries. */
 export interface WebDavArchiveEndpoint {
@@ -155,6 +156,12 @@ class Dav {
   /** The URL of a store path; a folder gets its trailing slash, which is how a DAV server names a collection. */
   url(path: string, folder = false): string {
     const segments = path.split('/').filter((s) => s !== '');
+    // `encodeURIComponent` leaves `.` and `..` as they are and a server
+    // resolves them, so such a segment could name a place outside the folder
+    // this store was given. Refused by the rule, not by echoing the path.
+    if (segments.some((s) => s === '.' || s === '..')) {
+      throw new Error('A path in the target may not hold a "." or ".." segment.');
+    }
     const joined = segments.map(encodeURIComponent).join('/');
     if (joined === '') return this.base;
     return `${this.base}${joined}${folder ? '/' : ''}`;
@@ -217,7 +224,7 @@ export function parseMultistatus(body: string): DavEntry[] {
     } catch {
       // A malformed href is kept as written; the comparison below will simply not match it.
     }
-    const path = decodeURIComponent(pathname).replace(/\/+$/, '');
+    const path = withoutTrailing(decodeURIComponent(pathname), '/');
     const length = LENGTH.exec(block)?.[1];
     out.push({ path, isCollection: COLLECTION.test(block), size: length === undefined ? undefined : Number(length) });
   }
@@ -226,7 +233,7 @@ export function parseMultistatus(body: string): DavEntry[] {
 
 /** The decoded, slash-trimmed path a request URL names, to tell a listed folder from its children. */
 function requestedPath(url: string): string {
-  return decodeURIComponent(new URL(url).pathname).replace(/\/+$/, '');
+  return withoutTrailing(decodeURIComponent(new URL(url).pathname), '/');
 }
 
 const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);

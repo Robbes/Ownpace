@@ -22,14 +22,7 @@ import type {
   SyncCursor,
   RawCalendarEvent,
 } from '@openmig/shared';
-import {
-  CALENDAR_COMPONENTS,
-  COMPONENT_ITEM_TYPES,
-  collectionCarries,
-  componentOfIcalendar,
-  davRefusalParts,
-  RemoteRefusal,
-} from '@openmig/shared';
+import { CALENDAR_COMPONENTS, COMPONENT_ITEM_TYPES, collectionCarries, componentOfIcalendar, davRefusalParts, RemoteRefusal, withoutTrailing } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
 import {
   caldavComponentFilter,
@@ -850,12 +843,12 @@ export class CalDAVSource implements CalendarSource {
     reading: Extract<SyncReading, { kind: 'answered' }>,
   ): string[] {
     const withData = new Set(reading.objects.map((o) => this.sameResource(o.href)));
-    const itself = this.sameResource(collectionPath).replace(/\/+$/, '');
+    const itself = withoutTrailing(this.sameResource(collectionPath), '/');
     const seen = new Set<string>();
     const toRead: string[] = [];
     for (const href of reading.toRead) {
       const key = this.sameResource(href);
-      if (seen.has(key) || withData.has(key) || key.replace(/\/+$/, '') === itself) continue;
+      if (seen.has(key) || withData.has(key) || withoutTrailing(key, '/') === itself) continue;
       seen.add(key);
       toRead.push(href);
     }
@@ -1193,13 +1186,11 @@ export class CalDAVSource implements CalendarSource {
    * that a thing we could not measure is never a no.
    */
   static parseComponentSet(responseXml: string): ReadonlyArray<CalendarComponent> | undefined {
-    const set = responseXml.match(
-      /<[A-Za-z]+:supported-calendar-component-set[^>]*>([\s\S]*?)<\/[A-Za-z]+:supported-calendar-component-set>/i,
-    );
-    if (!set || !set[1]) return undefined;
+    const set = componentSetIn(responseXml);
+    if (!set) return undefined;
     const known = new Set<string>(CALENDAR_COMPONENTS);
-    const components = [...set[1].matchAll(/<[A-Za-z]*:?comp\s[^>]*name="([^"]+)"/gi)]
-      .map((m) => m[1]!.toUpperCase())
+    const components = compNamesIn(set)
+      .map((name) => name.toUpperCase())
       .filter((name) => known.has(name)) as CalendarComponent[];
     return components.length > 0 ? [...new Set(components)] : undefined;
   }
@@ -1838,4 +1829,89 @@ function createDefaultHttpClient(): HttpClient {
       };
     },
   };
+}
+
+const COMPONENT_SET = ':supported-calendar-component-set';
+const isLetter = (c: string | undefined): boolean => c !== undefined && ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'));
+const isSpace = (c: string | undefined): boolean => c !== undefined && /\s/.test(c);
+
+/** The letters directly before `at`, as the index where they start. */
+function lettersBefore(text: string, at: number): number {
+  let start = at;
+  while (start > 0 && isLetter(text[start - 1])) start--;
+  return start;
+}
+
+/**
+ * What `<P:supported-calendar-component-set …>` holds up to the first
+ * `</Q:supported-calendar-component-set>` after it, prefixes in any case:
+ * what `/<[A-Za-z]+:supported-calendar-component-set[^>]*>([\s\S]*?)<\/[A-Za-z]+:supported-calendar-component-set>/i`
+ * matched, read with `indexOf`. The pattern tried every opening against the
+ * rest of the reply, quadratic in a reply that opens many times and never
+ * closes. Empty or absent is `undefined`.
+ */
+export function componentSetIn(xml: string): string | undefined {
+  const lower = xml.toLowerCase();
+  for (let at = lower.indexOf(COMPONENT_SET); at !== -1; at = lower.indexOf(COMPONENT_SET, at + 1)) {
+    const start = lettersBefore(xml, at);
+    if (start === at || xml[start - 1] !== '<') continue;
+    // The first `>` closes the opening. Without one, no later opening has one either.
+    const opened = xml.indexOf('>', at + COMPONENT_SET.length);
+    if (opened === -1) return undefined;
+    const closing = `${COMPONENT_SET}>`;
+    for (let end = lower.indexOf(closing, opened + 1); end !== -1; end = lower.indexOf(closing, end + 1)) {
+      const name = lettersBefore(xml, end);
+      if (name < end && xml[name - 1] === '/' && xml[name - 2] === '<') {
+        const held = xml.slice(opened + 1, name - 2);
+        return held === '' ? undefined : held;
+      }
+    }
+    // No close after this opening, so none after a later one.
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * The `name` of each `<P:comp …>` in `set`: what
+ * `/<[A-Za-z]*:?comp\s[^>]*name="([^"]+)"/gi` matched, read with `indexOf`.
+ * As the pattern did, a tag's last `name="…"` before its `>` is the one read.
+ * The pattern tried every `<comp ` against the rest of a tag that never
+ * ended, quadratic in them.
+ */
+export function compNamesIn(set: string): string[] {
+  const lower = set.toLowerCase();
+  const names: string[] = [];
+  let from = 0;
+  for (let lt = set.indexOf('<', from); lt !== -1; lt = set.indexOf('<', from)) {
+    let k = lt + 1;
+    while (isLetter(set[k])) k++;
+    let after = -1;
+    if (set[k] === ':' && lower.startsWith('comp', k + 1) && isSpace(set[k + 5])) after = k + 6;
+    else if (k - (lt + 1) >= 4 && lower.startsWith('comp', k - 4) && isSpace(set[k])) after = k + 1;
+    if (after === -1) {
+      from = lt + 1;
+      continue;
+    }
+    const gt = set.indexOf('>', after);
+    const end = gt === -1 ? set.length : gt;
+    let read = -1;
+    for (let q = lower.lastIndexOf('name="', end - 6); q >= after; q = lower.lastIndexOf('name="', q - 1)) {
+      const quote = set.indexOf('"', q + 6);
+      if (quote > q + 6) {
+        names.push(set.slice(q + 6, quote));
+        read = quote + 1;
+        break;
+      }
+      if (q === 0) break;
+    }
+    if (read === -1) {
+      // No name before this tag's end, so none for a `<comp ` inside it either.
+      if (gt === -1) break;
+      from = gt + 1;
+    } else {
+      from = read;
+    }
+  }
+  return names;
 }

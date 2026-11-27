@@ -261,13 +261,32 @@
 }
 
 /*
- * The gift card, printed alone (workplan 0172). While *Give Ownpace* shows a
- * card it puts `printing-gift` on the body, and the browser's print, or its
- * "Save as PDF", draws the card and nothing else: no menu, no list, no code
- * twice. A class on the body rather than an inline <style>, which the app's
- * CSP would refuse.
+ * The card, printed alone (workplans 0172 and 0177 T2, §6). While *Recommend
+ * someone* shows a card it puts `printing-gift` on the body, and the
+ * browser's print, or its "Save as PDF", draws the card and nothing else: no
+ * menu, no list, no code twice. A class on the body rather than an inline
+ * <style>, which the app's CSP would refuse.
+ *
+ * The card fills the sheet it is printed on (0177 §6, R9): the card's own
+ * width on the screen (`max-w-lg`) is lifted, the page gets a margin, and
+ * the type is set in points, sentences at 14 or larger and the code at 24,
+ * on one line. The paper is the reader's (A4 or Letter) and upright, and the
+ * page beneath is held to one sheet, so nothing hidden prints a second, empty
+ * one. The managed UI smoke prints it to both and asks what was drawn.
  */
 @media print {
+  /* 10 millimetres: the card is then nine tenths of an A4 or a Letter sheet, or more. */
+  @page {
+    margin: 10mm;
+  }
+  /* One sheet: the root and the body both hold to the page, so the body's
+     overflow is not handed to the viewport, and nothing hidden beneath the
+     card makes a second, empty sheet. */
+  html:has(> body.printing-gift),
+  body.printing-gift {
+    height: 100%;
+    overflow: hidden;
+  }
   body.printing-gift * {
     visibility: hidden;
   }
@@ -280,7 +299,27 @@
     left: 0;
     top: 0;
     width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 8mm;
     box-shadow: none;
+    font-size: 14pt;
+    line-height: 1.35;
+  }
+  body.printing-gift .gift-card p,
+  body.printing-gift .gift-card li {
+    font-size: 14pt;
+    line-height: 1.35;
+  }
+  body.printing-gift .gift-card h2 {
+    font-size: 20pt;
+  }
+  body.printing-gift .gift-card .gift-message {
+    font-size: 16pt;
+  }
+  body.printing-gift .gift-card [data-testid='gift-code'] {
+    font-size: 24pt;
+    white-space: nowrap;
   }
 }
 

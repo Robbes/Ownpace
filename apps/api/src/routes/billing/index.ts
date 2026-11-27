@@ -10,6 +10,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth.ts';
@@ -101,7 +102,7 @@ import {
   type UsageHistoryRow,
 } from '../../services/usage-history.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 // Role guards (0039 T1). Every write that moves money or changes how money
 // moves requires owner/admin, mirroring the Tenants routes' own pattern —

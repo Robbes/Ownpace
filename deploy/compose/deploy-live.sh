@@ -55,7 +55,8 @@
 # checkout (below), and after the bring-up and the app's checks:
 #
 #   OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> \
-#     GOOGLE_ACCOUNT_SCOPE_CLASS=<live's> GIT_SHA=<commit> node site/build.mjs --public
+#     GOOGLE_ACCOUNT_SCOPE_CLASS=<live's> OWNPACE_COUNTRY=<live's> \
+#     GIT_SHA=<commit> node site/build.mjs --public
 #   docker compose -p <project>-www -f deploy/compose/www.yml --env-file <live's .env> up -d --force-recreate
 #
 # in the checkout, now at the tag. Then it waits until the container is
@@ -77,7 +78,9 @@
 # with `alpha` the site carries the tester guide (workplan 0144 T1).
 # GOOGLE_ACCOUNT_SCOPE_CLASS is live's own the same way: with `restricted`,
 # Leaving Google says one Google sign-in, as the app on live then asks for one
-# (the owner, 2026-10-18).
+# (the owner, 2026-10-18). And OWNPACE_COUNTRY: the home page names the
+# country live's .env sets, as live's web build does on a person's link page,
+# and none when it sets none (workplan 0176 D16 (a)).
 #
 # Like every step, the site step is the one in the script that started, which
 # is the checkout's copy from before it moved. A deploy started from a
@@ -369,6 +372,11 @@ SITE_STAGE=''
 # live asks for one Google sign-in, and Leaving Google says one (the owner,
 # 2026-10-18). Read from the .env and never the shell's, as the API's own is.
 SITE_SCOPE_CLASS=''
+# The country live runs in as live's .env says it, empty when it says none,
+# handed to every site build the same way (workplan 0176 D16 (a)): the home
+# page names it, as the web build live's .env hands it names it on a person's
+# link page. Read from the .env and never the shell's, as the web build's is.
+SITE_COUNTRY=''
 
 # The two chains a release can add a migration to (ADR-0036, ADR-0045).
 MIGRATION_CHAINS=(packages/ledger/migrations packages/managed/migrations)
@@ -689,6 +697,7 @@ main() {
     fi
     SITE_STAGE="$(env_value "$ENV_FILE" OWNPACE_STAGE)"
     SITE_SCOPE_CLASS="$(env_value "$ENV_FILE" GOOGLE_ACCOUNT_SCOPE_CLASS)"
+    SITE_COUNTRY="$(env_value "$ENV_FILE" OWNPACE_COUNTRY)"
   fi
 
   # ---- The runner: which one runs the jobs here (workplan 0167 T7) ------------
@@ -1538,7 +1547,7 @@ site_test_build() {
     return 1
   fi
   out="$(cd "$tmp" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" OWNPACE_STAGE="$SITE_STAGE" \
-    GOOGLE_ACCOUNT_SCOPE_CLASS="$SITE_SCOPE_CLASS" GIT_SHA="$commit" node site/build.mjs --public --check 2>&1)" || rc=$?
+    GOOGLE_ACCOUNT_SCOPE_CLASS="$SITE_SCOPE_CLASS" OWNPACE_COUNTRY="$SITE_COUNTRY" GIT_SHA="$commit" node site/build.mjs --public --check 2>&1)" || rc=$?
   while IFS= read -r line; do
     if [[ "$line" =~ $re ]]; then count="${BASH_REMATCH[1]}"; fi
   done <<<"$out"
@@ -1550,7 +1559,7 @@ site_test_build() {
   # A count refuses by itself; the full build would only say it again.
   if [ "$count" = 0 ]; then
     out="$(cd "$tmp" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" OWNPACE_STAGE="$SITE_STAGE" \
-      GOOGLE_ACCOUNT_SCOPE_CLASS="$SITE_SCOPE_CLASS" GIT_SHA="$commit" node site/build.mjs --public 2>&1)" || rc=$?
+      GOOGLE_ACCOUNT_SCOPE_CLASS="$SITE_SCOPE_CLASS" OWNPACE_COUNTRY="$SITE_COUNTRY" GIT_SHA="$commit" node site/build.mjs --public 2>&1)" || rc=$?
     if [ "$rc" -ne 0 ]; then
       rm -rf "$tmp"
       tail -n 20 <<<"$out" >&2
@@ -1571,7 +1580,7 @@ site_up() {
   local re='(https?://[^"'"'"'?#[:space:]<>]*/request-access)'
   say "the site: node site/build.mjs --public, at ${commit}"
   if ! (cd "$REPO_ROOT" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" OWNPACE_STAGE="$SITE_STAGE" \
-    GOOGLE_ACCOUNT_SCOPE_CLASS="$SITE_SCOPE_CLASS" GIT_SHA="$commit" node site/build.mjs --public); then
+    GOOGLE_ACCOUNT_SCOPE_CLASS="$SITE_SCOPE_CLASS" OWNPACE_COUNTRY="$SITE_COUNTRY" GIT_SHA="$commit" node site/build.mjs --public); then
     failures+=("the site: node site/build.mjs --public failed (above), so ${WWW_LIVE_PROJECT} was not brought up.")
     return 0
   fi

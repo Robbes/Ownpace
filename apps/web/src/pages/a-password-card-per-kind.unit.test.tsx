@@ -530,7 +530,8 @@ describe('what the card says after the route answers (0174 §5.7)', () => {
       'href',
       'https://app.example.test/progress/p.abc.def',
     );
-    expect(within(block).getByText(words('nl', 'grant.person.keepIt'))).toBeInTheDocument();
+    // The sender is named since step B (0176 T3, §6): here by the address, as the fixture gives no name.
+    expect(within(block).getByText(fill(words('nl', 'grant.person.keepIt'), { who: 'owner@example.org' }))).toBeInTheDocument();
   });
 
   it('no answer: the page’s own sentence', async () => {

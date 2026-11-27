@@ -40,7 +40,9 @@ personally. The Alpha lasts a few weeks.
 - **Google addresses first.** Do you want to connect a Google account? Then first mail every
   Google address to [support@ownpace.eu](mailto:support@ownpace.eu), a family member's too. Wait
   for our answer. We add the address to the list of test users at Google. Without that step,
-  Google does not allow the connection.
+  Google does not allow the connection. Did you come in with a code, and say there that your
+  address is a Google account you want to move? Then you need not mail that address. We add it,
+  and write to you when that is done.
 - **Keep your old account until you have checked what arrived.** Ownpace only reads from your old
   account. It changes and deletes nothing there.
 - **Start with an empty destination.** That is the easiest: a new, empty mailbox, calendar,
@@ -95,12 +97,19 @@ your family member gives permission themselves.
 1. **Tell them first yourself.** Call, or say it when you see each other: a link is coming from
    you, and what it is for. The page asks your family member whether you did. If the answer is
    no, the page waits.
-2. **Make the link.** Open the person under *Migrations* and choose *Create grant link*. Send the
-   link yourself, the way you always reach that person. We never send it.
+2. **Make the link.** Open the person under *Migrations* and choose *Create grant link*. Choose
+   how the page speaks to them: Dutch with *u*, Dutch with *je*, or English. Tick that you told
+   them. The link comes with a message, which you may change. Send both yourself, the way you
+   always reach that person. We never send it.
 3. **Do the Google step together if you can:** on the phone, or at the table. Your family member
-   types their own password. You do not need to know it, and you do not ask for it.
+   types their own password. You do not need to know it, and you do not ask for it. At the table,
+   paper helps: *Print a sheet for …* opens everything the link says on one page.
 4. **Does Google not allow the connection?** Then the address is not on Google's list yet. Mail
    it to us, and wait for our answer. Then your family member opens the link again.
+
+The page shows your family member your name and your number, so they can check that the link
+is yours. Give your name and number under *Team*. Without a number of yours,
+the page shows your organisation's, where it has one, and says whose it is.
 
 After that, your family member has a page of their own. It shows how far the copying is. They
 can also stop it there.

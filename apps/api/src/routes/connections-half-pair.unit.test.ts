@@ -28,7 +28,7 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
     // nothing else this file reaches for — a refusal past this point would
     // mean the rule fired AFTER a database write, which is the wrong place.
     withTenantDb: async () => [
-      { id: 'conn-1', tenantId: 'a-tenant', role: 'source', kind: 'gmail', displayName: 'x' },
+      { id: '6f0c0178-0000-4000-8000-00000000c001', tenantId: 'a-tenant', role: 'source', kind: 'gmail', displayName: 'x' },
     ],
     getDbPool: () => ({}),
   };
@@ -108,7 +108,7 @@ describe('POST /api/connections — the add-form door', () => {
 describe('PUT /api/connections/:id/credentials — the rotation door', () => {
   it('refuses a secret without its client id, because rotation replaces the stored pair', async () => {
     const res = await request(app)
-      .put('/api/connections/conn-1/credentials')
+      .put('/api/connections/6f0c0178-0000-4000-8000-00000000c001/credentials')
       .send({ values: { username: 'someone@example.invalid', clientSecret: 'own-secret' } });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('half_client_pair');

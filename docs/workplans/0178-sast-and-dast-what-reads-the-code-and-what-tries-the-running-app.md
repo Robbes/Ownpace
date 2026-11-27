@@ -26,9 +26,59 @@ runs `scripts/schemathesis-report.mjs` nightly on `main` and on dispatch, held b
   given so that a run can be repeated on a stack of one's own (docs/testing.md).
 - **The first list, measured locally** at 100 cases per operation (1 min 53 s, 200 operations),
   is the maintainer's, held privately, and goes to the owner as a question.
+- **The jobs database (the maintainer's answer, the same day).** The stack gets one on its own
+  Postgres: `deploy/compose/jobs-role.sql` as it is, a password of the run's own, and pg-boss's
+  queues installed by the worker's own runner. A sync and a cutover then answer 202 with their jobs
+  waiting, measured locally, where without one they answered 500.
+- **D9 lifted on 2026-11-27:** alpha.21's builder pull requests are on `main`, and `origin/main`
+  is merged in, with the routes they add in the description the scan reads.
 - **Open:** the first run on a hosted runner (its minutes, and whether the container setup works
-  there as composed). Per D9, `origin/main` is merged in once alpha.21's builder pull requests
-  land, and the scan is run against the routes they add.
+  there as composed), dispatched on `main` once this merges.
+
+**2026-11-26, evening: T5's two runs on `main`, and T6 begun.** #2194 merged as `b31ccaaf`.
+
+- **The first push run, 45886149663**, ran from 19:46:40 to 19:53:45 UTC and passed. CodeQL says it scanned all 2,500 TypeScript files, 66 of 66 JavaScript files, 19 of 19 GitHub Actions files and 1 of 1 HTML file. The report counted 2,689 files extracted. The strict file match held, and so did the floor of 1,000. So the two extraction IDs the report reads are the ones CodeQL writes, and §12's risk, files CodeQL's TypeScript cannot read, did not happen. It found **312 alerts under 17 queries**, uploaded to code scanning.
+- **The proof, 45886205833**, was dispatched with `proof=true` on `main`. It ran from 19:53:48 to 20:00:31 UTC and passed. It read the fixture, both `js/sql-injection` and `js/reflected-xss` reported there, and it uploaded nothing. §10's proof is met.
+- **Three things the runs showed, all fixed in this pull request, each with the guard's test first:**
+  - **The CodeQL that ran was not the one pinned.** The log shows `/opt/hostedtoolcache/CodeQL/2.27.6`, while v4.39.4 ships 2.27.5. Left without `tools:`, the action takes the runner's tool cache when it holds a newer CodeQL. `tools: linked` makes it the bundle the pinned release names, which is what the workflow, the pin watch's row and `docs/testing.md` already said.
+  - **One waiting run per concurrency group.** The group was `codeql-${{ github.ref }}`. So a dispatch waiting behind a push run on `main` would have been replaced by the next push, and the proof could only wait. The group is now `codeql-${{ github.event_name }}-${{ github.ref }}`: one queue per event, and still never cancelled.
+  - **The summary says counts by query only.** This repository is public, and so is a run's summary, while code scanning's list is readable only with write access. Until now `scripts/codeql-report.mjs` also listed each alert in the summary, with its file and line. Now no alert's file, line or message is written anywhere but code scanning. The known-bad fixture is still named, with whether each of its two queries reported there.
+- **Alert by alert: not read yet.** T6's reading of the list follows in a docs pull request of its own.
+
+**2026-11-26, later still: H, the two hardening fixes, in #2190.** It is recorded here at the maintainer's request, though H is outside this plan's tasks. The consent endings' escape now also escapes `"` and `'`, so it is safe in a quoted attribute. The WebDAV archive store refuses a path with a `.` or `..` segment before any request. The tests were written first and failed on the old code. Neither change was reachable from outside. The maintainer merges it once its E2E is green.
+
+**2026-11-26, later still: T5 built, report only; its proof and its first run are still to come.**
+`.github/workflows/codeql.yml` runs CodeQL's default suite for JavaScript and TypeScript on a
+push to `main`, on Wednesdays and on dispatch, never on a pull request, on `ubuntu-24.04`, with
+`contents: read` and `security-events: write` alone. It blocks nothing: no alert fails it, and it
+is in no ruleset (D1 (a), D8 (a)).
+
+- **Pinned.** `github/codeql-action` v4.39.4 at the commit `semgrep.yml` and `security-scan.yml`
+  already upload with, not the v4.39.5 §4.1 named. That release was tagged on 24 November, so on
+  this day it was under the three days CONTRIBUTING.md asks of a release, and a second commit
+  would have split the copies. v4.39.4 ships CodeQL 2.27.5, read from its `src/defaults.json`.
+  The pin watch has a row `CodeQL`: every copy held to one commit, named with its bundle, against
+  upstream's git tags. It lists v4.39.5 as newer, and Dependabot's `github-actions` entry
+  proposes the move.
+- **A scan that did not finish is red.** `scripts/codeql-report.mjs` reads the SARIF and writes
+  every alert to the summary, by query. It fails on no SARIF, on a file CodeQL could not extract,
+  and on a source file the checkout tracks that CodeQL does not say it extracted (§12's risk).
+- **The proof (§8 step 2).** `scripts/fixtures/codeql-known-bad/handler.mjs` is an Express
+  handler that puts `req.query` into a string-built SQL query and into `res.send`. The ordinary
+  run leaves it out (`.github/codeql/codeql.yml`). A dispatch with `proof` reads it as well,
+  uploads nothing, and is red unless `js/sql-injection` and `js/reflected-xss` are both reported
+  there.
+- **Held by** `scripts/a-flow-across-files-nothing-followed.unit.test.ts`: the triggers, the
+  pins, the permissions, the two configurations differing by the fixture alone, nothing under
+  `apps`, `packages`, `site`, `deploy` or `test` naming the fixture, and the report against
+  stubbed SARIF. The guard's 22 tests and the pin watch's 143 pass, and zizmor 1.33.1 finds
+  nothing under either persona.
+- **Not yet proved, and the maintainer's to run.** The proof dispatch on the branch, and the
+  first run on `main` with every file extracted (§10). Neither was run: this session dispatches
+  no workflow. One part is read here, not seen: the IDs `…/diagnostics/successfully-extracted-files`
+  and `…/diagnostics/extraction-errors` that the report reads extraction by. If CodeQL's SARIF
+  names them otherwise, the first run is red with every file listed as not extracted. That is
+  loud, never a false green, and the fix is one line. T6 reads the first list from `main`.
 
 **2026-11-26, later: the owner's answers, D1 to D9 (T0).** In the owner's words:
 *"D1–D9: as advised. H: yes. All in this alpha"*. D9 is the maintainer's addition, put to the
@@ -96,9 +146,9 @@ one before it to be quiet on `main`.
 | T2 Guard: raw SQL only at named places, each with its check | builder | 📋 Planned, alpha.21 | §5.1 G2. Today's places listed with their checks. Blocks. S. By the analyst session, after alpha.21's builds (D9). |
 | T3 Guard: every door either signs in, or is public in the code and in the API description alike | builder | 📋 Planned, alpha.21 | §5.1 G3. The static half of class 9. Blocks. M. By the analyst session, after alpha.21's builds (D9). |
 | T4 Guard: a secret-named key handed to the logger | builder | 📋 Planned, alpha.21 | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
-| T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 📋 Planned, alpha.21 | §4.1, §8 step 2. D1. Not on pull requests. S. By a new session, now (D9). |
-| T6 CodeQL's first list, read alert by alert | builder | 📋 Planned, alpha.21 | §8 step 2. As 0166 read Trivy's and Semgrep's. M. By the same session as T5. |
-| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 🔨 Built, its first hosted run waits for dispatch; merges after alpha.21's builds (D9) | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
+| T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | 🔄 Built 2026-11-26; proof dispatch and first run on `main` to come | §4.1, §8 step 2. D1. Not on pull requests. `codeql.yml`, its report, its fixture and its guard; the Status entry of that day. |
+| T6 CodeQL's first list, read alert by alert | builder | 🔄 Begun 2026-11-26: the runs read, the list still to read | §8 step 2. As 0166 read Trivy's and Semgrep's. 312 alerts under 17 queries on `b31ccaaf`; the Status entry of that evening. |
+| T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | 🔨 Built; D9 lifted 2026-11-27 with alpha.21's builds on `main` and merged in; its first hosted run is the dispatch on `main` after the merge | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
 | T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |
 | T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6's reading and the owner's word per query (D8), so it may fall after alpha.21's release. S each. |
 | T10 A second identity: another organisation's ids refused at every door | builder | 📋 Planned, alpha.21 | §6.3, §8 step 6. D7. M. By the T7 session, after T7. |

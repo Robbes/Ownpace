@@ -41,6 +41,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import {
@@ -67,7 +68,11 @@ import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import personLinkRoutes from './person-link-routes.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router(), {
+  checkedByItsRoutes: {
+    personId: 'personIdOf after sign-in, 404 person_not_found (people.unit.test.ts, this-is-me.unit.test.ts)',
+  },
+});
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function getSharedPool() {

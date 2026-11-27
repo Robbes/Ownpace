@@ -50,6 +50,7 @@ import {
   reasonPair,
   unconfirmedAccount,
   unconfirmedAccountAt,
+  type Register,
 } from '@openmig/shared';
 import type { GrantProviderId } from '../grant-providers.ts';
 
@@ -174,6 +175,8 @@ export function signedInAccountRefusal(
    * migration (workplan 0176 D1, §21.3). A migration's own link keeps its words.
    */
   onAPersonsLink = false,
+  /** The register of the person whose link asked (0176 T7): `reasonNl` says it. */
+  register?: Register,
 ): SignedInAccountRefusal | null {
   // A string is Google's ending as it was before the seam: an address Google
   // verified (`accountInIdToken` answers null for any other).
@@ -182,15 +185,21 @@ export function signedInAccountRefusal(
     // Google's rule, word for word as before the seam: its own fold, its own
     // sentences. Only the address counts; Google names no aliases.
     if (!named || !namesAGoogleAccount(named)) {
-      return { code: 'no_named_account', ...reasonPair(onAPersonsLink ? NO_NAMED_ACCOUNT_ON_A_PERSONS_LINK : NO_NAMED_ACCOUNT) };
+      return {
+        code: 'no_named_account',
+        ...reasonPair(onAPersonsLink ? NO_NAMED_ACCOUNT_ON_A_PERSONS_LINK : NO_NAMED_ACCOUNT, register),
+      };
     }
     if (who === null || !who.confirmed) {
-      return { code: 'unconfirmed', ...reasonPair(unconfirmedAccount(named)) };
+      return { code: 'unconfirmed', ...reasonPair(unconfirmedAccount(named), register) };
     }
     if (!sameGoogleAccount(named, who.address)) {
       return {
         code: 'another_account',
-        ...reasonPair(onAPersonsLink ? anotherAccountOnAPersonsLink('google', who.address, named) : anotherAccount(who.address, named)),
+        ...reasonPair(
+          onAPersonsLink ? anotherAccountOnAPersonsLink('google', who.address, named) : anotherAccount(who.address, named),
+          register,
+        ),
       };
     }
     return null;
@@ -198,14 +207,14 @@ export function signedInAccountRefusal(
   if (!named || !isAddress(named)) {
     return {
       code: 'no_named_account',
-      ...reasonPair(onAPersonsLink ? noNamedAccountOnAPersonsLinkAt(provider) : noNamedAccountAt(provider)),
+      ...reasonPair(onAPersonsLink ? noNamedAccountOnAPersonsLinkAt(provider) : noNamedAccountAt(provider), register),
     };
   }
   if (who === null || !who.confirmed) {
-    return { code: 'unconfirmed', ...reasonPair(unconfirmedAccountAt(provider, named)) };
+    return { code: 'unconfirmed', ...reasonPair(unconfirmedAccountAt(provider, named), register) };
   }
   if (!sameAccountAt(named, who)) {
-    return { code: 'another_account', ...reasonPair(anotherAccountAt(provider, who.address, named)) };
+    return { code: 'another_account', ...reasonPair(anotherAccountAt(provider, who.address, named), register) };
   }
   return null;
 }

@@ -68,7 +68,7 @@ const storedWith = (creds: Record<string, string>) => SecretStore.encryptCredent
 /** The credential the rotation would store, as the probe was handed it. */
 async function rotate(values: Record<string, string>): Promise<Record<string, string>> {
   vi.mocked(probe.probeSourceConnection).mockClear();
-  const res = await request(app).put('/api/connections/conn-1/credentials').send({ values });
+  const res = await request(app).put('/api/connections/6f0c0178-0000-4000-8000-00000000c001/credentials').send({ values });
   expect(res.status, JSON.stringify(res.body)).toBe(200);
   expect(vi.mocked(probe.probeSourceConnection)).toHaveBeenCalledTimes(1);
   return vi.mocked(probe.probeSourceConnection).mock.calls[0]![2] as Record<string, string>;
@@ -77,7 +77,7 @@ async function rotate(values: Record<string, string>): Promise<Record<string, st
 beforeEach(() => {
   resetProbeTestLimit();
   h.row = {
-    id: 'conn-1',
+    id: '6f0c0178-0000-4000-8000-00000000c001',
     tenantId: 'a-tenant',
     role: 'source',
     kind: 'microsoft',

@@ -23,6 +23,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import type { BuildIdentity } from '@openmig/core';
 import { buildIdentity } from '@openmig/core';
@@ -47,7 +48,7 @@ export interface UnreadableAnswerDeps {
 }
 
 export function unreadableAnswerRoutes(deps: UnreadableAnswerDeps = {}): Router {
-  const router = Router();
+  const router = idsThatAreNoUuid(Router());
   const limiter = deps.limiter ?? createKnockLimiter(UNREADABLE_ANSWER_LIMIT);
   const build = deps.build ?? buildIdentity;
 

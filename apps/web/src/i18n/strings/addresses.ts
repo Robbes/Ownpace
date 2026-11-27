@@ -156,10 +156,10 @@ export const en = {
   // Nobody is told, so it promises no notice: the row stops applying, and
   // waits on the pages of whoever set it up, which say *Waiting for ‹person›*.
   'addresses.grant.returned':
-    'Sent back. It changes nothing until it is confirmed again, and whoever set it up sees it waiting on their pages.',
+    'Sent back. It changes nothing until it is confirmed again. {who} sees that it waits.',
   // Under a row nobody has confirmed: a proposed row already changes nothing.
   'addresses.grant.leaveIt':
-    'Not right? Then leave it: it changes nothing until it is confirmed, and whoever set it up sees it waiting on their pages.',
+    'Not right? Then leave it: it changes nothing until it is confirmed. {who} sees that it waits.',
   // The progress page's last line, when it shows the person's new address.
   'addresses.view.readOnly': 'This page shows numbers, and the new address set up for you; it holds nothing from your account.',
 } as const;
@@ -284,9 +284,9 @@ export const nl: Record<keyof typeof en, string> = {
   'addresses.grant.yes': 'Ja, dat klopt',
   'addresses.grant.confirmed': 'Bevestigd: {new}.',
   'addresses.grant.returned':
-    "Teruggestuurd. Het verandert niets tot het opnieuw is bevestigd, en wie het heeft ingesteld, ziet op de eigen pagina's dat het wacht.",
+    'Teruggestuurd. Het verandert niets tot het opnieuw is bevestigd. {who} ziet dat het wacht.',
   'addresses.grant.leaveIt':
-    "Klopt het niet? Laat het dan zo: het verandert niets tot het is bevestigd, en wie het heeft ingesteld, ziet op de eigen pagina's dat het wacht.",
+    'Klopt het niet? Laat het dan zo: het verandert niets tot het is bevestigd. {who} ziet dat het wacht.',
   'addresses.view.readOnly':
     'Deze pagina toont aantallen, en het nieuwe adres dat voor u is ingesteld; er staat niets uit uw account op.',
 };

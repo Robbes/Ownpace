@@ -52,6 +52,7 @@
  */
 
 import { createCipheriv, randomBytes } from 'node:crypto';
+import { withoutTrailing } from '@openmig/shared';
 
 /** `CXDRV2` and two zero bytes. */
 export const CXDRV2_MAGIC = Uint8Array.from([0x43, 0x58, 0x44, 0x52, 0x56, 0x32, 0x00, 0x00]);
@@ -163,7 +164,7 @@ export function encryptCxdrv2Chunk(p: {
  * exactly 32 bytes is refused.
  */
 export function dataKeyBytes(dataKey: string): Uint8Array {
-  const normal = dataKey.trim().replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+  const normal = withoutTrailing(dataKey.trim().replace(/-/g, '+').replace(/_/g, '/'), '=');
   if (!/^[A-Za-z0-9+/]+$/.test(normal)) {
     throw new Error('Cirrux handed over a data_key that is not base64, so nothing can be encrypted with it.');
   }

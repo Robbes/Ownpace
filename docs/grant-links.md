@@ -33,11 +33,23 @@ Anna**, say), under **One grant link for everything**:
    The section says so above its button (*Tell Anna first, by phone or in person. The page asks
    whether you did.*), because the page they open asks exactly that, and waits if the answer is
    no (workplan 0176, D13).
-2. Choose how long the link should work — **1 day**, **7 days** or **30 days**. Thirty is
+2. While you have given no name of your own, the form asks for it once, as they know you, and
+   saves it for you first (workplan 0176 T3). It does not ask who you are to them (the owner,
+   2026-11-26).
+3. Choose how the page speaks to them: **Dutch, with u**, **Dutch, with je**, or **English**
+   (workplan 0176 T7). It is kept with the person, so each of their links and their progress page
+   say it, and offered again next time. With *je*, one line says that a parent completes a link
+   for a child under 16 together with the child, as the privacy policy says.
+4. Choose how long the link should work — **1 day**, **7 days** or **30 days**. Thirty is
    pre-filled, so the person has time: the page they open tells them there is no hurry, and until
    when.
-3. Press **Create grant link**.
-4. Copy the link and send it, however you normally reach that person.
+5. Tick **I have told Anna that a link is coming**, and press **Create grant link**. The button
+   waits for the tick: it cannot be checked, and it is there as a prompt.
+6. The link comes with **a message to send**, in the person's language and with *je* or *u* as
+   chosen: *This is the link I told you about…*, what is copied, where to, and until when. Change
+   it as you like, then copy it and send it, however you normally reach that person. **Print a
+   sheet for Anna** opens everything the link says on one page, which prints, for doing it
+   together at the table.
 
 *Start a migration* offers the same link, with the same line and the same choices, on its last
 screen when the person connects their own accounts (**They do, with a link**). Since alpha.21
@@ -68,10 +80,12 @@ that app's 'Open in browser' option or copy the link into your favorite browser,
 Firefox, Safari or Chrome. The link still works.* It does: opening a link spends nothing, so opening it again in
 Firefox, Safari or Chrome is safe.
 
-**Worth doing once:** give your organisation a phone number, under **Team & organization →
-Organization → Phone number**. It is optional. When it is set, the page the other person opens
-shows it beside your address, and a number they can call is the quickest way for them to check
-the link really came from you.
+**Worth doing once:** give your name and your own number, under **Team & organization → When you
+send someone a link**. Both are optional. The page the other person opens names you by that name,
+and shows your number as something to check, beside *Or use the number
+you already have for* you: a number they already have is the safer one. Without a number of
+yours, it shows your organisation's, under **Team & organization → Organization → Phone number**,
+and says that it is the organisation's.
 
 **The link is shown once.** Nothing can show it to you again, because only a fingerprint of it
 is stored — the same reason a password is never stored readable. If you lose it, revoke it and
@@ -117,16 +131,19 @@ date or for good.
 ## What the other person sees
 
 The page asks one thing at a time (workplan 0176). Each step is a screen of its own, with one
-heading and the step in words (*Step 2 of 4*), and the browser's **Back** goes one step back. An
-account that signs in with a password is described in [A password, typed by the
+heading and the step in words (*Step 2 of 4*), and the browser's **Back** goes one step back. It
+speaks to them as you chose, with *je* or *u*, and opens in their language until they pick
+another. At the foot of every screen, **Read everything on one page** shows all of it at once,
+and prints. An account that signs in with a password is described in [A password, typed by the
 person](#a-password-typed-by-the-person); the sign-in accounts go as below.
 
-1. **Who asks, and for what.** One line says what Ownpace is: the service that makes the copy.
-   Then who is asking: the heading and, under **Sender**, the address **you** sign in to Ownpace
-   with, so they know which person is asking (your organisation's name where the link names no
-   one; workplan 0176 T3 gives the sender a name of their own). If
-   your organisation has a phone number set, they see that too, so they can call and check it is
-   really you. And if your invoice details carry a business VAT number that the EU VAT register
+1. **Who asks, and for what.** One line says what Ownpace is: the service that makes the copy,
+   and where it runs, when the service names its country. Then who is asking: the heading and,
+   under **Sender**, the name **you** gave, with the address you sign in to Ownpace with under
+   it; without a name, that address, and your
+   organisation's name where the link names no one (workplan 0176 T3). Then a number to check:
+   yours, else your organisation's, saying whose it is, and *Or use the number you already have*.
+   And if your invoice details carry a business VAT number that the EU VAT register
    (VIES) confirmed, they see your company's name as the register gives it: the one name on the
    page nobody typed for it. Then what is asked, in one sentence: what is copied, from where and
    to where (with more than one account, the next screen shows where). Then a few facts:

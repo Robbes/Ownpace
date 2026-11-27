@@ -55,6 +55,7 @@ import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
 import { SPRITE, icon } from './icons.mjs';
 import { LEAVING, DOMAIN_OF, EXPORT_TARGETS, leavingPages } from './sources.mjs';
 import { PROOF_LINKS } from './proof.mjs';
+import { COUNTRY_SETTING, whereItRuns } from './country.mjs';
 import { MAINTAINED_DOCS, docUrl } from './maintained-docs.mjs';
 import { heroMove } from './hero.mjs';
 import { stepIcon } from './steps.mjs';
@@ -164,6 +165,27 @@ const ALPHA = (process.env.OWNPACE_STAGE ?? '').trim().toLowerCase() === 'alpha'
  * the site follows on its next build.
  */
 const GOOGLE_RESTRICTED = (process.env.GOOGLE_ACCOUNT_SCOPE_CLASS ?? '').trim() === 'restricted';
+
+/**
+ * Where the service runs (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26:
+ * *"P16: a"*).
+ *
+ * The same one setting the web build reads for a person's link page,
+ * `OWNPACE_COUNTRY`: the two-letter code of the country the stack runs in, by
+ * the web app's rule (`site/country.mjs` says it again, because `site/`
+ * imports nothing). The home page's sentence takes its country from it, in
+ * each language's own name for it; unset or empty, the sentence names none,
+ * which is what somebody else's deployment gets. A value that is no country's
+ * code stops the build, naming the setting.
+ *
+ * And the privacy policy says it as a fact (§7). So a build with a country
+ * refuses one the policy does not say the service runs in: should the machine
+ * move, the policy changes first (`policyNamesTheCountry`). `deploy-live.sh`
+ * hands every site build live's own value, read from its `.env`, and never
+ * the shell's; the OTA site's documented build (`deploy/compose/www.yml`)
+ * hands its stack's own the same way.
+ */
+const COUNTRY = process.env[COUNTRY_SETTING];
 
 // ---------------------------------------------------------------- markdown --
 
@@ -1048,12 +1070,13 @@ const orderHref = (locale, tier, answers = {}) => {
 // ------------------------------------------------------------------- pages --
 
 /** Words that carry a claim's link take it from proof.mjs (0152 T8); others are as written. */
-const linked = (words) => (typeof words === 'function' ? words(PROOF_LINKS) : words);
+const linked = (words, where = null) => (typeof words === 'function' ? words(PROOF_LINKS, where) : words);
 
-function cards(list) {
+/** Cards; `where` is where the service runs, in the page's language, for the words that say it (0176 D16 (a)). */
+function cards(list, where = null) {
   return (
     '<div class="cards">' +
-    list.map(([h, p]) => `<div class="card"><h3>${linked(h)}</h3><p>${linked(p)}</p></div>`).join('') +
+    list.map(([h, p]) => `<div class="card"><h3>${linked(h, where)}</h3><p>${linked(p, where)}</p></div>`).join('') +
     '</div>'
   );
 }
@@ -1362,7 +1385,8 @@ ${NO_GRANT_LINK.has(page.id) ? '' : `<p>${L.byLink}</p>`}
 `;
 }
 
-function landing(locale) {
+/** The home page; `where` is where the service runs in its language, or null when the stack says nothing (0176 D16 (a)). */
+function landing(locale, where = null) {
   const c = COPY[locale];
   const small = TIERS.find((t) => t.id === 'small');
   const types = { ...c.dataTypes, photos: c.leaving.photos };
@@ -1399,7 +1423,7 @@ ${appScreen(locale)}
 ${forFamily(locale)}
 ${whereTo(locale)}
 <h2>${c.diffTitle}</h2>
-${cards(c.diff)}
+${cards(c.diff, where)}
 
 <h2>${c.wontTitle}</h2>
 ${cards(c.wont)}
@@ -1819,7 +1843,7 @@ const META = {
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
     alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
     guide: ['Guide to the Alpha — Ownpace', 'For the people invited to the Alpha: what it is, what to do before you start, how to start, where to get help and how to stop.'],
-    gift: ['A place in the Alpha, as a gift — Ownpace', 'Someone gave you a place in the Alpha of Ownpace: what that means, how to use your code, and what we keep.'],
+    gift: ['A recommendation for the Alpha — Ownpace', 'Someone recommended you for the Alpha of Ownpace: what that means, what it costs, how to use your code, and what we keep.'],
     accessibility: ['Accessibility statement — Ownpace', 'The standard Ownpace aims for, the gaps we know of, and how to tell us about a barrier.'],
   },
   nl: {
@@ -1831,7 +1855,7 @@ const META = {
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
     alpha: ['Voorwaarden voor de Alpha — Ownpace', 'De voorwaarden voor deelname aan de Alpha van de beheerde Ownpace-dienst.'],
     guide: ['Handleiding voor de Alpha — Ownpace', 'Voor wie is uitgenodigd voor de Alpha: wat het is, wat u vooraf doet, hoe u begint, waar u hulp krijgt en hoe u stopt.'],
-    gift: ['Een plaats in de Alpha, als cadeau — Ownpace', 'Iemand gaf u een plaats in de Alpha van Ownpace: wat dat betekent, hoe u uw code gebruikt, en wat we bewaren.'],
+    gift: ['Een aanbeveling voor de Alpha — Ownpace', 'Iemand heeft u aanbevolen voor de Alpha van Ownpace: wat dat betekent, wat het kost, hoe u uw code gebruikt, en wat we bewaren.'],
     accessibility: ['Toegankelijkheidsverklaring — Ownpace', 'De norm waar Ownpace naar streeft, de tekortkomingen die we kennen, en hoe u ons een drempel meldt.'],
   },
 };
@@ -1843,11 +1867,15 @@ const META = {
  * both builds in one process. `googleRestricted` says whether the stack
  * declared Google's restricted scopes, which changes what Leaving Google says
  * (`leavingPages`); it defaults to the environment's answer
- * (`GOOGLE_RESTRICTED`), and is a parameter for the same reason.
+ * (`GOOGLE_RESTRICTED`), and is a parameter for the same reason. `country` is
+ * the `OWNPACE_COUNTRY` the stack sets (`COUNTRY`), which the home page names
+ * where the service runs, and a parameter too.
  */
-export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = {}) {
+export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED, country = COUNTRY } = {}) {
   const rendered = [];
   const leaving = leavingPages({ googleRestricted });
+  const where = whereItRuns(country, LOCALES);
+  if (where !== null) policyNamesTheCountry(where);
   for (const locale of LOCALES) {
     const c = COPY[locale];
     for (const key of [...PAGE_KEYS, ...LEAVING_KEYS, ...OUTSIDE_NAV, ...(alpha ? ALPHA_ONLY : [])]) {
@@ -1858,7 +1886,7 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = 
         : META[locale][key];
       let body;
       if (key === 'home') {
-        body = landing(locale);
+        body = landing(locale, where?.[locale] ?? null);
       } else if (key === 'calculator') {
         body = calculatorPage(locale);
       } else if (page) {
@@ -1869,10 +1897,11 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = 
         // hands its visitors to the test app): the guide names it as
         // [[REQUEST_ACCESS]] and never writes an app's address itself.
         if (key === 'guide') md = md.replace(/\[\[REQUEST_ACCESS\]\]/g, orderHref(locale, null));
-        // The gift page (workplan 0172) sends the recipient to the app's
-        // `/redeem`, the request-access door with the code field open: the
-        // site has no form of its own.
-        if (key === 'gift') md = md.replace(/\[\[REDEEM\]\]/g, `${APP_URL}/redeem?locale=${encodeURIComponent(locale)}`);
+        // The page about a recommendation (workplans 0172, 0177) sends the
+        // reader to the app's door of a code, `/code`, which reads the same
+        // in both languages (0177 D9), in the page's language: the site has
+        // no form of its own.
+        if (key === 'gift') md = md.replace(/\[\[REDEEM\]\]/g, `${APP_URL}/code?locale=${encodeURIComponent(locale)}`);
         body = markdown(md);
         if (key === 'pricing') {
           const beyond = c
@@ -2077,6 +2106,38 @@ export function versionLineOf(text) {
     .split('\n')
     .map((l) => l.trim())
     .find((l) => VERSION_LINE.test(l));
+}
+
+/**
+ * WHERE THE PRIVACY POLICY SAYS THE MACHINE IS, in its own words (§7), per
+ * language: the sentence ends with the country's name and a full stop.
+ */
+const POLICY_SAYS_WHERE = {
+  en: 'run on a machine we administer ourselves, in ',
+  nl: 'machine die we zelf beheren, in ',
+};
+
+/**
+ * A country the privacy policy does not say the service runs in stops the
+ * build (workplan 0176 D16 (a); until then `site/site.unit.test.ts` held the
+ * home page's country, written by hand, to the policy's). The policy is the
+ * lawyer's text and says it as a fact; the home page says it from the setting.
+ * Should the machine move, the policy changes first, and then the setting.
+ */
+function policyNamesTheCountry(where) {
+  for (const locale of LOCALES) {
+    const src = SOURCE[locale].privacy;
+    const policy = readFileSync(join(HERE, src), 'utf8').replace(/\s+/g, ' ');
+    const says = `${POLICY_SAYS_WHERE[locale]}${where[locale].name}.`;
+    if (!policy.includes(says)) {
+      throw new Error(
+        `${COUNTRY_SETTING} is ${where.code}, but site/${src} does not say the service runs there:\n` +
+          `  no "${says}" in its section 7. The home page would name one country and the\n` +
+          '  privacy policy another. Change the policy first (the owner\u2019s and the lawyer\u2019s), or\n' +
+          `  set ${COUNTRY_SETTING} to the country it names.`,
+      );
+    }
+  }
 }
 
 /** `site/legal/<file>: <why>` for each legal page a public build must not publish. */

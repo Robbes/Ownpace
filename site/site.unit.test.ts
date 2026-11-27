@@ -159,22 +159,89 @@ describe('the published prices agree with the decision that set them', () => {
     }
   });
 
-  it('names the country the privacy policy names for the machine it runs on (0152, 2026-11-19)', async () => {
-    // The home page says where Ownpace runs; the privacy policy's §7 is where
-    // that is stated as a fact. Should the machine move, the policy changes
-    // first, and this fails until the home page says the same.
-    const { COPY } = (await import('./copy.mjs')) as unknown as {
-      COPY: Record<'en' | 'nl', { diff: Array<[string, string | ((links: Record<string, string>) => string)]> }>;
-    };
-    const { PROOF_LINKS } = (await import('./proof.mjs')) as unknown as { PROOF_LINKS: Record<string, string> };
-    const flat = (s: string) => s.replace(/\s+/g, ' ');
-    for (const [locale, says, policy, where] of [
-      ['en', 'runs in the Netherlands, in the EU', 'site/legal/privacy.md', 'run on a machine we administer ourselves, in the Netherlands.'],
-      ['nl', 'draait in Nederland, in de EU', 'site/legal/privacy.nl.md', 'machine die we zelf beheren, in Nederland.'],
-    ] as const) {
-      const cards = COPY[locale].diff.map(([, body]) => (typeof body === 'function' ? body(PROOF_LINKS) : body));
-      expect(cards.filter((body) => body.includes(says)), `${locale}: no card says "${says}"`).toHaveLength(1);
-      expect(flat(read(policy)), `${policy} no longer says the machine is there`).toContain(where);
+  /**
+   * WHERE THE SERVICE RUNS, FROM THE STACK'S ONE SETTING (workplan 0176 D16 (a);
+   * the owner, 2026-11-26: *"P16: a"*). Until then the home page named the
+   * country by hand, and a case here held it to the privacy policy's §7, where
+   * it is stated as a fact (0152, 2026-11-19). The home page now takes it from
+   * `OWNPACE_COUNTRY`, as a person's link page does, and the build refuses a
+   * country the policy does not say the service runs in: should the machine
+   * move, the policy changes first. The country is read here from the policy's
+   * own sentence and named by its code from the list, so that no file but the
+   * policy names it.
+   */
+  const POLICY = {
+    en: ['site/legal/privacy.md', 'run on a machine we administer ourselves, in '],
+    nl: ['site/legal/privacy.nl.md', 'machine die we zelf beheren, in '],
+  } as const;
+  const flat = (text: string) => text.replace(/\s+/g, ' ');
+  /** Where the policy says the machine is, per language, as its sentence names it. */
+  const policySays = (locale: 'en' | 'nl'): string => {
+    const [file, words] = POLICY[locale];
+    const at = flat(read(file)).indexOf(words);
+    expect(at, `${file} no longer says where the machine is, in the words this case reads`).toBeGreaterThan(-1);
+    return flat(read(file)).slice(at + words.length).split('.')[0]!;
+  };
+  /** The code of the country the policy names, by the list's own English names. */
+  const policyCountry = (): string => {
+    const english = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' });
+    const named = policySays('en').replace(/^the /, '');
+    const codes: string[] = [];
+    for (let a = 65; a <= 90; a++) {
+      for (let b = 65; b <= 90; b++) {
+        const code = String.fromCharCode(a, b);
+        if (english.of(code) === named && Intl.getCanonicalLocales(`und-${code}`)[0] === `und-${code}`) codes.push(code);
+      }
+    }
+    expect(codes, `no code of the list is named "${named}"`).toHaveLength(1);
+    return codes[0]!;
+  };
+  type Build = (opts: { country?: string }) => { rendered: Page[] };
+  const buildWith = async (country: string | undefined): Promise<Page[]> => {
+    const { build } = (await import('./build.mjs')) as unknown as { build: Build };
+    return build({ country }).rendered;
+  };
+  const home = (pages: Page[], locale: 'en' | 'nl') =>
+    pages.find((p) => p.locale === locale && p.key === 'home' && !p.file.endsWith('404.html'))!.html;
+  const SAYS = { en: 'Ownpace runs in ', nl: 'Ownpace draait in ' } as const;
+  const OPEN_SOURCE = { en: 'the software is <a', nl: 'de software is <a' } as const;
+
+  it('names no country on the home page when the stack sets none, and still says the software is open source (0176 D16 (a))', async () => {
+    for (const unset of [undefined, '', '   ']) {
+      const pages = await buildWith(unset);
+      for (const locale of ['en', 'nl'] as const) {
+        expect(home(pages, locale), `${locale}: OWNPACE_COUNTRY=${JSON.stringify(unset)} names a country`).not.toContain(SAYS[locale]);
+        expect(home(pages, locale), `${locale}: the open source link went with the country`).toMatch(
+          locale === 'en' ? /The software is <a href="[^"]+">open source<\/a>/ : /De software is <a href="[^"]+">open source<\/a>/,
+        );
+      }
+    }
+  });
+
+  it('names the country the stack sets, in each language as the privacy policy names it, and in the EU only of a member', async () => {
+    const code = policyCountry();
+    const { EU_MEMBERS } = (await import('./country.mjs')) as unknown as { EU_MEMBERS: Set<string> };
+    // Set the way an operator writes it: in another case, with spaces.
+    const pages = await buildWith(` ${code.toLowerCase()} `);
+    for (const locale of ['en', 'nl'] as const) {
+      const where = policySays(locale);
+      const eu = EU_MEMBERS.has(code) ? (locale === 'en' ? ', in the EU' : ', in de EU') : '';
+      const and = locale === 'en' ? ', and ' : ', en ';
+      const cards = home(pages, locale).match(new RegExp(SAYS[locale], 'g')) ?? [];
+      expect(cards, `${locale}: the home page says where it runs ${cards.length} times`).toHaveLength(1);
+      expect(home(pages, locale)).toContain(`${SAYS[locale]}${where}${eu}${and}${OPEN_SOURCE[locale]}`);
+    }
+  });
+
+  it('refuses a country the privacy policy does not say the service runs in, naming the policy', async () => {
+    const code = policyCountry();
+    const other = ['DE', 'BE', 'FR'].find((c) => c !== code)!;
+    await expect(buildWith(other)).rejects.toThrow(/site\/legal\/privacy\.md/);
+  });
+
+  it('refuses a value that is no country, naming the setting', async () => {
+    for (const value of ['Germany', 'EU', 'UK', 'XX']) {
+      await expect(buildWith(value), value).rejects.toThrow('OWNPACE_COUNTRY');
     }
   });
 
@@ -900,48 +967,83 @@ describe('the tester guide is rendered for the alpha only (workplan 0144 T1)', (
 });
 
 /**
- * THE GIFT PAGE (workplan 0172): what a gift is in the Alpha, in both
- * languages, for alpha builds only and outside the nav, as the guide is. The
- * site carries no form (`form-action 'none'`), so the page sends the recipient
- * to the app's `/redeem`, the request-access door with the code field open, in
- * the page's language.
+ * THE PAGE ABOUT A RECOMMENDATION (workplans 0172 and 0177): what a
+ * recommendation is in the Alpha, and what the door of a code says, under the
+ * same name, in both languages; for alpha builds only and outside the nav, as
+ * the guide is. Its two addresses are 0172's and stay. The site carries no
+ * form (`form-action 'none'`), so the page sends the reader to the app's door,
+ * `/code`, in the page's language (0177 D9). The app links the page from the door and the
+ * giver's page, as *Read more about a recommendation*
+ * (`apps/web/src/services/recommendation-page-link.ts`), and that link is a
+ * file this build writes.
  */
-describe('the gift page is rendered for the alpha only (workplan 0172)', () => {
-  const GIFT = { en: 'gift.html', nl: 'nl/cadeau.html' } as const;
+describe('the page about a recommendation is rendered for the alpha only (workplans 0172, 0177)', () => {
+  const PAGE = { en: 'gift.html', nl: 'nl/cadeau.html' } as const;
   const SECTIONS = {
-    nl: ['wat-een-cadeau-is', 'uw-code-gebruiken', 'wat-we-bewaren'],
-    en: ['what-a-gift-is', 'using-your-code', 'what-we-keep'],
+    nl: ['wat-een-aanbeveling-is', 'wat-het-kost', 'uw-code-gebruiken', 'wat-we-bewaren'],
+    en: ['what-a-recommendation-is', 'what-it-costs', 'using-your-code', 'what-we-keep'],
   } as const;
 
   it('an alpha build writes it in both languages; any other build writes neither', async () => {
     const alpha = await alphaBuild();
-    for (const [locale, file] of Object.entries(GIFT)) {
+    for (const [locale, file] of Object.entries(PAGE)) {
       const p = alpha.find((x) => x.file === file);
       expect(p, `${file} is not written by an alpha build`).toBeDefined();
       expect(p!.locale).toBe(locale);
       expect(p!.key).toBe('gift');
     }
     const plain = (await buildFor(false)).map((p) => p.file);
-    for (const file of Object.values(GIFT)) expect(plain, `${file} is written without the alpha`).not.toContain(file);
+    for (const file of Object.values(PAGE)) expect(plain, `${file} is written without the alpha`).not.toContain(file);
   });
 
-  it('carries its sections, sends the reader to the door with the code field open, and says the owner still decides', async () => {
+  it('carries its sections, sends the reader to the door, and says what the door says: let in at once, and nothing about a key', async () => {
     const pages = await alphaBuild();
     for (const locale of ['en', 'nl'] as const) {
-      const html = pages.find((p) => p.file === GIFT[locale])!.html;
+      const html = pages.find((p) => p.file === PAGE[locale])!.html;
       const main = html.split('<main')[1]?.split('</main>')[0] ?? '';
       const ids = [...main.matchAll(/<h2 id="([^"]+)"/g)].map((m) => m[1]);
-      expect(ids, `the ${locale} gift page's sections`).toEqual([...SECTIONS[locale]]);
-      expect(main).toMatch(new RegExp(`href="https?://[^"/]+/redeem\\?locale=${locale}"`));
+      expect(ids, `the ${locale} page's sections`).toEqual([...SECTIONS[locale]]);
+      // The door of a code, `/code`, in the page's language (0177 D9).
+      expect(main).toMatch(new RegExp(`href="https?://[^"/]+/code\\?locale=${locale}"`));
       expect(main).not.toContain('[[REDEEM]]');
       expect(main).not.toMatch(/<form/);
       const text = main.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-      expect(text).toMatch(locale === 'en' ? /we read every request and say yes ourselves/ : /we lezen elke aanvraag zelf en zeggen zelf ja/);
-      // The owner's words of 2026-11-25 (workplan 0172 T8).
       expect(text).toContain(
-        locale === 'en' ? 'A gift is a personal recommendation, not a key' : 'Een cadeau is een persoonlijke aanbeveling, geen sleutel',
+        locale === 'en' ? 'With that code you are let in to the Alpha at once.' : 'Met die code wordt u meteen toegelaten tot de Alpha.',
       );
+      // The door's three steps, as the card numbers them (0177 R9).
+      expect(text).toMatch(locale === 'en' ? /Answer one question/ : /Beantwoord één vraag/);
+      // What it costs, and to whom, now and after the Alpha (R7, D5).
+      expect(text).toContain(locale === 'en' ? 'You pay that provider for it, not Ownpace.' : 'Daarvoor betaalt u die aanbieder, niet Ownpace.');
+      // No sentence says what a recommendation is not (D1), and the owner decides nothing per request any more (D6).
+      expect(text).not.toMatch(/not a key|geen sleutel|we read every request|we lezen elke aanvraag/);
       expect(text).not.toMatch(/warm introduction|warme introductie/);
+    }
+  });
+
+  it('is named for what it is, in its title and description too (0177 D1)', async () => {
+    const pages = await alphaBuild();
+    for (const locale of ['en', 'nl'] as const) {
+      const html = pages.find((p) => p.file === PAGE[locale])!.html;
+      const title = /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? '';
+      const description = /<meta name="description" content="([^"]*)"/.exec(html)?.[1] ?? '';
+      expect(title).toBe(locale === 'en' ? 'A recommendation for the Alpha — Ownpace' : 'Een aanbeveling voor de Alpha — Ownpace');
+      for (const words of [title, description]) {
+        expect(words, `the ${locale} page's head`).not.toMatch(/\b(gifts?|cadeau\w*|places?|plaats|plek)\b/i);
+      }
+    }
+  });
+
+  it('is the file the app links as Read more, in each language', async () => {
+    const pages = await alphaBuild();
+    const source = read('apps/web/src/services/recommendation-page-link.ts');
+    for (const locale of ['en', 'nl'] as const) {
+      const file = new RegExp(`\\b${locale}: '([^']+)'`).exec(source)?.[1];
+      expect(file, `recommendation-page-link.ts names no file for ${locale}`).toBeDefined();
+      const p = pages.find((x) => x.file === file);
+      expect(p, `the app links ${file}, which an alpha build does not write`).toBeDefined();
+      expect(p!.locale).toBe(locale);
+      expect(p!.key).toBe('gift');
     }
   });
 
@@ -950,7 +1052,7 @@ describe('the gift page is rendered for the alpha only (workplan 0172)', () => {
     for (const p of pages) {
       const nav = [...p.html.matchAll(/<nav class="(?:site|menu)"[^>]*>([\s\S]*?)<\/nav>/g)].map((m) => m[1]!).join('');
       const links = [...nav.matchAll(/<a (?![^>]*class="lang")[^>]*href="([^"]+)"/g)].map((m) => m[1]!);
-      for (const file of Object.values(GIFT)) expect(links, `${p.file} has the gift page in its nav`).not.toContain(`/${file}`);
+      for (const file of Object.values(PAGE)) expect(links, `${p.file} has the page in its nav`).not.toContain(`/${file}`);
     }
   });
 });

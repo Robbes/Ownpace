@@ -27,6 +27,10 @@
  * error they hand on: a 4xx from a parser is the caller's, whatever its
  * shape. Found by the review of this fix.
  *
+ * A TEXT WITH A NUL BYTE (U+0000) in a body a parser read, or in the query,
+ * is the caller's 400 too, answered by `readingTheBody` before any handler:
+ * Postgres stores no NUL in a `text` column and refused the statement, which
+ * the API answered 500 (workplan 0178, A1).
  * What is not the caller's goes on to `serverFault`: any error that is not
  * the parser's, and the parser's own 5xx (a stream it could not read). The
  * report route answers its own parser's refusals itself, in words for its
@@ -65,9 +69,37 @@ export function readingTheBody(parser: RequestHandler): RequestHandler {
   return (req, res, next) => {
     void parser(req, res, (err?: unknown) => {
       if (typeof err === 'object' && err !== null) handedOnByAParser.add(err);
-      next(err);
+      if (err) {
+        next(err);
+        return;
+      }
+      // A TEXT WITH A NUL BYTE (workplan 0178, A1). Postgres stores no NUL in
+      // a `text` column and refuses the whole statement, which the API
+      // answered 500. So a body this parser read, or the query, that holds
+      // one in a string or a key is the caller's 400, before any handler,
+      // and nothing of the text is echoed. A raw body (a Buffer) is not
+      // walked: there a zero byte is ordinary.
+      if (holdsANul(req.body) || holdsANul(req.query)) {
+        res.status(400).json({ error: 'Bad request', message: A_TEXT_WITH_A_NUL });
+        return;
+      }
+      next();
     });
   };
+}
+
+/** How deep `holdsANul` walks; a parsed body nested deeper is refused by its parser's own limits first. */
+const NUL_DEPTH = 64;
+
+/** Whether a string, or a key or string anywhere in a plain object or array, holds a NUL (U+0000). */
+export function holdsANul(value: unknown, depth = 0): boolean {
+  if (typeof value === 'string') return value.includes('\u0000');
+  if (depth > NUL_DEPTH || value === null || typeof value !== 'object' || Buffer.isBuffer(value) || ArrayBuffer.isView(value)) return false;
+  if (Array.isArray(value)) return value.some((v) => holdsANul(v, depth + 1));
+  for (const [key, v] of Object.entries(value)) {
+    if (key.includes('\u0000') || holdsANul(v, depth + 1)) return true;
+  }
+  return false;
 }
 
 /** Whether a body parser mounted through `readingTheBody` handed on `err`. */
@@ -132,3 +164,6 @@ export function unreadableBody(err: unknown, req: Request, res: Response, next: 
   log.info(`[api] ${req.method} ${path}: a body the parser could not read (${refusal.type}), answered ${refusal.status}`);
   res.status(refusal.status).json({ error: refusal.error, message: refusal.message });
 }
+
+/** Said for a text with a NUL byte, which nothing here can store (`readingTheBody`). */
+export const A_TEXT_WITH_A_NUL = 'A text in this request holds a NUL character, which cannot be stored.';

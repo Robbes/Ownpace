@@ -938,7 +938,8 @@ describe("Google's side did not finish, and the link is not used up", () => {
   it('another word from Google is passed on, with whom to tell', async () => {
     const { token, id } = await mintLink(MAPPING);
     const res = await back(await begin(token), { error: 'admin_policy_enforced' });
-    expect(res.text).toContain('said "admin_policy_enforced"');
+    // The escape is safe in an attribute, so the quotes arrive as `&quot;`.
+    expect(res.text).toContain('said &quot;admin_policy_enforced&quot;');
     expect(res.text).toMatch(/tell the person who sent you the link/);
     await expectNotUsedUp(res, id);
   });

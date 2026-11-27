@@ -1426,6 +1426,12 @@ services:
         VITE_OWNPACE_STAGE: ${OWNPACE_STAGE:-}
         # The address a tester writes to (workplan 0144 T6 (a)). Empty shows nothing new.
         VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}
+        # WHERE THE SERVICE RUNS (workplan 0176 D16 (a)), from the same
+        # OWNPACE_COUNTRY the site's build reads: a person's link page says
+        # "Ownpace runs in {country}." with the name in the reader's language.
+        # A build arg because the page has no session to ask with. Empty says
+        # nothing; changing it means rebuilding this image, and the site.
+        VITE_OWNPACE_COUNTRY: ${OWNPACE_COUNTRY:-}
     container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
     logging: *logging
