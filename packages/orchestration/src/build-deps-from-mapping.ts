@@ -116,6 +116,8 @@ import {
 import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory.ts';
 import { markedOnlyCalendar, markedOnlyContacts, markedOnlyFiles, markedOnlyMail } from './marked-only.ts';
 import { accountAddressesOf, addressChangesForPass } from './address-changes-for-pass.ts';
+import { rememberSoverinKind, soverinTargetForPass } from './soverin-pass.ts';
+import { measureSoverinKind } from './soverin-kind.ts';
 
 /**
  * The mapping's OWN credentials merged over the connection's, key by key
@@ -579,7 +581,14 @@ async function loadDomainConnections(
   mappingId: string,
 ): Promise<{
   source: { config: Record<string, unknown>; creds: Record<string, string>; kind: string; id: string };
-  target: { config: Record<string, unknown>; creds: Record<string, string>; kind: string; id: string };
+  target: {
+    config: Record<string, unknown>;
+    creds: Record<string, string>;
+    kind: string;
+    id: string;
+    /** What the row's last Test measured (ledger 0029), for a Soverin row's kind (0175 §5.4). */
+    qualification: unknown;
+  };
   targetFolderPrefix?: string;
   /** The mapping's stored throttle choice, for `tenantThrottleLimiter`. */
   throttleConfig?: Partial<import('@openmig/shared').ThrottleConfig> | null;
@@ -692,6 +701,7 @@ async function loadDomainConnections(
         // The row itself, for the one target whose credential a pass writes
         // back: Cirrux Drive's rotating sign-in (workplan 0160 T5, ADR-0052).
         id: conn.id,
+        qualification: conn.qualification ?? null,
       };
     };
     return {
@@ -836,7 +846,7 @@ export async function buildDomainDepsFromMapping(
 
   const {
     source: src,
-    target: tgt,
+    target: loadedTarget,
     targetFolderPrefix,
     throttleConfig,
     phaseOf,
@@ -847,6 +857,19 @@ export async function buildDomainDepsFromMapping(
     // Its start, for the address table: an event over by then keeps its addresses.
     createdAt,
   } = await loadDomainConnections(pool, tenantId, mappingId);
+  // A SOVERIN MAILBOX'S CALENDARS, CONTACTS AND TASKS GO WHERE ITS KIND
+  // NAMES (workplan 0175 §5.4, D6 (a)): the root and the login its Test
+  // recorded, measured once here, before the DAV faces, for a row tested
+  // before 0175. Files are not a Soverin face (`refuseDomainTheTargetCannotCarry`
+  // below), and mail is built by `buildDepsFromMapping`, on the same IMAP for
+  // both kinds.
+  const tgt =
+    domain === 'calendar' || domain === 'task' || domain === 'contact'
+      ? await soverinTargetForPass(loadedTarget, {
+          measure: (config, login) => measureSoverinKind(config, login),
+          remember: (record) => rememberSoverinKind(pool, tenantId, loadedTarget.id, record),
+        })
+      : loadedTarget;
   // THE FOUR NON-MAIL FACES GET THE TENANT'S BUDGET TOO (2026-09-07).
   // Until today only `buildDepsFromMapping` built one, so every calendar,
   // contact, file and task source — in the preflight AND in every non-mail
@@ -898,7 +921,7 @@ export async function buildDomainDepsFromMapping(
       ? await addressChangesForPass(
           ledger,
           tenantId,
-          accountAddressesOf(src.config, src.creds, tgt.config, tgt.creds),
+          accountAddressesOf(src.config, src.creds, loadedTarget.config, loadedTarget.creds),
           await withTenant(pool, tenantId, (txDb) => readAddressChangesApplied(txDb, tenantId, mappingId)),
           createdAt,
         )

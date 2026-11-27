@@ -133,12 +133,17 @@ describe('the person’s card per kind (0174 §5.2, D2)', () => {
 
   it('names the owner’s own server for a generic kind, the DAV address and the mail server each once', () => {
     expect(
-      passwordServerOf('soverin', {
-        host: 'caldav.soverin.net',
-        url: 'https://caldav.soverin.net/dav',
-        mailHost: 'imap.soverin.net',
+      passwordServerOf('caldav', {
+        host: 'dav.example.org',
+        url: 'https://dav.example.org/dav',
+        mailHost: 'imap.example.org',
       }),
-    ).toEqual({ hosts: ['caldav.soverin.net', 'imap.soverin.net'], published: false });
+    ).toEqual({ hosts: ['dav.example.org', 'imap.example.org'], published: false });
+    // Soverin was this example until workplan 0175 T1 cited its servers: its
+    // password now goes only to them, whatever the row was typed with.
+    expect(
+      passwordServerOf('soverin', { host: 'dav.example.org', mailHost: 'imap.example.org' }),
+    ).toEqual({ hosts: ['imap.soverin.net', 'caldav.soverin.net'], published: true });
     expect(passwordServerOf('nextcloud', { url: 'https://cloud.example.org/remote.php/dav' })).toEqual({
       hosts: ['cloud.example.org'],
       published: false,

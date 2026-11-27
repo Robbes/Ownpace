@@ -43,6 +43,7 @@
  * and why the single-domain kinds cohabit rather than being replaced.
  */
 
+import { soverinRecordOf } from './soverin-record.ts';
 import type { DiscoveryDomain } from './discovery.ts';
 import { googleDeploymentClient, type GoogleClientEnv } from './google-deployment-client.ts';
 import {
@@ -177,6 +178,49 @@ export function missingMailLogin(
 ): ReadonlyArray<MailLoginKey> {
   if (!signsInToMailApart(kind)) return [];
   return MAIL_LOGIN_KEYS.filter((key) => !given(credentials, key));
+}
+
+/**
+ * The account kinds whose DAV faces may sign in with a LOGIN OF THEIR OWN,
+ * beside the one their mail signs in with (workplan 0175 §5.3).
+ *
+ * A Soverin mailbox with a Suite licence signs in twice: IMAP with the
+ * mailbox password, which stays the same, and Suite's Nextcloud with a Suite
+ * app password and a username that "may be different from your email
+ * address" (Soverin's help desk, article 116). That is Infomaniak's shape
+ * inverted, so its secret keeps `username`/`password` for the mailbox and
+ * adds `suiteUsername`/`suitePassword` for Nextcloud.
+ *
+ * Unlike `MAIL_LOGIN_APART_KINDS`, the second login is PER ACCOUNT, not per
+ * kind: a personal Soverin mailbox never holds one. So the question is
+ * `davLoginOf(kind, qualification, creds)`, which reads the record the Test
+ * kept, and answers the Suite login only when that record says `suite`.
+ * Nothing writes `suite` before the maintainer's live test (0175 T0).
+ */
+export const DAV_LOGIN_APART_KINDS = ['soverin'] as const;
+
+/** May this kind's DAV faces sign in with a login of their own (`suiteUsername`, `suitePassword`)? */
+export function signsInToDavApart(kind: string): boolean {
+  return (DAV_LOGIN_APART_KINDS as ReadonlyArray<string>).includes(kind);
+}
+
+/** The two keys of a Suite login, as a Soverin secret stores them beside the mailbox's. */
+export const SUITE_LOGIN_KEYS = ['suiteUsername', 'suitePassword'] as const;
+export type SuiteLoginKey = (typeof SUITE_LOGIN_KEYS)[number];
+
+/**
+ * THE LOGIN A KIND'S DAV FACES SIGN IN WITH, from its record and its secret.
+ *
+ * The Suite login for a kind apart whose measured record says `suite`; an
+ * absent half is `''`, which a seam refuses by name before it connects. The
+ * record's own `username`/`password` for everything else: a personal or
+ * unknown Soverin mailbox, a row with no record, and every other kind.
+ */
+export function davLoginOf(kind: string, qualification: unknown, credentials: CredentialValues): MailLogin {
+  if (signsInToDavApart(kind) && soverinRecordOf(qualification)?.kind === 'suite') {
+    return { username: valueOf(credentials, 'suiteUsername'), password: valueOf(credentials, 'suitePassword') };
+  }
+  return { username: valueOf(credentials, 'username'), password: valueOf(credentials, 'password') };
 }
 
 /**

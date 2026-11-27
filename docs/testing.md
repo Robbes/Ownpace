@@ -465,6 +465,19 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   the compose project. Before the verdict the smoke prints each container's highest value and
   when it was sampled, and the sum. Only the used part of each reading is kept, never the limit,
   which for a container with no cap is the host's memory. The readout never decides the verdict.
+
+  **A branch's migration stays on the stack after its run** (workplan 0179, §2.3). The gate
+  brings the branch's own stack up on the long-lived stack, and the API applies both migration
+  chains at start, the shared one (`packages/ledger/migrations`) and the managed one
+  (`packages/managed/migrations`) (`apps/api/src/index.ts`). From then on, `main`'s nightly and
+  every other branch's run carry an older highest migration than the database, and their API
+  refuses to start on the downgrade guard (`packages/ledger/src/migrate.ts`) until the migration
+  is on `main` and they take `main` in. So a pull request that adds a migration to either chain
+  runs its managed E2E last, when it is otherwise ready, and merges soon after: before the next
+  03:30 UTC nightly, and before another branch's managed E2E is dispatched. Two branches that
+  each add a migration run theirs one after the other, the second after merging the first. It
+  is the same order as a Nextcloud pin's move
+  ([managed-bring-up.md](managed-bring-up.md), *Nextcloud's pin moves one way*).
 - **Before a release tag, and so before a deploy to live** (workplan 0141 T14): the newest
   two *scheduled* runs of `e2e-managed.yml` on `main` both ran the commit being tagged and are green on every attempt,
   with no night missing, and the four scheduled `e2e.yml` runs of those nights ran it and are

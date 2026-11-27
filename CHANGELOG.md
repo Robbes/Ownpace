@@ -4,6 +4,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **One Soverin card for personal and Suite mailboxes, first half** (workplan 0175 T1, T2's
+  personal half, T3, T7, T8; the maintainer's decisions D1, D6 and D7 (a)). The Test now finds
+  which kind of Soverin mailbox it was given and says it before *Carries:*: *Soverin
+  (personal).* when Soverin's own server, `caldav.soverin.net`, names the mailbox and lists its
+  calendars and address books, or *We could not tell which kind of Soverin mailbox this is.* with
+  what failed, word for word. A personal mailbox's files are a reasoned no: *A personal Soverin
+  mailbox has no file storage; a Soverin Suite licence adds it.* The kind is kept with what the
+  Test measured (`qualification.soverin`), and a migration writes calendars, contacts and tasks to
+  the server it names; an account tested before this has its kind measured once by its next run,
+  before those are written. Soverin's servers are cited from its help desk's articles 26 and 38
+  (read again 2026-11-27), and a grant link's password for a Soverin account goes only to them.
+  The Soverin guides, in English and Dutch, say what the Test says and warn to activate Suite
+  before calendars and contacts move. A mailbox with a Suite licence is not yet told apart, and
+  no files go to Suite: both wait for a measured run on a real Suite mailbox (0175 T0).
+
 ### Fixed
 
 - **Two answers stay one size when one of them wraps, and the giver's page hears its refusals in

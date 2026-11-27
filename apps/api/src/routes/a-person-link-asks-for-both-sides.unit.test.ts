@@ -166,7 +166,8 @@ describe('a person’s link with a password source and a password destination', 
     expect(icloud.ref).not.toBe(soverin.ref);
     expect(icloud.ref).not.toContain('anna');
 
-    // Where the password is tried: Apple's own servers; Soverin's as the owner set them.
+    // Where the password is tried: Apple's own servers; Soverin's own too, since
+    // workplan 0175 T1 cited them.
     // Each host's registrable domain rides beside it, for the page's bold (D3,
     // T3); a published server is the provider's own and is not compared.
     expect(icloud.server).toEqual({
@@ -174,13 +175,12 @@ describe('a person’s link with a password source and a password destination', 
       published: true,
       domains: ['me.com', 'icloud.com', 'icloud.com'],
     });
-    // Soverin's hosts are on the address's own domain: nothing to warn of, and
-    // no MX lookup was needed to say so (D3's addition, T3).
+    // Soverin's servers are published (workplan 0175 T1): the provider's own,
+    // so they are not compared with the address's mail domain.
     expect(soverin.server).toEqual({
-      hosts: ['caldav.soverin.net', 'imap.soverin.net'],
-      published: false,
+      hosts: ['imap.soverin.net', 'caldav.soverin.net'],
+      published: true,
       domains: ['soverin.net', 'soverin.net'],
-      notTheAddressMail: [],
     });
 
     // What the owner fixed, shown; what Anna fills, a box.

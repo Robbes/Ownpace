@@ -22,6 +22,7 @@ genuinely does not, rather than deleting the line.
 - [ ] **Non-destructive intact** — nothing deletes outside the gated `apply` path (ADR-0024)
 - [ ] **Self-host intact** — no managed-only dependency reaches `apps/selfhost` or a `packages/*` other than `packages/managed` (ADR-0036)
 - [ ] No docker debris left running
+- [ ] **A migration in either chain?** Its managed E2E runs last, when the rest is ready, and it merges before the next nightly ([testing.md](../docs/testing.md), `e2e-managed.yml`)
 
 ## Anything you are unsure about
 
