@@ -262,16 +262,6 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
-### `CHANGELOG.md`
-
-- [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
-- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
-- [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
-- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
-- [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
-- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
-- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
-
 ### `CONTRIBUTING.md`
 
 - [a-convention-two-of-two-hundred-commits-followed](../scripts/a-convention-two-of-two-hundred-commits-followed.unit.test.ts) — THE CONVENTION NOTHING ENFORCED.
@@ -1773,6 +1763,7 @@ reading a file drops off its entry by itself.
 
 - [a-blip-the-smoke-would-have-failed-on](../scripts/a-blip-the-smoke-would-have-failed-on.unit.test.ts) — The smoke gate's reads of the identity provider ride out a gateway error from the front; its writes are still sent once.
 - [a-count-the-gate-took-for-a-fourth-level](../scripts/a-count-the-gate-took-for-a-fourth-level.unit.test.ts) — A COUNT CALLED `items`, AND A GATE THAT TOOK IT FOR A FOURTH LEVEL.
+- [a-door-and-a-grant-the-gate-walks](../scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts) — A DOOR AND A GRANT THE GATE WALKS (workplan 0179 T2, T3 and T4; the maintainer's D1 (a) of 2026-11-27: new sections of the managed smoke).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
 - [a-ledger-that-outlived-its-mail-server](../scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts) — A LEDGER THAT OUTLIVED ITS MAIL SERVER (workplan 0119; the owner's choice of 2026-11-20, quoted in ADR-0022's update of that date).
@@ -3183,6 +3174,10 @@ reading a file drops off its entry by itself.
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 
+### `scripts/a-password-link-the-gate-types.unit.test.ts`
+
+- [a-door-and-a-grant-the-gate-walks](../scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts) — A DOOR AND A GRANT THE GATE WALKS (workplan 0179 T2, T3 and T4; the maintainer's D1 (a) of 2026-11-27: new sections of the managed smoke).
+
 ### `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 
 - [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts) — A DATABASE YOU CAN ASK, ON A MACHINE WITH NO CONTAINER RUNTIME.
@@ -4482,7 +4477,6 @@ A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 Reads:
 
 - `.github/workflows/ci.yml`
-- `CHANGELOG.md`
 - `SECURITY.md`
 - `docs/adr/OPERATIVE.md`
 - `docs/architecture/solution-architecture.md`
@@ -4584,6 +4578,15 @@ Reads:
 - `packages/shared/src/target-domains.unit.test.ts`
 - `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+
+### [a-door-and-a-grant-the-gate-walks](../scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts)
+
+A DOOR AND A GRANT THE GATE WALKS (workplan 0179 T2, T3 and T4; the maintainer's D1 (a) of 2026-11-27: new sections of the managed smoke).
+
+Reads:
+
+- `deploy/compose/smoke-managed.sh`
+- `scripts/a-password-link-the-gate-types.unit.test.ts`
 
 ### [a-door-public-in-one-place-only](../scripts/a-door-public-in-one-place-only.unit.test.ts)
 
@@ -5081,7 +5084,6 @@ Reads:
 
 - `.github/workflows/ci.yml`
 - `AGENTS.md`
-- `CHANGELOG.md`
 - `docs/LESSONS.md`
 - `docs/workplans/README.md`
 - `pnpm-lock.yaml`
@@ -5784,7 +5786,6 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
-- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `scripts/fixtures/release/changelog-2026-10-23.md`
 - `scripts/fixtures/release/ci-jobs-39866562875.json`
@@ -5805,7 +5806,6 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
-- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `apps/web/src/components/Layout.tsx`
 - `apps/web/src/components/Layout.unit.test.tsx`
@@ -6171,10 +6171,6 @@ Reads:
 ### [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts)
 
 Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
-
-Reads:
-
-- `CHANGELOG.md`
 
 ### [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts)
 
@@ -6774,7 +6770,6 @@ AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T1
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
-- `CHANGELOG.md`
 - `apps/api/Dockerfile`
 - `apps/api/src/index.ts`
 - `deploy/compose/deploy-live.sh`
@@ -6805,7 +6800,6 @@ AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decisi
 Reads:
 
 - `.github/workflows/e2e.yml`
-- `CHANGELOG.md`
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `deploy/selfhost/README.md`

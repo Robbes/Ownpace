@@ -457,6 +457,20 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   - the worker runs the API's Node as uid 65532, with no shell and its health 200, and holds
     no owner's URL;
   - the tick beat as `managed-sync-tick-pg-boss`.
+  - a recommendation's code at its own door (workplan 0179 T2): the demo owner makes one, the
+    door checks it and refuses a code nobody made (410), lets an address in with it (the request
+    granted, an organisation with an owner's invitation and the gift spent, together), and
+    refuses the spent code; the code goes on stdin only, and the gift, the request and the
+    organisation are taken back;
+  - a person's grant that starts their migration, and their stop (workplan 0179 T3, T4): the
+    owner starts a person's first migration, the person types their destination's password on
+    their grant link, their second migration starts by itself and its first pass completes;
+    on their progress link, made in *je*, the page speaks Dutch with *je*, they stop copying to
+    the destination, the migration is held and the owner's Start answers `grant_withdrawn`, and
+    a second stop is refused in the *je* twin of its sentence. The copies the passes made are
+    removed from the demo target by their ledger ids before the rows go.
+    `scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts` runs both sections against a fake
+    API, database and DAV server.
 
   The worker's log from the start is kept as `smoke-managed-<run>-worker.log` and redacted with
   the rest of the evidence. `scripts/smoke-managed-verdict.unit.test.ts` runs each of these

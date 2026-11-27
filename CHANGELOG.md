@@ -30,6 +30,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `express-rate-limit` (MIT), a library code scanning recognises, so the routes it counted as
   unlimited are counted as limited from the next scan of `main`. The nightly scan of the running
   API raises the limit through the same setting.
+- **The managed gate walks a recommendation's code, a person's grant that starts their migration,
+  and their stop** (workplan 0179 T2 to T4; the maintainer's D1 (a) of 2026-11-27). Two new
+  sections of `deploy/compose/smoke-managed.sh`, run by E2E (managed). The first makes a
+  recommendation as the demo owner and uses its code at the door, `/api/gifts/check` and
+  `/api/gifts/redeem`: a code nobody made and the spent code are refused, and the request granted,
+  the organisation with its owner's invitation and the spent gift are read together from the
+  database. The second has the owner start a person's first migration, the person type their
+  destination's password on their grant link, and their second migration start by itself and
+  complete its first pass; on their progress link, made in *je*, they stop copying to that
+  destination, the migration is held, and a second stop is refused in the *je* twin of its
+  sentence. Each section takes back what it added, the copies on the demo target first, and an
+  earlier run's leftovers before it begins; a code or a password is never an argument and never
+  printed. `scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts` runs both against a fake API,
+  database and DAV server. No product code changes.
 
 ### Fixed
 
