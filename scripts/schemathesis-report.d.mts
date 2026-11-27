@@ -26,6 +26,7 @@ export declare const FIXTURE: { readonly dir: string; readonly faults: ReadonlyA
 
 export declare const MAX_EXAMPLES: number;
 export declare const PHASES: string;
+export declare const SCAN_API_REQUESTS_PER_MINUTE: number;
 export declare const MIN_OPERATIONS: number;
 export declare const API_PORT: number;
 export declare const FIXTURE_PORT: number;

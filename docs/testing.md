@@ -644,7 +644,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   the checkout on `apps/api/Dockerfile`'s base, both migration chains and the demo seed's two
   organisations (`apps/api/src/scripts/seed-managed.ts`), the API connected as `app_user`, local
   sign-in with a signing secret the run makes and masks, and tokens it signs for the seeded
-  owners. It reads no repository secret. The API needs nothing else to start, so no fake is
+  owners. The API is started with `API_MAX_REQUESTS_PER_MINUTE` raised for the scan
+  (`SCAN_API_REQUESTS_PER_MINUTE`): it limits every `/api` request per address, 1,200 a minute by
+  default (workplan 0178 T6), and the scan sends about ten thousand a minute from one, so at the
+  default most of it would be answered 429 and test nothing. Raised, not switched off: the limiter
+  runs as it ships. It reads no repository secret. The API needs nothing else to start, so no fake is
   composed. Its jobs database is the same Postgres: the jobs role from
   `deploy/compose/jobs-role.sql`, as the bring-up makes it, with a password of the run's own, and
   pg-boss's queues installed by the worker's own runner, so a sync or a cutover is enqueued for real
