@@ -2,7 +2,43 @@
 
 > **In one line:** One Soverin card for personal and Suite mailboxes: the Test finds which kind it is and what it carries (files only where Suite's Nextcloud answered). A switch between the two is not followed (the owner, 2026-11-25).
 
-## Status — 2026-11-25 (update this block at the end of every session)
+## Status — 2026-11-27 (update this block at the end of every session)
+
+**2026-11-27, alpha.22's half built (D7 (a)): T1, T2's personal half with `unknown`, T3, T7, T8.**
+On branch `claude/ownpace-public-readiness-y7orc6-a22-soverin-card`, one draft pull request.
+- **T1.** Articles 26 and 38 read again on 2026-11-27 (both HTTP 200; `imap.soverin.net`, port
+  993; `https://caldav.soverin.net`, port 443, *"same server"*). `PROVIDER_DIRECTORY`'s row cites
+  them; `PROVIDER_ENDPOINTS.soverin` pins `caldav.soverin.net` and `imap.soverin.net:993` with
+  `doorAsks: true` (`packages/shared/src/provider-endpoints.ts`).
+- **T2, personal half.** A and B are asked; **C is not**: its host is §3.4 q1, which only T0
+  answers, so no Suite request is made. The rule (`decideSoverinKind`,
+  `packages/orchestration/src/soverin-kind.ts`) writes `personal` when B names a principal and
+  its calendars and address books are listed (≥1), and `unknown` with the words verbatim for every
+  other answer, including the rows T0 decides (a refusal, an empty account, both answering).
+  Never `suite`. The record (`packages/shared/src/soverin-record.ts`) is §5.4's, `fileRoot`
+  included for T4. `DAV_LOGIN_APART_KINDS`, `SUITE_LOGIN_KEYS` (`suiteUsername`,
+  `suitePassword`) and `davLoginOf` sit beside `MAIL_LOGIN_APART_KINDS`. A pass's calendar,
+  contact and task faces read the root and login from the record (`soverin-pass.ts`,
+  `davConfigOf`); a row with no record is measured once, before them, and the record is kept on
+  the row (D6 (a)); an `unknown` row is written where it was tested, as before.
+- **T3.** *Soverin (personal). Carries: …* / *Soverin (persoonlijk). Omvat: …*; *Soverin Suite.*
+  is in the dictionary for T0; the file face's reasoned no; *We could not tell which kind of
+  Soverin mailbox this is.* with the reason verbatim (`apps/web/src/i18n/probe-text.ts`). The
+  second box for the Suite app password is Suite's half and waits.
+- **T7.** Both guides (one card, what the Test says, files only with Suite, the warning before
+  *Connecting* in its own section *Personal or Suite*), arch §9 (the matrix's Files cell and
+  §9.2's line), `docs/feature-matrix.md`, `CHANGELOG.md` `[Unreleased]`. **The Dutch warning
+  differs from §11's:** *verhuist* and *verhuizing* are retired words
+  (`scripts/a-word-the-owner-retired.unit.test.ts`), so it reads *… naar Soverin migreert* and
+  *… volgt die verplaatsing niet*; for the maintainer to read.
+- **T8.** Unit, on recorded answers: every row of §5.2's table (rows 1 and 5 decided, rows 2–4
+  held at `unknown`), `davLoginOf` per kind and record, the reasoned no, and a row with no kind
+  measured once by its next pass. **Integration on the dev Nextcloud is not written**: with C
+  unasked, the Nextcloud would stand for Suite in nothing this half does; it lands with T2's
+  Suite half.
+- **What no test here proves is a real Soverin mailbox of either kind; T0 is that proof, and the
+  maintainer runs it.** Waiting for T0: Suite's host and pin (D5), Suite's half of T2's rule, the
+  Suite login box (T3), T4 (files), T6 (grant links).
 
 **2026-11-25, the owner's answers (T9).** On D1 to D8 and the Dutch, all with the advice, the owner
 answered: *"Ok, but we do not need to support transitions between the two (personeel>suite). We just need to be able to detect which we need to target and support what it carries."* So the advice stands for D1 (a), D5 (a), D6 (a), D7 (a) and
@@ -27,14 +63,14 @@ migration is needed: the one §7.3 proposed went with the switch.
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The owner's live test: a personal mailbox and a Suite mailbox, side by side | owner | ⏳ **Owner** | §10. Measures the four facts Soverin's pages leave open (§3.4). The second mailbox is being asked of Soverin. T2's rule waits on its answers; T1 and T7 do not. |
-| T1 Soverin's published servers, cited again: the directory and the pinned endpoints | builder | 📋 Planned | §5.1. The personal servers from articles 26 and 38. Suite's host after T0. S. |
-| T2 The Test finds the kind: personal, Suite, or not yet known | builder | 📋 Planned | §5.2–5.4. The measurement, the record in `qualification`, the second login. L. The rule is fixed after T0; the shape is fixed here. |
-| T3 The card and its words: one password, a second only when Suite is found | builder | 📋 Planned | §5.5, §11. EN and NL. M. On T2's shape. |
+| T1 Soverin's published servers, cited again: the directory and the pinned endpoints | builder | ✅ Done 2026-11-27 | §5.1. The personal servers from articles 26 and 38. Suite's host after T0. S. |
+| T2 The Test finds the kind: personal, Suite, or not yet known | builder | 🟡 Personal half done 2026-11-27 | §5.2–5.4. The measurement, the record in `qualification`, the second login. L. The rule is fixed after T0; the shape is fixed here. |
+| T3 The card and its words: one password, a second only when Suite is found | builder | 🟡 Done but the Suite box 2026-11-27 | §5.5, §11. EN and NL. M. On T2's shape. |
 | T4 Files to Soverin, only where Nextcloud answered | builder | 📋 Planned | §6. `file` joins the `soverin` ceiling once T0 measured it; a personal mailbox's file face is a reasoned *no*. M. After T0. |
 | T5 A switch is noticed, and calendars, contacts and tasks are copied again | builder | ✖ Dropped | The owner, 2026-11-25: no transitions between personal and Suite. §7 is kept as the record of what is not built. |
 | T6 Grant links do the same detection | builder | 📋 Planned | §8. On 0174's password page, merged as #2167 (2026-11-25), which replaced #2164. M. |
-| T7 The guides (EN and NL), the architecture line, the ADR amendment | builder | 📋 Planned | §9. *Activate Suite before you move calendars and contacts to Soverin.* M. |
-| T8 Proofs: unit and integration | builder | 📋 Planned | §12. S–M. Last. The switch on two fixtures went with T5. |
+| T7 The guides (EN and NL), the architecture line, the ADR amendment | builder | ✅ Done 2026-11-27 | §9. *Activate Suite before you move calendars and contacts to Soverin.* M. |
+| T8 Proofs: unit and integration | builder | 🟡 Unit done 2026-11-27; integration with T2's Suite half | §12. S–M. Last. The switch on two fixtures went with T5. |
 | T9 The owner's decisions | owner | ✅ Answered 2026-11-25 | §13. D1, D5, D6, D7 and D8: (a), as advised; D2 to D4 dropped with the switch; the Dutch: *Omvat:*. |
 
 ## 1. The owner's words

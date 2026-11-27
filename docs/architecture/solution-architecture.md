@@ -141,7 +141,7 @@ Underlying capability matrix:
 | **Email** | IMAP + OAuth2 (XOAUTH2) or Graph | IMAP/SMTP | no mail host (client only) | Easy Switch import; continuous only via Bridge (paid, heavy) |
 | **Calendar** | **Graph** | CalDAV | CalDAV | Easy Switch import; no CalDAV |
 | **Contacts** | **Graph** | CardDAV | CardDAV | Easy Switch import; no CardDAV |
-| **Files** | OneDrive/SharePoint via Graph | n/a | WebDAV | official SDK + CLI since 2026, but no WebDAV and no headless auth — see §9.4 |
+| **Files** | OneDrive/SharePoint via Graph | n/a for a personal mailbox; Suite's Nextcloud with a Suite licence (0175 T4, after T0) | WebDAV | official SDK + CLI since 2026, but no WebDAV and no headless auth — see §9.4 |
 | **Office** | n/a | n/a | Collabora/OnlyOffice | Proton Docs (limited) |
 
 Three choice clusters (recommended targets are managed EU/CH; **self-hosted targets, incl. self-hosted email, are permitted but user-operated** — we migrate into them, we don't host them, ADR-0011):
@@ -150,7 +150,7 @@ Three choice clusters (recommended targets are managed EU/CH; **self-hosted targ
 Replaces Gmail+Calendar+Drive+Docs+1Password with one Swiss E2E-encrypted suite. Strong on encryption/simplicity; weak on open-protocol interop (mail only via Bridge; calendar/contacts only via ICS/vCard snapshots), continuous shadow, Drive migration, and **no shared mailboxes/delegation** -> poor SMB fit (§9.4). Migration via Easy Switch + forwarding.
 
 ### 9.2 Cluster B — "Open standards & app freedom" (Soverin + Nextcloud) — *recommended default*
-Replaces Gmail/Outlook with Soverin (mail/calendar/contacts, NL, own domain) and Drive/Dropbox/OneDrive+Docs+Photos with Nextcloud (WebDAV, Collabora/OnlyOffice, Photos, Talk). Works with any client (IMAP/CalDAV/CardDAV/WebDAV), no lock-in, full idempotent + shadow sync. Soverin also offers native shared/team calendars, e-mail groups, catch-all/forwarding (SRS/ARC), app passwords and OpenPGP. Migration via our own IMAP/DAV/WebDAV connectors.
+Replaces Gmail/Outlook with Soverin (mail/calendar/contacts, NL, own domain) and Drive/Dropbox/OneDrive+Docs+Photos with Nextcloud (WebDAV, Collabora/OnlyOffice, Photos, Talk). Works with any client (IMAP/CalDAV/CardDAV/WebDAV), no lock-in, full idempotent + shadow sync. Soverin also offers native shared/team calendars, e-mail groups, catch-all/forwarding (SRS/ARC), app passwords and OpenPGP. Migration via our own IMAP/DAV/WebDAV connectors. Soverin carries files when the mailbox has a Soverin Suite licence, which moves its calendars and contacts to Suite's Nextcloud and keeps its IMAP: one Soverin card serves both kinds, the Test records which answered (`qualification.soverin`, workplan 0175), and files go there only once a Suite mailbox's files face has been measured.
 
 ### 9.3 EU/CH alternatives within cluster B, and sovereign public-sector suites
 Mail alternatives: Mailfence (BE, CalDAV + EU), Mailbox.org (DE, Open-Xchange-based), Posteo (DE), Infomaniak kSuite (CH). Nextcloud may be a managed EU Nextcloud or one the user already runs.

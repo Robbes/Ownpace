@@ -95,7 +95,14 @@ Also a target: **Soverin** (`soverin`, workplan 0106 T4a+T4b) — the first prov
 **account** kind: one connection row, one app-password, carrying email, calendar *and*
 contact mappings through the same writers the protocol kinds use (mail via the stored
 `mailHost`, see Email). What the account actually answers per face is measured and stored
-(the 0106 qualification), never assumed.
+(the 0106 qualification), never assumed. One card serves both kinds of Soverin mailbox
+(workplan 0175): the Test records which answered in `qualification.soverin`, `personal` when
+Soverin's own DAV server (`caldav.soverin.net`) names the mailbox and lists its collections,
+`unknown` with the server's words otherwise, and the DAV writers go to the root it recorded. A
+row tested before 0175 is measured once by its next pass. **Suite** (a licence that moves a
+mailbox's calendars and contacts to Soverin's Nextcloud, with its own app-password login) is
+not told apart yet: that, and files to Suite, wait for a measured run on a real Suite mailbox
+(0175 T0, T4). A personal mailbox's files face is a reasoned no.
 
 Also a target: **Cirrux** (`cirrux`, workplan 0160) — Soverin's account shape for a second
 provider: calendars and task lists (Cirrux's per-mailbox Reminders list included) over the one

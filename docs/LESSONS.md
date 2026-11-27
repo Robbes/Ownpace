@@ -2848,6 +2848,10 @@ reading a file drops off its entry by itself.
 - [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
 
+### `packages/orchestration/src/soverin-kind.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
 ### `packages/orchestration/src/sync-due.ts`
 
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
@@ -4042,6 +4046,7 @@ Reads:
 - `packages/orchestration/src/account-qualification.ts`
 - `packages/orchestration/src/microsoft-account-test.ts`
 - `packages/orchestration/src/probe-connection.ts`
+- `packages/orchestration/src/soverin-kind.ts`
 - `packages/orchestration/src/target-scheduling.ts`
 - `packages/shared/src/reachable-host.ts`
 
