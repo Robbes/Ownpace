@@ -638,7 +638,7 @@ services:
     # live: the OTA instance's `zitadel` database dumped by hand first, E2E
     # (managed) on its branch, and the owner's hand check there, as for
     # v4.20.4.
-    image: ghcr.io/zitadel/zitadel:v4.20.5
+    image: ghcr.io/zitadel/zitadel:v4.20.6
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging
