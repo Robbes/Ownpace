@@ -44,6 +44,7 @@ import {
   davAuthHeader,
   getDomainStatusFor,
   runPassNow,
+  statusAfterAPass,
   startMapping,
 } from './apply-deletion-lib.ts';
 
@@ -185,8 +186,9 @@ describe('archive import from the .zip itself — the download, never extracted,
 
   it('a second import writes nothing', async () => {
     const before = await getDomainStatusFor(ZIP_MAPPING_ID, 'file');
-    await runPassNow(ZIP_MAPPING_ID);
-    const after = await getDomainStatusFor(ZIP_MAPPING_ID, 'file');
+    // A pass the schedule starts can begin between the one asked for and the read: this
+    // reads once none is running (apply-deletion-lib.ts, 2026-11-27).
+    const after = await statusAfterAPass(ZIP_MAPPING_ID, 'file');
     expect(after?.state).toBe('completed');
     expect(after?.itemsFailed).toBe(0);
     expect(after?.itemsSynced, 'a second import of the same download wrote something').toBe(before?.itemsSynced);
