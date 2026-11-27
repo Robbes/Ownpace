@@ -37,7 +37,7 @@ import { DEFAULT_TREE_READ_BYTES, type ArchiveTree, type TreeEntry } from './arc
 import { joinStorePath, splitStorePath, type ArchiveStore, type StoreEntry } from './archive-store.ts';
 import { ZipUnreadable, type RandomAccessSource } from './zip-archive.ts';
 import { createFileHttpClient } from './webdav-source.ts';
-import { withoutTrailing } from '@openmig/shared';
+import { withoutTrailing, davElement, firstTextBeforeTag, firstTextOf, textsOf } from '@openmig/shared';
 
 /** Where the target is and how to sign in: the same three things every DAV endpoint carries. */
 export interface WebDavArchiveEndpoint {
@@ -206,17 +206,35 @@ interface DavEntry {
   readonly size: number | undefined;
 }
 
-const RESPONSE = /<(?:[\w-]+:)?response\b[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?response>/gi;
-const HREF = /<(?:[\w-]+:)?href\b[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?href>/i;
-const COLLECTION = /<(?:[\w-]+:)?resourcetype\b[^>]*>[\s\S]*?<(?:[\w-]+:)?collection\b/i;
-const LENGTH = /<(?:[\w-]+:)?getcontentlength\b[^>]*>\s*(\d+)\s*</i;
+/**
+ * The elements a multistatus is read by, as the patterns before them named
+ * them: `<(?:p:)?name\b…>`. Read a tag at a time (`davElement`): those
+ * patterns read a body that opens an element and never closes it, or opens a
+ * tag and never ends it, in time quadratic in it.
+ */
+const PREFIX = /^[\w-]+:/;
+const wordEnds = (rest: string): boolean => !/^\w/.test(rest);
+const named = (name: string) => davElement(name, PREFIX, { optionalPrefix: true, after: wordEnds });
+const RESPONSE = named('response');
+const HREF = named('href');
+const RESOURCETYPE = named('resourcetype');
+const LENGTH = named('getcontentlength');
+const COLLECTION = /<(?:[\w-]+:)?collection\b/i;
+
+/** Whether a resourcetype opens, and a collection tag follows it: `<p:resourcetype\b[^>]*>[\s\S]*?<p:collection\b`. */
+function isCollection(block: string): boolean {
+  const tags = /<([^<>]*)>/g;
+  for (let tag = tags.exec(block); tag !== null; tag = tags.exec(block)) {
+    if (RESOURCETYPE.opens(tag[1] ?? '')) return COLLECTION.test(block.slice(tags.lastIndex));
+  }
+  return false;
+}
 
 /** The parts of a multistatus this file needs; namespace prefixes are the server's business. */
 export function parseMultistatus(body: string): DavEntry[] {
   const out: DavEntry[] = [];
-  for (const match of body.matchAll(RESPONSE)) {
-    const block = match[1]!;
-    const href = HREF.exec(block)?.[1]?.trim();
+  for (const block of textsOf(body, RESPONSE)) {
+    const href = firstTextOf(block, HREF)?.trim();
     if (!href) continue;
     let pathname = href;
     try {
@@ -225,8 +243,8 @@ export function parseMultistatus(body: string): DavEntry[] {
       // A malformed href is kept as written; the comparison below will simply not match it.
     }
     const path = withoutTrailing(decodeURIComponent(pathname), '/');
-    const length = LENGTH.exec(block)?.[1];
-    out.push({ path, isCollection: COLLECTION.test(block), size: length === undefined ? undefined : Number(length) });
+    const length = firstTextBeforeTag(block, LENGTH.opens, (text) => /^\s*\d+\s*$/.test(text))?.trim();
+    out.push({ path, isCollection: isCollection(block), size: length === undefined ? undefined : Number(length) });
   }
   return out;
 }
