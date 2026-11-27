@@ -71,6 +71,7 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts) — A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
 - [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
@@ -194,6 +195,11 @@ reading a file drops off its entry by itself.
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 
+### `.github/workflows/schemathesis.yml`
+
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
+
 ### `.github/workflows/script-images.yml`
 
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
@@ -288,6 +294,7 @@ reading a file drops off its entry by itself.
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-worker-image-on-the-apis-base](../scripts/a-worker-image-on-the-apis-base.unit.test.ts) — A WORKER IMAGE ON ANOTHER BASE THAN THE API'S (workplan 0167 T7).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
@@ -605,6 +612,7 @@ reading a file drops off its entry by itself.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [a-secret-handed-to-the-logger](../scripts/a-secret-handed-to-the-logger.unit.test.ts) — A SECRET HANDED TO THE LOGGER: no code in `apps/` or `packages/` hands the logger a value named as a credential or a mail address, outside a named list (workplan 0178 §5.1, G4; the owner's D2 of 2026-11-26: measured first, then blocking …
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
@@ -1403,6 +1411,7 @@ reading a file drops off its entry by itself.
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
 
 ### `deploy/compose/live-pass-check.sh`
@@ -1610,6 +1619,7 @@ reading a file drops off its entry by itself.
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/compose/redact-evidence.sh`
@@ -2262,6 +2272,7 @@ reading a file drops off its entry by itself.
 - [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 
 ### `docs/windows-appliance-runbook.md`
 
@@ -3376,6 +3387,10 @@ reading a file drops off its entry by itself.
 
 - [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 
+### `scripts/fixtures/schemathesis-known-bad/server.mjs`
+
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
+
 ### `scripts/gate-coverage.unit.test.ts`
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -3542,6 +3557,10 @@ reading a file drops off its entry by itself.
 ### `scripts/sbom-complete.mjs`
 
 - [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
+
+### `scripts/schemathesis-report.mjs`
+
+- [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 
 ### `scripts/seed-managed.unit.test.ts`
 
@@ -5354,6 +5373,7 @@ Reads:
 - `.github/workflows/idp-pin-watch.yml`
 - `.github/workflows/images.yml`
 - `.github/workflows/release.yml`
+- `.github/workflows/schemathesis.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/semgrep.yml`
 - `.github/workflows/zizmor.yml`
@@ -5905,6 +5925,22 @@ A security scan that skipped itself, and reported green.
 Reads:
 
 - `.github/workflows/security-scan.yml`
+
+### [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts)
+
+A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/schemathesis.yml`
+- `apps/api/Dockerfile`
+- `apps/api/src/scripts/seed-managed.ts`
+- `deploy/compose/jobs-role.sql`
+- `deploy/compose/postgres/Dockerfile`
+- `docs/testing.md`
+- `scripts/fixtures/schemathesis-known-bad/server.mjs`
+- `scripts/schemathesis-report.mjs`
 
 ### [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts)
 

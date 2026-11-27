@@ -99,6 +99,13 @@
  * Docker Hub's newest tag of the same shape and major, past the `-nonroot`
  * builds and the `latest` and `canary` channels the repository lists.
  *
+ * THE SCHEMATHESIS THE RUNNING API IS SCANNED WITH (workplan 0178 T7,
+ * 2026-11-26). The scan, report only, runs `schemathesis/schemathesis` by the
+ * tag and index digest of its job's one `SCHEMATHESIS_IMAGE`, read the same
+ * way: against Docker Hub's newest tag of the same shape and major, past the
+ * `v`-prefixed copies, the `-trixie` builds and the `stable` and `latest`
+ * channels the repository lists.
+ *
  * THE ZIZMOR THE WORKFLOW AUDIT RUNS (workplan 0119, 2026-11-20). The audit,
  * blocking, runs `ghcr.io/zizmorcore/zizmor` by the tag and index digest of
  * its job's one `ZIZMOR_IMAGE`, which Dependabot cannot see either. Its row
@@ -132,6 +139,8 @@ import {
   HADOLINT_WORKFLOW,
   SEMGREP_NOTE,
   SEMGREP_WORKFLOW,
+  SCHEMATHESIS_NOTE,
+  SCHEMATHESIS_WORKFLOW,
   ZIZMOR_NOTE,
   ZIZMOR_WORKFLOW,
   ISSUE_TITLE,
@@ -187,6 +196,7 @@ import {
   gitBlobId,
   hadolintPin,
   semgrepPin,
+  schemathesisPin,
   zizmorPin,
   issueBody,
   keepIssue,
@@ -977,6 +987,10 @@ function registry(newer: Record<string, string> = {}): Stubs {
   // it and another major, none of which its row may take for newer.
   const scan = semgrepPin(REAL.read(SEMGREP_WORKFLOW)!);
   pins.set(registryOf(scan.repo).name, [scan.tag, `${scan.tag}-nonroot`, 'latest', 'latest-nonroot', 'canary', 'canary-nonroot', '2.0.0']);
+  // The Schemathesis the running API is scanned with (0178 T7, 2026-11-26), beside the `v`-prefixed copy, the
+  // `-trixie` build and the channels Docker Hub lists for it and another major, none of which its row may take for newer.
+  const dast = schemathesisPin(REAL.read(SCHEMATHESIS_WORKFLOW)!);
+  pins.set(registryOf(dast.repo).name, [dast.tag, `v${dast.tag}`, `${dast.tag}-trixie`, 'stable', 'stable-trixie', 'latest', 'latest-trixie', '5.0.0']);
   // The zizmor the workflow audit runs (0119, 2026-11-20), beside a release candidate, `latest` and another
   // major, none of which its row may take for newer.
   const audit = zizmorPin(REAL.read(ZIZMOR_WORKFLOW)!);
@@ -3054,6 +3068,52 @@ describe('the Semgrep the tree is scanned with, against its newest release on Do
     for (const [text, error] of cases) {
       expect(text).not.toBe(SCAN);
       const broken = await row({ [SEMGREP_WORKFLOW]: text });
+      expect(broken.state).toBe('error');
+      expect(broken.error).toMatch(error);
+    }
+  });
+});
+
+describe('the Schemathesis the running API is scanned with, against its newest release on Docker Hub (0178 T7, 2026-11-26)', () => {
+  const DAST = REAL.read(SCHEMATHESIS_WORKFLOW)!;
+  const pin = schemathesisPin(DAST);
+  const row = async (over: Record<string, string | null> = {}, newer: Record<string, string> = {}) =>
+    (await routineRows(Object.keys(over).length ? withFiles(over) : REAL, fakeNet(registry(newer)))).rows.find((r) => r.name === 'schemathesis/schemathesis')!;
+
+  it('reads the one SCHEMATHESIS_IMAGE the job runs, schemathesis/schemathesis by a release tag and its index digest', () => {
+    expect(SCHEMATHESIS_WORKFLOW).toBe('.github/workflows/schemathesis.yml');
+    expect(pin.repo).toBe('schemathesis/schemathesis');
+    expect(pin.tag).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(pin.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(registryOf(pin.repo)).toEqual({ host: 'registry-1.docker.io', name: 'schemathesis/schemathesis' });
+  });
+
+  it('is current while Docker Hub lists nothing newer of its shape and major: not its v copy, a -trixie build, stable, latest, or 5.0.0', async () => {
+    expect(await row()).toMatchObject({ state: 'current', pin: `${pin.tag}@${pin.digest}`, newest: pin.tag, where: SCHEMATHESIS_WORKFLOW });
+  });
+
+  it('is behind on a newer release of its major, and says how it moves', async () => {
+    const [major, minor] = pin.tag.split('.');
+    const newer = `${major}.${Number(minor) + 1}.0`;
+    expect(await row({}, { 'schemathesis/schemathesis': newer })).toMatchObject({ state: 'behind', newest: newer, notes: [SCHEMATHESIS_NOTE] });
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'schemathesis/schemathesis': newer })));
+    const line = (summaryOf(rows, status).body ?? '').split('\n').find((l) => l.startsWith('- `schemathesis/schemathesis`'));
+    expect(line).toContain(`(${SCHEMATHESIS_WORKFLOW}): ${pin.tag}@${pin.digest}, newest **${newer}**; ${SCHEMATHESIS_NOTE}`);
+  });
+
+  it('a job that names no image, two, another image, a tag of no release or no digest is an error, never current', async () => {
+    const line = /^\s*SCHEMATHESIS_IMAGE:.*$/m.exec(DAST)![0];
+    const cases: Array<[string, RegExp]> = [
+      [DAST.replace(line, ''), /sets SCHEMATHESIS_IMAGE 0 times, not once/],
+      [DAST.replace(line, `${line}\n${line}`), /sets SCHEMATHESIS_IMAGE 2 times, not once/],
+      [DAST.replace(line, line.replace('schemathesis/schemathesis:', 'other/schemathesis:')), /not schemathesis\/schemathesis by a release tag and its index digest/],
+      [DAST.replace(line, line.replace(/:[\d.]+@/, ':stable@')), /not schemathesis\/schemathesis by a release tag and its index digest/],
+      [DAST.replace(line, line.replace(/:([\d.]+)@/, ':$1-trixie@')), /not schemathesis\/schemathesis by a release tag and its index digest/],
+      [DAST.replace(line, line.replace(/@sha256:[0-9a-f]{64}/, '')), /not schemathesis\/schemathesis by a release tag and its index digest/],
+    ];
+    for (const [text, error] of cases) {
+      expect(text).not.toBe(DAST);
+      const broken = await row({ [SCHEMATHESIS_WORKFLOW]: text });
       expect(broken.state).toBe('error');
       expect(broken.error).toMatch(error);
     }

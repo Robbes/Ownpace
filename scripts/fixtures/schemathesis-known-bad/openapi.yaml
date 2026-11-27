@@ -1,0 +1,43 @@
+# A KNOWN-BAD API DESCRIPTION, FOR A SCANNER'S PROOF ONLY (workplan 0178 T7).
+#
+# Nothing ships this, and nothing in apps/ or packages/ imports it. It is the
+# description of `server.mjs` beside it: two operations, each with one fault
+# that `scripts/schemathesis-report.mjs` must see Schemathesis flag before it
+# believes a scan of the real API (`apps/api/docs/openapi.yaml`). Take either
+# fault out and the proof is red.
+openapi: 3.1.0
+info:
+  title: A known-bad fixture for the Schemathesis proof
+  version: 0.0.0
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+security:
+  - bearerAuth: []
+paths:
+  /answers-without-a-token:
+    get:
+      operationId: answersWithoutAToken
+      summary: Declared secured; answers whoever asks (the fault `ignored_auth` must flag)
+      responses:
+        '200':
+          description: The answer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        '401':
+          description: No token, or one this server did not sign
+  /throws:
+    get:
+      operationId: throws
+      summary: Public; fails on every request (the fault `not_a_server_error` must flag)
+      security: []
+      responses:
+        '200':
+          description: Never sent
