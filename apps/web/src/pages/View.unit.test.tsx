@@ -791,7 +791,7 @@ describe('a destination’s password removed is not the source’s access withdr
   const AT = '2026-11-20T09:00:00.000Z';
   const removed = { state: 'withdrawn' as const, withdrawnAt: AT, what: 'destination' as const, destination: 'soverin' };
   const DESTINATION_SENTENCE =
-    /^The password for Soverin was removed on .+, so copying into it waits\. Your Google account was not touched, and nothing was deleted\. Whoever set this up can send you a new link\.$/;
+    /^The password for Soverin was removed on .+, so copying into it waits\. Your Google account was not touched, and nothing was deleted\. Example family can send you a new link\.$/;
 
   it('the migration’s own page names the destination, and shows no not-started fold', async () => {
     readMock.mockResolvedValue(payload({ from: 'google', started: false, domains: [], grant: removed }));
@@ -860,7 +860,7 @@ describe('a destination’s password removed is not the source’s access withdr
       );
       expect(
         await screen.findByText(
-          /^Het wachtwoord voor Soverin is op .+ verwijderd, dus het kopiëren wacht\. Aan uw Google-account is niets veranderd, en er is niets gewist\. Wie dit voor u heeft ingesteld, kan u een nieuwe link sturen\.$/,
+          /^Het wachtwoord voor Soverin is op .+ verwijderd, dus het kopiëren wacht\. Aan uw Google-account is niets veranderd, en er is niets gewist\. Example family kan u een nieuwe link sturen\.$/,
         ),
       ).toBeInTheDocument();
     } finally {

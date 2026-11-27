@@ -27,6 +27,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
@@ -36,7 +37,7 @@ import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middle
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { serverFault } from '../../server-fault.ts';
 
-const router = Router({ mergeParams: true });
+const router = idsThatAreNoUuid(Router({ mergeParams: true }));
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function pool() {

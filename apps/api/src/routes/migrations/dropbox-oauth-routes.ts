@@ -17,6 +17,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
@@ -27,7 +28,7 @@ import { mintPersonProgressLink, mintProgressLinkForMigration, storePersonGrant 
 import { startWhenGranted } from './start-when-granted.ts';
 import { decideDropboxLinkEnding } from './dropbox-link-ending.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import { inLocale, localeOf, log, resolveDropboxClient, type Bilingual } from '@openmig/shared';
+import { inLocale, localeOf, log, resolveDropboxClient, type Bilingual, withoutTrailing } from '@openmig/shared';
 import {
   CONSENT_NOT_AWAITED,
   browserLocale,
@@ -42,7 +43,7 @@ import {
 import { consentFlows as flows } from './consent-flows.ts';
 import { dropboxConsentUrl, exchangeDropboxCode } from './dropbox-consent.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 const AuthorizeSchema = z.object({
   // Optional, as Google's became (ADR-0041): a deployment that configured its
@@ -52,7 +53,7 @@ const AuthorizeSchema = z.object({
 });
 
 function callbackUri(req: Request): string {
-  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const base = withoutTrailing(process.env.API_URL ?? `${req.protocol}://${req.get('host')}`, '/');
   return `${base}/api/migrations/dropbox/callback`;
 }
 
@@ -129,6 +130,8 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
   // A grant link's consent (workplan 0174 §6): Microsoft's branches, for
   // Dropbox. Nothing of the owner's ending below is reached.
   if (pending.link ?? pending.personLink) {
+    // How a person's pages speak to them (workplan 0176 T7): their ending says it.
+    const register = pending.personLink?.register;
     const finish = GRANT_PROVIDERS.dropbox?.finish;
     const decided = await decideDropboxLinkEnding(
       pending,
@@ -161,14 +164,16 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
             ...(decided.more ? { more: decided.more } : {}),
           },
           locale,
+          register,
         )
       : grantResultPage(
           {
             ok: false,
-            reason: typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale),
+            reason: typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale, register),
             ...(decided.link ? { link: decided.link } : {}),
           },
           locale,
+          register,
         );
     return page(decided.status, html);
   }

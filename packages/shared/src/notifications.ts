@@ -856,6 +856,21 @@ export type NotificationEvent =
        * (0095 T6), and the guide's top is where a tester starts.
        */
       readonly testerGuide?: Readonly<Record<NotificationLocale, string>>;
+      /**
+       * The person used a code from somebody they know, and is in (workplan
+       * 0177 §8, D6): the mail went out at once, from the door, and says so in
+       * its first line. Absent or false: the owner granted a request, and the
+       * mail says the person asked and the answer is yes. The door passes it;
+       * after 0177's step B the mail names the giver.
+       */
+      readonly withCode?: boolean;
+      /**
+       * They said at the door that this address is a Google account they want
+       * to move (0177 D14 (a)), so the mail carries the last screen's sentence:
+       * the owner adds the address to Google's list by hand and writes when
+       * that is done. Only with a code.
+       */
+      readonly google?: boolean;
     }
   | {
       /**
@@ -884,11 +899,19 @@ export type NotificationEvent =
       /** Their own guess at a package — triage, never a commitment. */
       readonly tier?: string;
       /**
-       * The request came with a gift code (workplan 0172). Whose gift it is
-       * the queue shows: the door that sends this is anonymous and cannot read
-       * who a giver is, and the mail needs only the fact.
+       * Not a knock but a let-in: a code let this person in at the door
+       * (workplan 0177 §8, D6). The mail says so in new words, and that
+       * nothing waits for the operator. Whose code it was the queue shows: the
+       * door that sends this is anonymous and cannot read who a giver is, and
+       * the mail needs only the fact.
        */
-      readonly fromGift?: true;
+      readonly withCode?: true;
+      /**
+       * With a code: they said this address is a Google account they want to
+       * move (0177 D14 (a)), so the operator is told to add it to Google's list
+       * of test users, and then to write to them.
+       */
+      readonly google?: true;
     }
   | {
       /**
@@ -1232,15 +1255,29 @@ interface EventLines {
   readonly rollbackReason: string;
   readonly act: string;
   readonly grantedOrganisation: string;
-  readonly grantedIntro: string;
   readonly grantedSignIn: string;
-  readonly grantedUseThisAddress: string;
-  readonly grantedVerify: string;
   readonly grantedNoLink: string;
   readonly grantedAlpha: string;
   readonly grantedConditions: string;
   readonly grantedGuide: string;
-  readonly declinedIntro: string;
+  /** The yes mail (workplan 0177 §8, D11 (a)): what happened, for a request and for a code. */
+  readonly grantedAsked: string;
+  readonly grantedByCode: string;
+  /** Its three numbered steps, and the line under the link. */
+  readonly grantedStep1: string;
+  readonly grantedStep1Why: string;
+  readonly grantedStep2: string;
+  readonly grantedStep3: string;
+  /** After a yes about Google (D14 (a)); `{email}` is the address. */
+  readonly grantedGoogle: string;
+  /** The guide's address, before the person starts. */
+  readonly grantedGuideFirst: string;
+  /** What the account is called, as a sentence that explains the word. */
+  readonly grantedName: string;
+  /** The no mail (0177 §8, D12 (a)): one text, the same in both languages. */
+  readonly declinedAsked: string;
+  readonly declinedKept: string;
+  readonly declinedOpenSource: string;
   readonly declinedReply: string;
   readonly invitedIntro: string;
   readonly invitedFrom: string;
@@ -1311,21 +1348,14 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'this system does not change DNS.',
     rollbackReason: 'The reason given was:',
     grantedOrganisation: 'Organisation',
-    grantedIntro:
-      'Your request has been granted and your organisation is ready. One thing left to do:',
     grantedSignIn: 'Sign in here:',
-    // The instruction that actually matters. The invitation is bound to an
-    // ADDRESS, so registering with a different one succeeds and lands the
-    // person in an organisation-less account wondering what went wrong.
-    grantedUseThisAddress: 'Use this account:',
-    grantedVerify:
-      'If you do not have an account yet, create one with this address and confirm the ' +
-      'confirmation email. Your organisation appears the first time you sign in.',
-    // Said out loud so nobody waits for a link that is never coming, and so the
-    // next person to touch this knows the absence is deliberate. It said once
-    // "never with us" of the password, which privacy §4.4 contradicts, and then
-    // that only a hash is kept (0139 T4); the owner's text review of 2026-10-10
-    // took the password sentence out. `what-the-mails-say.unit.test.ts`.
+    // The invitation's (0156 T3), and since workplan 0177 the invitation's
+    // alone: the yes mail holds a link, and a mail that calls itself safe is
+    // what a false one says too (0177 §8, R2). The invitation is not that
+    // plan's to change (§17). It said once "never with us" of the password,
+    // which privacy §4.4 contradicts, and then that only a hash is kept (0139
+    // T4); the owner's text review of 2026-10-10 took the password sentence
+    // out. `what-the-mails-say.unit.test.ts`.
     grantedNoLink:
       'There is no link or code in this email: it is safe to forward, it grants ' +
       'nobody anything.',
@@ -1348,16 +1378,43 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     grantedConditions: 'Read the Alpha conditions:',
     // After it, the tester guide's address (0131 T1 (b), 0144 T1): the guide
     // page's own title, in the conditions line's form, and when to read it.
+    // The invitation's; the yes mail has its own line since 0177, below.
     grantedGuide: 'Read the guide before you start:',
-    // No reason, and no false hope. "We are not able to offer you a place right
-    // now" is what is true; dressing it as "not yet" would be a promise nobody
-    // made, and listing criteria would invite an argument about them.
-    declinedIntro:
-      'Thank you for your request to join Ownpace, but currently we run an invite-only Alpha.' +
-      ' We will inform you when the Alpha has ended and Ownpace is open for everyone to join.' +
-      ' If you cannot wait, check out the open source repo: you can run this yourself.',
-    declinedReply:
-      'If you think we have misunderstood what you need, reply to this email with your request.',
+    // THE YES MAIL (workplan 0177 §8; the owner chose its text, D11 (a)), for
+    // every request. What happened first: that the person asked and the
+    // answer is yes, or that they used a code from somebody they know and are
+    // in. The owner read the Dutch of the second on 2026-11-26.
+    grantedAsked: 'You asked Ownpace for access. The answer is yes.',
+    grantedByCode: 'You used a code from someone you know. You are in.',
+    // Then three numbered steps. The third is §8's until the owner's hand
+    // test (T0) gives it the sign-in service's own words.
+    grantedStep1: '1. Open the sign-in page with this link:',
+    grantedStep1Why: 'The link ends in your own email address. That lets the page fill it in for you.',
+    // The instruction that actually matters. The invitation is bound to an
+    // ADDRESS, so registering with a different one succeeds and lands the
+    // person in an organisation-less account wondering what went wrong.
+    grantedStep2: '2. Choose "Create your account". Use this email address:',
+    grantedStep3:
+      '3. Choose a password. The sign-in service then mails a code to this email address. ' +
+      'With it you confirm that it is yours.',
+    // The door's last screen says the same (0177 §7, D14 (a)).
+    grantedGoogle:
+      'You want to move away from Google. We add {email} to a list at Google by hand, ' +
+      'and write to you when that is done. Until then Google does not allow the connection.',
+    grantedGuideFirst: 'Read the guide before you start:',
+    // *Organisation: {name}* became a sentence that explains the word, as the
+    // privacy text does (§4.4).
+    grantedName: 'In the app your own space is called an organisation. Yours is called:',
+    // THE NO MAIL (0177 §8; the owner chose it, D12 (a)): one text, the same in
+    // both languages. What they asked for, and that we cannot let them in now,
+    // with no reason; that the request is kept 30 days and then deleted, which
+    // is the privacy text's rule (`what-the-mails-say.unit.test.ts`); the open
+    // source; and that a reply reaches a person. No promise of a later
+    // message: nothing is kept to keep it with.
+    declinedAsked: 'You asked Ownpace for access. We cannot let you in now.',
+    declinedKept: 'We keep your request for 30 days and then delete it.',
+    declinedOpenSource: 'Ownpace is open source: you can also run it yourself.',
+    declinedReply: 'Do you think we misunderstood you? Reply to this email. A person reads it.',
     // The invitation (0156 T3). Who asked comes first: the reader never
     // asked us for anything, and a mail from a stranger that names nobody
     // they know reads as phishing.
@@ -1458,13 +1515,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'terug — dit systeem wijzigt geen DNS.',
     rollbackReason: 'Met als reden:',
     grantedOrganisation: 'Organisatie',
-    grantedIntro:
-      'Uw aanvraag is toegekend en uw organisatie staat klaar. Er is nog één ding te doen:',
     grantedSignIn: 'Meld u hier aan:',
-    grantedUseThisAddress: 'Gebruik dit account:',
-    grantedVerify:
-      'Heeft u nog geen account, maak er daar dan een aan met dit adres en bevestig de ' +
-      'bevestigingsmail. Uw organisatie verschijnt zodra u zich voor het eerst aanmeldt.',
     grantedNoLink:
       'Deze e-mail bevat geen link of code: u kunt hem gerust doorsturen, het geeft niemand toegang.',
     grantedAlpha:
@@ -1475,10 +1526,23 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'iets verwijdert uit uw oude systeem.',
     grantedConditions: 'Lees de voorwaarden:',
     grantedGuide: 'Lees de handleiding:',
-    declinedIntro:
-      'Bedankt voor uw interesse in Ownpace. Momenteel draaien we een besloten Alpha en kunnen wij u geen plek aanbieden. Maar als u niet kunt wachten, kunt u altijd al aan de slag met Ownpace, het is open source.',
-    declinedReply:
-      'Neem even contact op als u denkt dat dit een onjuiste beslissing was.',
+    grantedAsked: 'U vroeg Ownpace om toegang. Het antwoord is ja.',
+    grantedByCode: 'U gebruikte een code van iemand die u kent. U bent toegelaten.',
+    grantedStep1: '1. Open de aanmeldpagina met deze link:',
+    grantedStep1Why: 'De link eindigt op uw eigen e-mailadres. Zo kan de pagina het voor u invullen.',
+    grantedStep2: "2. Kies 'Maak uw account aan'. Gebruik dit e-mailadres:",
+    grantedStep3:
+      '3. Kies een wachtwoord. De aanmeldservice mailt daarna een code naar dit e-mailadres. ' +
+      'Daarmee bevestigt u dat het van u is.',
+    grantedGoogle:
+      'U wilt weg bij Google. Wij zetten {email} met de hand op een lijst bij Google, ' +
+      'en schrijven u als dat is gebeurd. Tot dan laat Google de koppeling niet toe.',
+    grantedGuideFirst: 'Lees de handleiding voordat u begint:',
+    grantedName: 'In de app heet uw eigen ruimte een organisatie. De uwe heet:',
+    declinedAsked: 'U vroeg Ownpace om toegang. Wij kunnen u nu niet toelaten.',
+    declinedKept: 'Wij bewaren uw aanvraag nog 30 dagen en verwijderen die daarna.',
+    declinedOpenSource: 'Ownpace is open source: u kunt het ook zelf draaien.',
+    declinedReply: 'Denkt u dat wij u verkeerd begrepen? Beantwoord deze e-mail. Een mens leest uw antwoord.',
     invitedIntro: 'U bent uitgenodigd om deel te nemen in een organisatie bij Ownpace.',
     invitedFrom: 'De uitnodiging komt van:',
     invitedUseThisAddress:
@@ -1556,7 +1620,12 @@ const ACCESS_REQUESTED = {
   from: 'From:',
   organisation: 'Organisation:',
   tier: 'Package they guessed at:',
-  fromGift: 'It came with a gift code; the queue shows whose.',
+  // A code let somebody in at the door (workplan 0177 §8, D6): nothing waits.
+  letIn: 'Someone was let in with a recommendation. Nothing is waiting for you. The queue shows whose it was.',
+  // After a yes to the door's question about Google (0177 D14 (a)).
+  google:
+    "They said this address is a Google account they want to move. Add it to Google's list of test users, then write to them.",
+  letInSubject: 'Ownpace — somebody was let in with a recommendation',
 } as const;
 
 /** Money owed back to a customer, as the hourly push tells the operator of it. */
@@ -1571,6 +1640,8 @@ function isOperatorEvent(
 
 /** The subject, in the event's language: an operator's is English. */
 function subjectOf(event: NotificationEvent, locale: NotificationLocale): string {
+  // A let-in is not a knock, and its subject says what happened (0177 §8).
+  if (event.kind === 'access_requested' && event.withCode) return ACCESS_REQUESTED.letInSubject;
   if (locale === 'en' || isOperatorEvent(event)) return EVENT.en[event.kind];
   return EVENT.nl[event.kind];
 }
@@ -1660,36 +1731,42 @@ export function renderEvent(
       lines.push(b.finished);
       break;
     case 'access_requested':
-      lines.push(ACCESS_REQUESTED.intro, '');
+      // A let-in, in its own words (0177 §8), the address as a knock names it.
+      lines.push(event.withCode ? ACCESS_REQUESTED.letIn : ACCESS_REQUESTED.intro, '');
       lines.push(`${ACCESS_REQUESTED.from} ${event.email}`);
       // Only what they actually filled in. An empty `Organisation:` reads like
       // a value that went missing rather than a field left blank, and the
       // operator would go looking for it.
       if (event.organisation) lines.push(`${ACCESS_REQUESTED.organisation} ${event.organisation}`);
       if (event.tier) lines.push(`${ACCESS_REQUESTED.tier} ${event.tier}`);
-      if (event.fromGift) lines.push(ACCESS_REQUESTED.fromGift);
+      if (event.withCode && event.google) lines.push('', ACCESS_REQUESTED.google);
       break;
     case 'access_granted':
-      lines.push(`${b.grantedOrganisation}: ${event.organisation}`, '');
-      lines.push(b.grantedIntro, '');
+      // In the owner's order (0177 §8, D11 (a)): what happened; three numbered
+      // steps; the guide before the person starts; what the account is
+      // called; then the Alpha's paragraph and the conditions' address.
+      lines.push(event.withCode ? b.grantedByCode : b.grantedAsked, '');
       // The sign-in page with the address after `#`, so "Create your account"
-      // there fills it in (0095 T6). The invitation below keeps the bare page.
-      lines.push(`${b.grantedSignIn} ${registrationLink(event.appUrl, locale, event.email)}`, '');
-      lines.push(`${b.grantedUseThisAddress} ${event.email}`, '');
-      lines.push(b.grantedVerify, '');
-      lines.push(b.grantedNoLink);
+      // there fills it in (0095 T6), on a line of its own, and why under it.
+      // The invitation below keeps the bare page.
+      lines.push(b.grantedStep1, registrationLink(event.appUrl, locale, event.email), b.grantedStep1Why, '');
+      lines.push(b.grantedStep2, event.email, '');
+      lines.push(b.grantedStep3);
+      // The door's last screen says the same (0177 §7): until the owner has
+      // added the address at Google, Google refuses the connection.
+      if (event.withCode && event.google) lines.push('', b.grantedGoogle.replace('{email}', event.email));
+      if (event.alpha && event.testerGuide) lines.push('', `${b.grantedGuideFirst} ${event.testerGuide[locale]}`);
+      lines.push('', `${b.grantedName} ${event.organisation}`);
       // Last, as a paragraph of its own: the steps above stay together, and
       // this is about the service rather than about signing in. The link to
-      // the conditions ends it, in this mail's language (0139 T4, with 0131
-      // T1), and then the tester guide's (0131 T1 (b), 0144 T1).
+      // the conditions ends it, in this mail's language (0139 T4, with 0131 T1).
       if (event.alpha) {
         lines.push('', b.grantedAlpha);
         if (event.alphaConditions) lines.push(`${b.grantedConditions} ${event.alphaConditions[locale]}`);
-        if (event.testerGuide) lines.push(`${b.grantedGuide} ${event.testerGuide[locale]}`);
       }
       break;
     case 'access_declined':
-      lines.push(b.declinedIntro, '', b.declinedReply);
+      lines.push(b.declinedAsked, '', b.declinedKept, '', b.declinedOpenSource, '', b.declinedReply);
       break;
     case 'member_invited':
       // The steps of `access_granted`, with who asked first and what we keep
@@ -1805,8 +1882,12 @@ export function renderEvent(
   // Nor after a withdrawal's acknowledgement or an order's confirmation, which
   // ask nothing of their reader. Nor after a credit running out, which has
   // just said what to do (0111 T11).
+  // Nor under the operator's notice of a let-in, which has just said that
+  // nothing waits for them (0177 §8).
+  const nothingWaits = event.kind === 'access_requested' && event.withCode === true;
   if (
     readerHasAnApp &&
+    !nothingWaits &&
     event.kind !== 'first_copy_complete' &&
     event.kind !== 'looking_less_often' &&
     event.kind !== 'contract_withdrawn' &&

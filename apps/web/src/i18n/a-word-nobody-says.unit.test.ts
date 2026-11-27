@@ -52,8 +52,11 @@ function sources(): string[] {
       // A package without a src folder names no key.
     }
   }
-  // The dictionary itself is what is being asked about, not a speaker of it.
-  return out.filter((f) => !/apps\/web\/src\/i18n\/(strings(\.ts|\/)|operator-strings\.ts)/.test(relative(ROOT, f)));
+  // The dictionary itself is what is being asked about, not a speaker of it:
+  // its areas, the operator's words, and the informal layer of a person's pages.
+  return out.filter(
+    (f) => !/apps\/web\/src\/i18n\/(strings(\.ts|\/)|operator-strings\.ts|informal\.ts)/.test(relative(ROOT, f)),
+  );
 }
 
 const SEGMENT = '[A-Za-z0-9_-]+';
@@ -97,5 +100,13 @@ describe('every key in the dictionary is one the code says', () => {
 
   it('says every operator key', () => {
     expect(Object.keys(OPERATOR_STRINGS).filter((key) => !said(key))).toEqual([]);
+  });
+
+  it('reads the informal layer as the dictionary, so a twin keeps no key said (workplan 0176 T7)', () => {
+    // `informal.ts` names 124 keys, each one's *je* twin. Read as a speaker,
+    // a twin would count its key as said after every screen stopped saying it.
+    const read = sources().map((f) => relative(ROOT, f));
+    expect(read).toContain('apps/web/src/i18n/index.tsx');
+    expect(read).not.toContain('apps/web/src/i18n/informal.ts');
   });
 });

@@ -156,6 +156,10 @@ import {
   OSV_SCANNER_ARCHES,
   OSV_SCANNER_HOST,
   OSV_SCANNER_NOTE,
+  CODEQL_FILES,
+  CODEQL_NOTE,
+  CODEQL_UPSTREAM,
+  codeqlPins,
   OSV_SCANNER_UPSTREAM,
   OSV_SCANNER_WORKFLOW,
   SQUAWK_ARCHES,
@@ -582,6 +586,8 @@ const OSV = osvScannerPin(REAL.read(OSV_SCANNER_WORKFLOW)!);
 const GL = gitleaksPin(REAL.read(GITLEAKS_WORKFLOW)!);
 /** The squawk release the Migration locks workflow installs (0165, 2026-11-21). */
 const SQUAWK = squawkPin(REAL.read(SQUAWK_WORKFLOW)!);
+/** The github/codeql-action every workflow runs, one commit and release (0178 T5, 2026-11-26). */
+const CODEQL = codeqlPins(REAL.read(CODEQL_FILES[0]!)!)[0]!;
 const ATLAS_TAG = `${ATLAS.version.slice(1)}-community`;
 
 /**
@@ -1017,6 +1023,8 @@ function registry(newer: Record<string, string> = {}): Stubs {
     text: [
       [/trivy-action\/[0-9a-f]{40}\/action\.yaml$/, "inputs:\n  version:\n    default: 'v0.70.0'\n"],
       [/cosign-installer\/[0-9a-f]{40}\/action\.yml$/, "inputs:\n  cosign-release:\n    default: 'v3.0.6'\n"],
+      // The CodeQL bundle a codeql-action release ships, read from its src/defaults.json at the pinned commit.
+      [/github\/codeql-action\/[0-9a-f]{40}\/src\/defaults\.json$/, JSON.stringify({ bundleVersion: 'codeql-bundle-v2.27.5', cliVersion: '2.27.5' })],
     ],
     lsRemote: {
       'https://github.com/aquasecurity/trivy': lsRemote('v0.70.0', ...(TRIVY_NAMED ? [TRIVY_NAMED] : []), ...(newer.trivy ? [newer.trivy] : [])),
@@ -1031,6 +1039,8 @@ function registry(newer: Record<string, string> = {}): Stubs {
       [GITLEAKS_UPSTREAM]: lsRemote('v7.6.1', 'v8.29.1', GL.version, 'v9.0.0', ...(newer.gitleaks ? [newer.gitleaks] : [])),
       // squawk's releases as upstream tags them, up to the one the Migration locks workflow installs, and another major.
       [SQUAWK_UPSTREAM]: lsRemote('v1.6.1', 'v2.66.0', SQUAWK.version, 'v3.0.0', ...(newer.squawk ? [newer.squawk] : [])),
+      // codeql-action's tags as upstream has them: an older major, its floating major tag, a bundle's tag and the next major.
+      [CODEQL_UPSTREAM]: lsRemote('v3.29.11', 'v4', CODEQL.version, 'codeql-bundle-v2.27.5', 'v5.0.0', ...(newer.codeql ? [newer.codeql] : [])),
     },
   };
 }
@@ -2043,6 +2053,52 @@ describe('the squawk the Migration locks workflow runs: a named release, checked
     const gone = withFiles({ [SQUAWK_WORKFLOW]: mutate('https://github.com/sbdchd/squawk/releases/download/', 'https://mirror.example/squawk/') });
     const row = (await routineRows(gone, fakeNet(registry()))).rows.find((r) => r.name === 'squawk');
     expect(row).toMatchObject({ state: 'error' });
+  });
+});
+
+describe('the CodeQL codeql.yml runs: github/codeql-action, every copy at one commit, and the bundle it ships (0178 T5)', () => {
+  it('reads every step of the action in every workflow that runs it, by commit and release', () => {
+    expect(CODEQL_FILES).toEqual(['.github/workflows/codeql.yml', '.github/workflows/semgrep.yml', '.github/workflows/security-scan.yml']);
+    for (const file of WORKFLOWS) {
+      const runs = /uses:\s*github\/codeql-action\//.test(REAL.read(file)!);
+      expect(runs, `${file} runs github/codeql-action, and the CodeQL row does not read it`).toBe(CODEQL_FILES.includes(file));
+    }
+    expect(codeqlPins(REAL.read(CODEQL_FILES[0]!)!).map((p) => p.action)).toEqual(['github/codeql-action/init', 'github/codeql-action/analyze']);
+    expect(CODEQL.version).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(CODEQL.sha).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('is a routine pin, current while upstream tags no newer release of its major, with the bundle it ships', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    expect(rows.find((r) => r.name === 'CodeQL')).toEqual({
+      name: 'CodeQL',
+      where: CODEQL_FILES.join(', '),
+      pin: `${CODEQL.version} (bundle 2.27.5)`,
+      newest: CODEQL.version,
+      state: 'current',
+    });
+  });
+
+  it('is behind when a newer release of its major is tagged, and says how it moves', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry({ codeql: 'v4.99.0' })));
+    expect(rows.find((r) => r.name === 'CodeQL')).toMatchObject({ newest: 'v4.99.0', state: 'behind', notes: [CODEQL_NOTE] });
+  });
+
+  it('is behind when the copies disagree, and says so', async () => {
+    const [file] = CODEQL_FILES.slice(1);
+    const moved = withFiles({ [file!]: REAL.read(file!)!.replace(new RegExp(CODEQL.sha, 'g'), 'f'.repeat(40)) });
+    const row = (await routineRows(moved, fakeNet(registry()))).rows.find((r) => r.name === 'CodeQL');
+    expect(row).toMatchObject({ state: 'behind' });
+    expect(row?.notes).toContain('the copies disagree');
+  });
+
+  it('is never current when a workflow it reads runs the action no longer, or the bundle cannot be read', async () => {
+    const [file] = CODEQL_FILES.slice(1);
+    const gone = withFiles({ [file!]: REAL.read(file!)!.replace(/github\/codeql-action\//g, 'someone/else-action/') });
+    expect((await routineRows(gone, fakeNet(registry()))).rows.find((r) => r.name === 'CodeQL')).toMatchObject({ state: 'error' });
+    const base = registry();
+    const unread = fakeNet({ ...base, text: base.text!.filter(([re]) => !re.test('github/codeql-action/' + 'a'.repeat(40) + '/src/defaults.json')) });
+    expect((await routineRows(REAL, unread)).rows.find((r) => r.name === 'CodeQL')).toMatchObject({ state: 'error' });
   });
 });
 

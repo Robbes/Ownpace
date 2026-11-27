@@ -160,13 +160,11 @@ describe('Members Route Isolation', () => {
         .get(`/api/tenants/${API_TENANT_A}/members`)
         .set('Authorization', `Bearer ${TOKEN_TENANT_B}`);
 
-      expect(response.status).toBe(200);
-      // RLS scopes the query to the REQUESTER's tenant: B sees only its own
-      // membership (the gate requires the requester to be a member), never
-      // anything of tenant A's.
-      expect(
-        (response.body.members as { userId: string }[]).map((m) => m.userId)
-      ).toEqual([`user-member-${API_TENANT_B}`]);
+      // Refused: the path names an organisation that is not the caller's
+      // (`requireTenantMatch`, workplan 0178 T10's reading). It used to answer
+      // 200 with B's own members, a door that ignored its own path.
+      expect(response.status).toBe(403);
+      expect(response.body.members).toBeUndefined();
     });
 
     it('should return 401 without token', async () => {
@@ -297,8 +295,9 @@ describe('Members Route Isolation', () => {
         .get(`/api/tenants/${API_TENANT_A}/members/${memberAId}`)
         .set('Authorization', `Bearer ${TOKEN_TENANT_B}`);
 
-      // RLS should filter out tenant A's member
-      expect(response.status).toBe(404);
+      // Refused before anything is read: the path names tenant A, and the
+      // caller is B's (`requireTenantMatch`, workplan 0178 T10's reading).
+      expect(response.status).toBe(403);
     });
   });
 

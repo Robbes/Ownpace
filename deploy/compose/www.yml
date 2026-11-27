@@ -9,6 +9,7 @@
 #   . deploy/compose/env-read.sh
 #   OWNPACE_APP_URL=https://app.ota.ownpace.eu \
 #   GOOGLE_ACCOUNT_SCOPE_CLASS="$(env_value deploy/compose/.env GOOGLE_ACCOUNT_SCOPE_CLASS)" \
+#   OWNPACE_COUNTRY="$(env_value deploy/compose/.env OWNPACE_COUNTRY)" \
 #   OWNPACE_STAGE="$(env_value deploy/compose/.env OWNPACE_STAGE)" node site/build.mjs   # site/dist
 #   docker compose -f deploy/compose/www.yml up -d                    # serve it
 #
@@ -37,6 +38,13 @@
 # without the same value, the page tells a tester to expect three sign-ins and
 # the app asks once. Rebuild the site when the value changes: the API follows
 # it on a restart, the site only on its next build.
+#
+# OWNPACE_COUNTRY IS THE STACK'S OWN TOO (workplan 0176 D16 (a)). The home page
+# names the country it sets where it says where Ownpace runs, and a person's
+# link page on this stack's app names the same one, from the same line of its
+# `.env`. Built without it, the site says no country while the app says one.
+# The build refuses a country the privacy policy (§7) does not say the service
+# runs in. Rebuild the site when the value changes, and the web image too.
 #
 # Netbird maps the external name to WWW_PORT on this host; externally the name
 # is on 443/https and the port is an internal detail, which is why the redirect

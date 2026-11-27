@@ -12,6 +12,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole, getDbPool, withTenantDb } from '../middleware/auth.ts';
@@ -29,7 +30,7 @@ import {
 import { sharedAddressAnswer } from '@openmig/core';
 import { serverFault } from '../server-fault.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /** The two things a preset can say. Anything else is a 400, not a stored word. */
 const PresetSchema = z.object({ action: z.enum(['auto', 'ask']) });

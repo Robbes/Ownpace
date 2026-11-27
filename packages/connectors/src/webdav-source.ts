@@ -30,7 +30,7 @@ import type {
   PropfindResponse,
 } from './webdav-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
-import { davRefusalBody, STREAM_FILES_LARGER_THAN_BYTES, STREAMED_REQUEST_INIT } from '@openmig/shared';
+import { davRefusalBody, STREAM_FILES_LARGER_THAN_BYTES, STREAMED_REQUEST_INIT, withoutTrailing } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import {
   TRASHBIN_PROPFIND_BODY,
@@ -875,7 +875,7 @@ export class WebdavFileSource implements FileSource {
     } else {
       relative = pathname.replace(/^\/+/, '');
     }
-    return decodeURIComponent(relative).replace(/\/+$/, '');
+    return withoutTrailing(decodeURIComponent(relative), '/');
   }
 
   /**
@@ -883,7 +883,7 @@ export class WebdavFileSource implements FileSource {
    * config-derived path suitable for buildUrl (Rule B). Inverse of toRelativePath.
    */
   private combineWithRootPath(relativePath: string): string {
-    const root = (this.config.rootPath ?? '').replace(/\/+$/, '');
+    const root = withoutTrailing(this.config.rootPath ?? '', '/');
     const rel = relativePath.replace(/^\/+/, '');
     if (rel === '') {
       return root === '' ? '/' : root;

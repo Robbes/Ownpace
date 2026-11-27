@@ -1,12 +1,29 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * A PLACE IN THE ALPHA, GIVEN AS A PRESENT (workplan 0172; the owner,
- * 2026-11-24, G1 and G3; managed migration 0065).
+ * 2026-11-24, G1 and G3; managed migration 0065), and since workplan 0177 A
+ * RECOMMENDATION THAT LETS ITS PERSON IN (the owner, 2026-11-26, D6; managed
+ * migration 0066).
  *
- * A person in the alpha makes a gift code for one loved one. The recipient
- * types it at the request-access door, which turns it into an access request
- * marked as a gift from the giver; the owner approves it like any other. So a
- * gift lets nobody in by itself.
+ * A person in the Alpha makes a code for one person they know. The recipient
+ * types it at the door, and is let in at once: a request granted by nobody,
+ * an organisation of their own, its owner's invitation, and the code spent.
+ * 0172's G1, that a gift lets nobody in by itself, no longer holds for a free
+ * one. A request without a code still waits for the owner.
+ *
+ * The free thing is a *recommendation* / *aanbeveling* (0177 D1); *gift* is
+ * kept for a code somebody paid for, after the Alpha (0177 §13). The names in
+ * this file are 0172's, and the tables' are too: a rename is not a migration
+ * this plan needs.
+ *
+ * ## The Alpha's two ceilings (0177 §20)
+ *
+ * People the owner let in (granted requests no card points to), and people
+ * let in by a recommendation (requests a card points to, granted or still
+ * waiting), each with its number on the rule's row. A card is made only while
+ * the second count and the cards not used yet are under its number, and the
+ * door lets nobody in at it. A code's session and a giver's learn a word,
+ * never a number: migration 0066's one function answers them.
  *
  * ## What is a grant link's, by name
  *
@@ -30,13 +47,13 @@
  * and `app.current_gift` opens that row and no other (`withGiftCode`).
  */
 
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { isLedgerDriver, pgDriver, assertRoleName, type LedgerDriver } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger/db';
 import { log, type Bilingual } from '@openmig/shared';
 import type { Pool } from 'pg';
-import { accessRequest, gift, giftAllowance, giftRule } from './schema-managed.ts';
+import { gift, giftAllowance, giftRule } from './schema-managed.ts';
 
 // ---------------------------------------------------------------- the code --
 
@@ -180,41 +197,102 @@ export async function giveBackDeclinedGift(db: PgDatabase, requestId: string, no
 
 /**
  * The ONE sentence for a code that is unknown, malformed, used, revoked or
- * expired. It names the remedy true in every case, and never the cause.
+ * expired. It names the remedy true in every case, and never the cause. The
+ * owner's of 2026-11-25, with *cadeaucode* become *code* (0177 §7, D1).
  */
 export const GIFT_REFUSAL: Bilingual = {
   en:
-    'This gift code cannot be used. It may have been typed wrong, used already, withdrawn, or ' +
+    'This code cannot be used. It may have been typed wrong, used already, withdrawn, or ' +
     'it may have expired. Check it against the card, or ask the person who gave it to you.',
   nl:
-    'Deze cadeaucode kan niet worden gebruikt. Misschien is hij verkeerd getypt, al gebruikt, ' +
+    'Deze code kan niet worden gebruikt. Misschien is hij verkeerd getypt, al gebruikt, ' +
     'ingetrokken of verlopen. Vergelijk hem met de kaart, of vraag het aan degene die u de kaart gaf.',
 };
 
-/** The address already has an open request: nothing is written, and the gift is not spent. */
-export const GIFT_ALREADY_ASKED: Bilingual = {
-  en:
-    'There is already a request from this address waiting for an answer, so nothing was added ' +
-    'and your gift code is not used. Keep it: you can use it once that request is answered.',
-  nl:
-    'Er wacht al een aanvraag van dit adres op antwoord. Er is niets toegevoegd en uw cadeaucode ' +
-    'is niet gebruikt. Bewaar hem: u kunt hem gebruiken zodra die aanvraag is beantwoord.',
+/**
+ * The address already has access (0177 §5): nothing is written, and the code
+ * is not used. Told only to the holder of an unused code, which is the one
+ * thing such a holder can learn about an address (0177 §18). An address with
+ * a request waiting is not told anything: that request is granted (D15 (a)).
+ */
+export const GIFT_ALREADY_IN: Bilingual = {
+  en: 'This email address already has access to Ownpace. Your code is not used. Sign in with that email address.',
+  nl: 'Dit e-mailadres heeft al toegang tot Ownpace. Uw code is niet gebruikt. Meld u aan met dat e-mailadres.',
 };
+
+/**
+ * The Alpha is full (0177 §20.3): the people let in by a recommendation fill
+ * the second number. Told only to the holder of a good code, at the check and
+ * at the last step; the code is kept, and nothing is written.
+ */
+export const GIFT_FULL: Bilingual = {
+  en: 'Nobody can be let in with a code right now. Your code is not used.',
+  nl: 'Met een code kan nu niemand worden toegelaten. Uw code is niet gebruikt.',
+};
+
+/** Too many tries from one place, at the check or the redeem: one limit, in both languages (0177 §5). */
+export const GIFT_TOO_MANY_TRIES: Bilingual = {
+  en: 'That is more tries than we expected from one place. Try again later. Nothing is lost.',
+  nl: 'Dat waren meer pogingen dan wij van één plek verwachten. Probeer het later opnieuw. Er gaat niets verloren.',
+};
+
+/**
+ * What a yes to the door's question about Google keeps (0177 D14 (a)): one
+ * fixed English line in the request's note, under a note the person wrote
+ * earlier, for the owner, who then adds the address to Google's list of test
+ * users. A no writes nothing. Migration 0066's function writes this line;
+ * `gift-under-rls.unit.test.ts` holds that the two say the same.
+ */
+export const GOOGLE_SAID_AT_THE_DOOR = 'Said at the door: this address is a Google account to move.';
 
 // -------------------------------------------------------------- the limit --
 
-/** How many gifts one person may hold, and where the number came from. */
+/**
+ * How many gifts one person may hold, and where the number came from:
+ * the operator's number for them, the rule for everyone, or, during the
+ * Alpha, nought for a member who came in by a recommendation (0177 D18).
+ */
 export interface GiftLimit {
   readonly limit: number;
-  readonly from: 'person' | 'everyone';
+  readonly from: 'person' | 'everyone' | 'onlyAfterAlpha';
 }
 
 /**
- * The person's number while the operator set one, the rule for everyone
- * otherwise. Read in the giver's own transaction: `own_allowance` shows them
- * their row, and the rule is readable by anybody.
+ * What the giver's page says to a member let in by a recommendation, during
+ * the Alpha (0177 §20.7): the first of its two sentences, which `POST
+ * /api/gifts` answers as 409 `only_after_alpha`. The page's second sentence,
+ * that they can after the Alpha, is the page's own.
  */
-export async function giftLimitFor(db: PgDatabase, userId: string): Promise<GiftLimit> {
+export const GIFT_ONLY_AFTER_ALPHA: Bilingual = {
+  en: 'During the Alpha, only the people Ownpace let in itself can recommend someone.',
+  nl: 'Tijdens de Alpha kunnen alleen de mensen die Ownpace zelf toeliet iemand aanbevelen.',
+};
+
+/**
+ * A member's number, and D18's rule in its one place (workplan 0177 §20.7; the
+ * owner, 2026-11-26: *"no, not in the alpha. Yes after the alpha."*).
+ *
+ * During the Alpha only the people the owner let in may recommend: a member
+ * whose own organisation was made by a request a card points to has none, and
+ * the answer is nought, `onlyAfterAlpha`. Their organisation is the session's
+ * (`withSubjectAndTenant`), and migration 0066's function tells that session
+ * the one yes or no, of its own organisation and nobody else's. After the
+ * Alpha the rule falls away by itself, and every member has the person's
+ * number while the operator set one, the rule for everyone otherwise.
+ *
+ * Which stage it is the caller says, read in one place (`alphaFrom` in
+ * `apps/api/src/access-notify.ts`): this package knows no environment. Read
+ * in the giver's own transaction: `own_allowance` shows them their row, and
+ * the rule is readable by anybody.
+ */
+export async function giftLimitFor(
+  db: PgDatabase,
+  userId: string,
+  stage: { readonly duringTheAlpha: boolean },
+): Promise<GiftLimit> {
+  if (stage.duringTheAlpha && (await forACard(db)).cameByARecommendation) {
+    return { limit: 0, from: 'onlyAfterAlpha' };
+  }
   const [own] = await db
     .select({ gifts: giftAllowance.gifts })
     .from(giftAllowance)
@@ -263,24 +341,33 @@ export async function listOwnGifts(db: PgDatabase, userId: string, now: Date = n
 
 export type MakeGiftOutcome =
   | { readonly kind: 'made'; readonly id: string; readonly code: string; readonly expiresAt: Date }
-  | { readonly kind: 'atLimit'; readonly limit: number };
+  | { readonly kind: 'atLimit'; readonly limit: number }
+  | { readonly kind: 'noRoom' }
+  | { readonly kind: 'onlyAfterAlpha' };
 
 /**
  * Make one gift, in the giver's subject-and-tenant transaction. Returns the
  * code EXACTLY ONCE. Counted and inserted behind a lock on the giver, so two
- * presses at once make one gift, not two past the limit.
+ * presses at once make one gift, not two past the limit; and behind the
+ * Alpha's one lock, so two givers at the last place make one card, not two
+ * past the second ceiling (0177 §20.3, rule 1). The giver's own limit is
+ * asked first: a giver who has given theirs is told so, full Alpha or not;
+ * and before it, during the Alpha, whether they may give at all (D18).
  *
  * Takes the card's language and nothing else from the giver: no recipient.
  */
 export async function makeGift(
   db: PgDatabase,
-  input: { tenantId: string; giverUserId: string; locale: 'en' | 'nl'; now?: Date },
+  input: { tenantId: string; giverUserId: string; locale: 'en' | 'nl'; duringTheAlpha: boolean; now?: Date },
 ): Promise<MakeGiftOutcome> {
   const now = input.now ?? new Date();
   await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`gift:${input.giverUserId}`}, 0))`);
-  const { limit } = await giftLimitFor(db, input.giverUserId);
+  const { limit, from } = await giftLimitFor(db, input.giverUserId, { duringTheAlpha: input.duringTheAlpha });
+  if (from === 'onlyAfterAlpha') return { kind: 'onlyAfterAlpha' };
   const held = await giftsHeldBy(db, input.giverUserId, now);
   if (held >= limit) return { kind: 'atLimit', limit };
+  await holdTheAlphasLock(db);
+  if (!(await roomForACard(db))) return { kind: 'noRoom' };
 
   const code = mintGiftCode();
   const id = (await db
@@ -355,34 +442,108 @@ export async function withGiftCode<T>(
   }
 }
 
-/** What the recipient typed at the door, about themselves. Nothing of the giver's. */
+/** What the recipient gives at the door's last step, about themselves (0177 §5). Nothing of the giver's. */
 export interface GiftRequest {
   readonly email: string;
+  /** May be left empty: the organisation is then named after the address. */
   readonly name?: string;
-  readonly organisation?: string;
-  readonly note?: string;
-  readonly tier?: string;
+  /** Their answer to *Is this the email address of a Google account that you want to move?* (D14 (a)). */
+  readonly google?: boolean;
+  /** The door's language: the yes mail is written in it. */
   readonly locale: 'en' | 'nl';
 }
 
-export type RedeemOutcome =
-  | { readonly kind: 'redeemed'; readonly requestId: string; readonly giftId: string }
-  | { readonly kind: 'refused' }
-  | { readonly kind: 'alreadyAsked' };
+export type CheckOutcome =
+  | { readonly kind: 'room'; readonly until: Date }
+  | { readonly kind: 'full'; readonly until: Date }
+  | { readonly kind: 'refused' };
 
-/** Thrown inside the transaction to undo the request when the gift was spent under us. */
-class SpentMeanwhile extends Error {}
+export type RedeemOutcome =
+  | {
+      readonly kind: 'letIn';
+      readonly requestId: string;
+      readonly tenantId: string;
+      readonly giftId: string;
+      /** What the organisation is called, for the yes mail. */
+      readonly organisation: string;
+      /** The address as the request holds it: the waiting one's, under D15 (a). */
+      readonly email: string;
+    }
+  | { readonly kind: 'full'; readonly until: Date }
+  | { readonly kind: 'alreadyIn' }
+  | { readonly kind: 'refused' };
 
 /**
- * Turn a code into an access request marked as a gift, or refuse it. Both
- * writes or neither: the request is inserted under `anyone_may_ask`, as the
- * door's own form inserts it, and the gift is spent under
- * `gift_spends_itself`, only while it is still unused. A code spent by a
- * second press at the same moment rolls the first's request back and is
- * refused like any used code.
+ * What migration 0066's function answers: a word, for `let_in` what it wrote,
+ * and for a member's own session whether a card's request made its
+ * organisation (D18).
+ */
+interface DoorAnswer {
+  readonly answer: 'room' | 'full' | 'refused' | 'already_in' | 'let_in';
+  readonly request_id: string | null;
+  readonly tenant_id: string | null;
+  readonly organisation: string | null;
+  readonly email: string | null;
+  readonly by_recommendation: boolean | null;
+}
+
+/**
+ * Ask migration 0066's one function, in whatever session `db` is: a code's
+ * (`withGiftCode`), with or without an address, or a member's, without one.
+ */
+async function askTheDoor(
+  db: PgDatabase,
+  ask: { email: string | null; name: string | null; locale: 'en' | 'nl'; google: boolean },
+): Promise<DoorAnswer> {
+  const result = await db.execute(sql`
+    SELECT answer, request_id, tenant_id, organisation, email, by_recommendation
+      FROM public.let_in_by_a_recommendation(${ask.email}::text, ${ask.name}::text, ${ask.locale}::text, ${ask.google}::boolean)`);
+  const [row] = (result as unknown as { rows: DoorAnswer[] }).rows;
+  if (!row) throw new Error('let_in_by_a_recommendation answered nothing (managed migration 0066)');
+  return row;
+}
+
+/** The gift a code's session sees, if it is unused (`gift_sees_itself`): its id and last day. */
+async function unusedGiftOf(db: PgDatabase, fingerprint: string, now: Date): Promise<{ id: string; until: Date } | null> {
+  const [row] = await db
+    .select({ id: gift.id, redeemedAt: gift.redeemedAt, revokedAt: gift.revokedAt, expiresAt: gift.expiresAt })
+    .from(gift)
+    .where(eq(gift.codeHash, fingerprint));
+  return row && giftState(row, now) === 'unused' ? { id: row.id, until: row.expiresAt } : null;
+}
+
+/**
+ * THE CHECK (0177 §5, step 1 of 3): whether a code can be used, read in the
+ * code's own transaction, as the redeem reads it. Writes nothing and spends
+ * nothing. Every bad code is `refused`, the redeem's own answer; a good code
+ * the Alpha has no room for is `full`, with the code's last day, which the
+ * card prints anyway.
+ */
+export async function checkGift(source: LedgerDriver | Pool, typedCode: unknown, now: Date = new Date()): Promise<CheckOutcome> {
+  const plain = readGiftCode(typedCode);
+  if (!plain) return { kind: 'refused' };
+  const fingerprint = giftFingerprint(plain);
+  return withGiftCode(source, fingerprint, async (db) => {
+    const unused = await unusedGiftOf(db, fingerprint, now);
+    if (!unused) return { kind: 'refused' } as const;
+    const { answer } = await askTheDoor(db, { email: null, name: null, locale: 'en', google: false });
+    if (answer === 'room') return { kind: 'room', until: unused.until } as const;
+    if (answer === 'full') return { kind: 'full', until: unused.until } as const;
+    return { kind: 'refused' } as const;
+  });
+}
+
+/**
+ * Let the code's person in (0177 §5, D6), or say why not. In ONE transaction,
+ * the code's own, through migration 0066's function: the request granted by
+ * nobody (the address's waiting one under D15 (a), else a new one), the
+ * organisation, its owner's invitation, and the code spent and pointing to
+ * the request. All of it or none. A yes about Google is one fixed line in the
+ * request's note (D14 (a)).
  *
- * An address with an open request (`ux_access_request_one_open_per_email`)
- * writes nothing and leaves the gift unspent.
+ * `full` (the second ceiling, §20.3) and `alreadyIn` write nothing and keep
+ * the code; every bad code, and a code spent since the check, is `refused`.
+ * The mails are the caller's, after this returns: this commits first.
  */
 export async function redeemGift(
   source: LedgerDriver | Pool,
@@ -394,40 +555,139 @@ export async function redeemGift(
   // Malformed answers what unknown answers, and touches nothing.
   if (!plain) return { kind: 'refused' };
   const fingerprint = giftFingerprint(plain);
-  const requestId = randomUUID();
-  try {
-    return await withGiftCode(source, fingerprint, async (db) => {
-      const [row] = await db
-        .select({ id: gift.id, redeemedAt: gift.redeemedAt, revokedAt: gift.revokedAt, expiresAt: gift.expiresAt })
-        .from(gift)
-        .where(eq(gift.codeHash, fingerprint));
-      if (!row || giftState(row, now) !== 'unused') return { kind: 'refused' } as const;
-
-      await db.insert(accessRequest).values({
-        id: requestId,
-        email: request.email,
-        ...(request.name ? { name: request.name } : {}),
-        ...(request.organisation ? { organisation: request.organisation } : {}),
-        ...(request.note ? { note: request.note } : {}),
-        ...(request.tier ? { tier: request.tier } : {}),
-        locale: request.locale,
-      });
-      const spent = await db
-        .update(gift)
-        .set({ redeemedAt: now, redeemedRequestId: requestId })
-        .where(and(eq(gift.id, row.id), isNull(gift.redeemedAt), isNull(gift.revokedAt)))
-        .returning({ id: gift.id });
-      if (spent.length !== 1) throw new SpentMeanwhile();
-      return { kind: 'redeemed', requestId, giftId: row.id } as const;
+  return withGiftCode(source, fingerprint, async (db) => {
+    const unused = await unusedGiftOf(db, fingerprint, now);
+    if (!unused) return { kind: 'refused' } as const;
+    const said = await askTheDoor(db, {
+      email: request.email,
+      name: request.name ?? null,
+      locale: request.locale,
+      google: request.google === true,
     });
-  } catch (error) {
-    if (error instanceof SpentMeanwhile) return { kind: 'refused' };
-    // On the cause, as the door's own form reads it: drizzle wraps the driver's error.
-    const cause = (error as { cause?: unknown }).cause;
-    const pg = (cause ?? error) as { code?: string; constraint?: string };
-    if (pg.code === '23505' && pg.constraint === 'ux_access_request_one_open_per_email') {
-      return { kind: 'alreadyAsked' };
+    switch (said.answer) {
+      case 'let_in':
+        return {
+          kind: 'letIn',
+          requestId: String(said.request_id),
+          tenantId: String(said.tenant_id),
+          giftId: unused.id,
+          organisation: String(said.organisation),
+          email: String(said.email),
+        } as const;
+      case 'full':
+        return { kind: 'full', until: unused.until } as const;
+      case 'already_in':
+        return { kind: 'alreadyIn' } as const;
+      default:
+        return { kind: 'refused' } as const;
     }
-    throw error;
-  }
+  });
+}
+
+// --------------------------------------------------------------- the Alpha --
+
+/**
+ * The Alpha's one lock (0177 §20.3, rule 3): taken before a count that a write
+ * then relies on, by a card being made and by a code letting its person in
+ * (migration 0066's function takes it by the same key), so that two at the
+ * last place make one. Not a giver's key: `makeGift`'s is `gift:` and a subject.
+ */
+export const THE_ALPHAS_LOCK = 'alpha:recommendations';
+
+export async function holdTheAlphasLock(db: PgDatabase): Promise<void> {
+  await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${THE_ALPHAS_LOCK}, 0))`);
+}
+
+/** What a member's own session learns of the Alpha, for a new card: two yes-or-nos and no number. */
+export interface ForACard {
+  /** The people let in by a recommendation and the cards not used yet are under the second number (§20.3, rule 1). */
+  readonly room: boolean;
+  /** A card's request made this session's own organisation (D18, §20.7). */
+  readonly cameByARecommendation: boolean;
+}
+
+/**
+ * Asked in a member's own session, scoped to their organisation
+ * (`withSubjectAndTenant`), through migration 0066's function: the giver may
+ * read neither count, nor any other organisation's answer. A session that is
+ * no member of the organisation it names learns nothing, and reads as no room.
+ */
+export async function forACard(db: PgDatabase): Promise<ForACard> {
+  const said = await askTheDoor(db, { email: null, name: null, locale: 'en', google: false });
+  return { room: said.answer === 'room', cameByARecommendation: said.by_recommendation === true };
+}
+
+/**
+ * Whether the Alpha has room for a new card (0177 §20.3, rule 1). `GET
+ * /api/gifts/mine` answers it as `room`, and `makeGift` asks it behind the
+ * Alpha's lock.
+ */
+export async function roomForACard(db: PgDatabase): Promise<boolean> {
+  return (await forACard(db)).room;
+}
+
+/** The rule's one row: how many each person may give, and the Alpha's two ceilings (0177 §20.2). */
+export interface GiftRule {
+  readonly giftsPerPerson: number;
+  readonly ownerCeiling: number;
+  readonly recommendationCeiling: number;
+}
+
+/** The whole rule, readable by anybody; 1, 50 and 50 if the row were ever missing. */
+export async function theGiftRule(db: PgDatabase): Promise<GiftRule> {
+  const [rule] = await db
+    .select({
+      giftsPerPerson: giftRule.giftsPerPerson,
+      ownerCeiling: giftRule.ownerCeiling,
+      recommendationCeiling: giftRule.recommendationCeiling,
+    })
+    .from(giftRule);
+  return rule ?? { giftsPerPerson: 1, ownerCeiling: 50, recommendationCeiling: 50 };
+}
+
+/** The Alpha's counts, as the operator reads them (0177 §20.1, §20.6). */
+export interface AlphaCounts {
+  /** Every granted request, however it came. */
+  readonly granted: number;
+  /** Every request still waiting for the owner. */
+  readonly open: number;
+  /** Of those, the ones a card made before 0177, which the owner still answers. */
+  readonly openFromGifts: number;
+  /** People the owner let in: granted requests that no card points to. */
+  readonly byOwner: number;
+  /** People let in by a recommendation: requests a card points to, granted or still waiting. */
+  readonly byRecommendation: number;
+}
+
+/**
+ * The counts, in the operator's own transaction: the operator reads every
+ * request and every gift (0005, 0065), so they are read here rather than
+ * through 0066's function, which tells nobody a number. The second count is
+ * the one that function counts at the door, by the same definition, and
+ * `an-alpha-with-two-ceilings.unit.test.ts` reads the one against the other.
+ *
+ * D17 (the owner, 2026-11-26: *"no, ik will count"*): nothing refuses the
+ * owner's own yes, at the first number or past it. The owner keeps count, on
+ * the Gifts screen, above the queue and in the overview on Support, which all
+ * read this, through `GET /api/gifts/operator` (0177 §19, §20.4).
+ */
+export async function alphaCounts(db: PgDatabase): Promise<AlphaCounts> {
+  const result = await db.execute(sql`
+    SELECT count(*) FILTER (WHERE r.state = 'granted')::int AS granted,
+           count(*) FILTER (WHERE r.state = 'open')::int AS open,
+           count(*) FILTER (WHERE r.state = 'open' AND carded)::int AS open_from_gifts,
+           count(*) FILTER (WHERE r.state = 'granted' AND NOT carded)::int AS by_owner,
+           count(*) FILTER (WHERE r.state IN ('open', 'granted') AND carded)::int AS by_recommendation
+      FROM (SELECT a.state,
+                   EXISTS (SELECT 1 FROM public.gift g WHERE g.redeemed_request_id = a.id) AS carded
+              FROM public.access_request a) r`);
+  const [row] = (result as unknown as { rows: Array<Record<string, unknown>> }).rows;
+  const n = (key: string): number => Number(row?.[key] ?? 0);
+  return {
+    granted: n('granted'),
+    open: n('open'),
+    openFromGifts: n('open_from_gifts'),
+    byOwner: n('by_owner'),
+    byRecommendation: n('by_recommendation'),
+  };
 }

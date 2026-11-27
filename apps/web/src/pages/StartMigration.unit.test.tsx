@@ -1256,6 +1256,8 @@ describe('someone else connects their own accounts, by a link where one reaches 
     await toCheckByLink(user);
     // The link is made here, and the next read finds it used.
     linksMock.mockResolvedValue([USED]);
+    // The tick before the button (0176 T8).
+    await user.click(await screen.findByRole('checkbox', { name: /I have told Anna Jansen that a link is coming/ }));
     await user.click(await screen.findByRole('button', { name: /Create grant link/ }));
     await screen.findByText('2,000');
     expect(screen.queryByText(/Waiting for Anna Jansen to connect/)).not.toBeInTheDocument();
@@ -1313,6 +1315,8 @@ describe('someone else connects their own accounts, by a link where one reaches 
     expect(vi.mocked(createAddressChange)).not.toHaveBeenCalled();
 
     linksMock.mockResolvedValue([USED]);
+    // The tick before the button (0176 T8).
+    await user.click(await screen.findByRole('checkbox', { name: /I have told Anna Jansen that a link is coming/ }));
     await user.click(await screen.findByRole('button', { name: /Create grant link/ }));
     const start = screen.getByRole('button', { name: 'Start' });
     await vi.waitFor(() => expect(start).toBeEnabled());

@@ -152,7 +152,7 @@ export const en = {
   'grant.person.yourPage':
     'Here is your own page. Keep this one. It shows how far the copying is, and nothing from inside your account:',
   'grant.person.keepIt':
-    'Keep this link: bookmark it or copy it somewhere safe. It works for the next 90 days, and whoever sent you the link can turn it off at any time.',
+    'Keep this link: bookmark it or copy it somewhere safe. It works for the next 90 days, and {who} can turn it off at any time.',
   'grant.connecting.cirrux': 'Opening Cirrux…',
   'grant.cirrux.drive':
     'Your files go to Cirrux Drive, which takes your own Cirrux sign-in rather than the app password. You sign in to Cirrux yourself, on Cirrux’s own page.',
@@ -190,6 +190,10 @@ export const en = {
   'grant.person.ownpace': 'This page is from Ownpace, the service that makes the copy.',
   'grant.person.title': '{who} asks for your permission',
   'grant.person.sender': 'Sender',
+  // A number to check, never proof (§7, D11): the member's own, else the
+  // organisation's, saying whose it is. `{phone}` is drawn as a link.
+  'grant.person.number': "{who}'s number: {phone}. Or use the number you already have for {who}.",
+  'grant.person.number.organisation': 'The number of {organisation}: {phone}. Or use the number you already have for {who}.',
   'grant.person.place': '{place} ({account})',
   'grant.person.whatOne': '{who} wants to copy your {what} from {source} to {destination}.',
   'grant.person.whatMany': '{who} wants to copy your {what}. The next screen shows from where and to where.',
@@ -396,7 +400,7 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.person.yourPage':
     'Hier is uw eigen pagina. Bewaar deze. Die laat zien hoe ver het kopiëren is, en niets uit uw account:',
   'grant.person.keepIt':
-    'Bewaar deze link: zet hem bij uw favorieten of kopieer hem naar een veilige plek. Hij werkt de komende 90 dagen, en wie u de link stuurde, kan hem op elk moment uitzetten.',
+    'Bewaar deze link: zet hem bij uw favorieten of kopieer hem naar een veilige plek. Hij werkt de komende 90 dagen, en {who} kan hem op elk moment uitzetten.',
   'grant.connecting.cirrux': 'Cirrux wordt geopend…',
   'grant.cirrux.drive':
     'Uw bestanden gaan naar Cirrux Drive, en daarvoor is uw eigen aanmelding bij Cirrux nodig, niet het app-wachtwoord. U meldt zich zelf aan bij Cirrux, op de pagina van Cirrux zelf.',
@@ -427,6 +431,8 @@ export const nl: Record<keyof typeof en, string> = {
   'grant.person.ownpace': 'Deze pagina is van Ownpace, de dienst die de kopie maakt.',
   'grant.person.title': '{who} vraagt uw toestemming',
   'grant.person.sender': 'Afzender',
+  'grant.person.number': 'Nummer van {who}: {phone}. Of gebruik het nummer dat u al van {who} hebt.',
+  'grant.person.number.organisation': 'Nummer van {organisation}: {phone}. Of gebruik het nummer dat u al van {who} hebt.',
   'grant.person.place': '{place} ({account})',
   'grant.person.whatOne': '{who} wil uw {what} kopiëren van {source} naar {destination}.',
   'grant.person.whatMany': '{who} wil uw {what} kopiëren. Op het volgende scherm staat waarvandaan en waarnaartoe.',

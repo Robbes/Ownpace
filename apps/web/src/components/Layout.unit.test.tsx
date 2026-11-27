@@ -354,6 +354,13 @@ describe('the header on per-mapping routes (T3)', () => {
     renderLayout('/docs');
     expect(within(screen.getByRole('banner')).getByRole('heading', { level: 1, name: 'Help' })).toBeInTheDocument();
   });
+
+  // Recommend someone and the operator's Gifts draw their own h1 (workplans 0172, 0177).
+  it.each(['/give', '/gifts'])('is not a second h1 on %s either', (path) => {
+    authState.user = { name: 'A', email: 'a@acme.test', role: 'owner' };
+    renderLayout(path);
+    expect(within(screen.getByRole('banner')).queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
 });
 
 describe('the Ownpace mark, and the language switch, in the sidebar', () => {
@@ -524,11 +531,11 @@ describe("a member's menu", () => {
       .getAllByRole('link')
       .map((a) => a.textContent?.trim() ?? '');
 
-  it('is Migrations, Needs you, Accounts, Help, Team, Give Ownpace and Billing, in that order', () => {
+  it('is Migrations, Needs you, Accounts, Help, Team, Recommend someone and Billing, in that order', () => {
     authState.user = { name: 'Anna', email: 'anna@example.org', role: 'owner' };
     renderLayout('/mappings');
-    // Give Ownpace (workplan 0172): every member may give their gift.
-    expect(linkNames()).toEqual(['Migrations', 'Needs you', 'Accounts', 'Help', 'Team', 'Give Ownpace', 'Billing']);
+    // Recommend someone (workplans 0172, 0177): every member may recommend one person.
+    expect(linkNames()).toEqual(['Migrations', 'Needs you', 'Accounts', 'Help', 'Team', 'Recommend someone', 'Billing']);
   });
 
   it('has no Dashboard, no Connections, and no Attention any more', () => {

@@ -15,6 +15,31 @@ export const en = {
   // Where a person's link is made (workplan 0176 D13 (a), the owner,
   // 2026-11-26): the person's first screen asks whether they were told.
   'personLink.tellFirst': 'Tell {name} first, by phone or in person. The page asks whether you did.',
+  // Making a person's link (workplan 0176 §12, T8): a tick before the button,
+  // how the page speaks to them (T7), your name once, the Alpha's Google
+  // lines, and a message to send with the link, in their language and voice.
+  // Nothing asks who you are to them (D7, reversed by the owner, 2026-11-26).
+  'personLink.told': 'I have told {name} that a link is coming: by phone, or in person.',
+  'personLink.voice.label': 'How does the page speak to {name}?',
+  'personLink.voice.dutchU': 'Dutch, with u',
+  'personLink.voice.dutchJe': 'Dutch, with je',
+  'personLink.voice.english': 'English',
+  'personLink.voice.child': 'Is {name} under 16? Then a parent completes the link together with {name}.',
+  'personLink.name.label': 'Your name, as {name} knows you',
+  'personLink.name.hint': 'Shown on the page {name} opens.',
+  'personLink.alpha.testUsers':
+    "During the Alpha, Google only lets in addresses on its list of test users. Mail us {name}'s Google address first, and wait for our answer.",
+  'personLink.alpha.guide': 'How this goes, in the tester guide',
+  'personLink.together': 'Do the Google step together if you can. Google shows a warning during the Alpha.',
+  'personLink.message.label': 'A message to send with it',
+  'personLink.message.hint': 'You may change it before you send it.',
+  'personLink.message.copy': 'Copy message',
+  'personLink.message.copied': 'Message copied',
+  'personLink.print': 'Print a sheet for {name}',
+  // The message itself is in the person's language and voice, not the
+  // member's (§12): its words are `message.*` below, chosen by that.
+  'message.toPerson':
+    'This is the link I told you about. It opens a page of Ownpace. There you give permission to copy your {what} to {destination}. There is no hurry: the link works until {date}. Shall we do it together? Call me when you want to start.',
   'personLink.asksAgain':
     'Every Google account of theirs is connected, so this link asks them to connect each one again. Send it when a connection has stopped working.',
   'personLink.view.title': 'One progress link for everything',
@@ -180,6 +205,25 @@ export const nl: Record<keyof typeof en, string> = {
     'Eén link voor alle Google-accounts van deze persoon: bij elk account één keer aanmelden, en de migratie kan verder.',
   'personLink.empty': 'Nog geen link voor deze persoon.',
   'personLink.tellFirst': 'Vertel het {name} eerst, aan de telefoon of persoonlijk. De pagina vraagt of u dat hebt gedaan.',
+  'personLink.told': 'Ik heb {name} verteld dat er een link komt: aan de telefoon, of persoonlijk.',
+  'personLink.voice.label': 'Hoe spreekt de pagina {name} aan?',
+  'personLink.voice.dutchU': 'Nederlands, met u',
+  'personLink.voice.dutchJe': 'Nederlands, met je',
+  'personLink.voice.english': 'Engels',
+  'personLink.voice.child': 'Is {name} jonger dan 16? Dan rondt een ouder de link samen met {name} af.',
+  'personLink.name.label': 'Uw naam, zoals {name} u kent',
+  'personLink.name.hint': 'Staat op de pagina die {name} opent.',
+  'personLink.alpha.testUsers':
+    'Tijdens de Alpha laat Google alleen adressen toe die op de lijst van testgebruikers staan. Mail ons eerst het Google-adres van {name}, en wacht op ons antwoord.',
+  'personLink.alpha.guide': 'Hoe dat gaat, in de handleiding',
+  'personLink.together': 'Doe de stap bij Google het liefst samen. Google toont tijdens de Alpha een waarschuwing.',
+  'personLink.message.label': 'Een bericht om mee te sturen',
+  'personLink.message.hint': 'U mag het aanpassen voordat u het verstuurt.',
+  'personLink.message.copy': 'Bericht kopiëren',
+  'personLink.message.copied': 'Bericht gekopieerd',
+  'personLink.print': 'Een vel voor {name} afdrukken',
+  'message.toPerson':
+    'Dit is de link waarover ik u vertelde. U komt op een pagina van Ownpace. Daar geeft u toestemming om uw {what} te kopiëren naar {destination}. Er is geen haast: de link werkt tot {date}. Zullen we het samen doen? Bel mij als u wilt beginnen.',
   'personLink.asksAgain':
     'Elk Google-account van deze persoon is verbonden; deze link vraagt om elk account opnieuw te verbinden. Stuur hem als een verbinding niet meer werkt.',
   'personLink.view.title': 'Eén voortgangslink voor alles',

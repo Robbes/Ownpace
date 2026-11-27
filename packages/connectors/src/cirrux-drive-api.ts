@@ -31,14 +31,7 @@
  * resolving inside our network applies to it (workplan 0136 T1).
  */
 
-import {
-  CIRRUX_API_BASE,
-  STREAMED_REQUEST_INIT,
-  log,
-  parseRetryAfterMs,
-  withFailureCategory,
-  type FileBody,
-} from '@openmig/shared';
+import { CIRRUX_API_BASE, STREAMED_REQUEST_INIT, log, parseRetryAfterMs, withFailureCategory, type FileBody, withoutTrailing } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { CirruxTokenProvider } from './cirrux-token-provider.ts';
 
@@ -146,7 +139,7 @@ export class CirruxDriveApi {
 
   constructor(options: CirruxDriveApiOptions) {
     this.tokens = options.tokens;
-    this.base = (options.baseUrl ?? CIRRUX_API_BASE).replace(/\/+$/, '');
+    this.base = withoutTrailing(options.baseUrl ?? CIRRUX_API_BASE, '/');
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.partFetch = options.partFetch ?? ((url, init) => tenantFetch(url, init));
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));

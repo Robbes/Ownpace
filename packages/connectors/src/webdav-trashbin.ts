@@ -29,6 +29,8 @@
  * rather than trusting two code paths to agree by coincidence.
  */
 
+import { withoutEither } from '@openmig/shared';
+
 /** The properties the trashbin PROPFIND asks for. */
 export const TRASHBIN_PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">
@@ -162,10 +164,10 @@ export function classifyTrashbinLocation(
   originalLocation: string,
   rootPath?: string,
 ): { path?: string; why?: 'out_of_scope' | 'unnameable' } {
-  const location = originalLocation.replace(/^\/+/, '').replace(/\/+$/, '');
+  const location = withoutEither(originalLocation, '/');
   if (location === '') return { why: 'unnameable' };
 
-  const root = (rootPath ?? '').replace(/^\/+/, '').replace(/\/+$/, '');
+  const root = withoutEither(rootPath ?? '', '/');
   if (root === '') return { path: location };
   if (location === root) return { why: 'out_of_scope' }; // the root itself, not an item in it
   if (!location.startsWith(`${root}/`)) return { why: 'out_of_scope' }; // outside the sync scope

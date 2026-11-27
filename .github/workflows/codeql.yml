@@ -1,0 +1,116 @@
+# CodeQL over the JavaScript and TypeScript, REPORT ONLY (workplan 0178 T5;
+# the owner's D1 (a) and D8 (a) of 2026-11-26).
+#
+# WHY. Semgrep's free engine follows a value within one function only, and in
+# this code a body is read in a route and used in a store or a client, in
+# another file. CodeQL follows a value from a request to where it is used,
+# across files and functions: `js/sql-injection`, `js/path-injection`,
+# `js/reflected-xss` and `js/xss`, the two prototype-pollution queries, the two
+# ReDoS queries, `js/clear-text-logging` and the client-side redirect (0178
+# §4.1). It is added beside Semgrep, not instead of it, and reopens 0163's
+# "CodeQL not now" by the owner's D1.
+#
+# IT BLOCKS NOTHING. Every query reports into code scanning, beside Trivy's and
+# Semgrep's alerts, and no alert fails this job. The ReDoS queries too, until
+# T6 has read their list and the owner decides (D8 (a)). A query blocks later
+# only through a report that fails on that query alone, one at a time, once
+# it reports nothing on main (T9).
+#
+# NEVER ON A PULL REQUEST, for the reason semgrep.yml gives: there code
+# scanning adds a check of its own, which can fail on a new alert, and this
+# repository decides itself what blocks. So a push to main, which keeps
+# main's record, once a week, against queries that have moved since, and on
+# dispatch. It is in no ruleset and in no `ci-complete`
+# (every-pr-check-is-classified.unit.test.ts reads only workflows that run on
+# a pull request).
+#
+# A SCAN THAT DID NOT FINISH IS NOT GREEN (security-scan.yml's rule).
+# scripts/codeql-report.mjs reads the SARIF and fails the job when there is
+# none, when CodeQL could not extract a file, or when a source file the
+# checkout tracks is not among those it says it extracted: CodeQL parses
+# TypeScript with its own compiler, not this repository's TypeScript 7, so a
+# file it read nothing of would otherwise pass in silence (0178 §4.1, §12).
+#
+# THE PROOF (0178 §8 step 2, §10). Dispatched with `proof`, the run reads the
+# tree and the known-bad fixture in scripts/fixtures/codeql-known-bad, which
+# the ordinary run leaves out (.github/codeql/codeql.yml against
+# codeql-proof.yml), uploads nothing to code scanning, and is red unless
+# `js/sql-injection` and `js/reflected-xss` are both reported in the fixture.
+#
+# WHICH CODEQL. github/codeql-action by its commit, the same commit
+# semgrep.yml and security-scan.yml upload with, so Dependabot's
+# `github-actions` entry moves every copy in one pull request; and the CodeQL
+# bundle that release ships, `tools: linked`. v4.39.4 ships bundle 2.27.5 (its
+# src/defaults.json). Named because left unnamed the action takes the
+# runner's tool cache when it holds a newer CodeQL: the first run on main,
+# 45886149663, ran 2.27.6 from it, a version this file did not pin (0178 T6). The pin watch's row `CodeQL`
+# (scripts/idp-pin-watch.mjs) reads the copies together and names the newer
+# release and its bundle. A newer bundle can report more or fewer alerts with
+# the same queries, so read the next run on main after the move.
+#
+# WHERE. ubuntu-24.04, always: it reads no secret and needs nothing of the
+# self-hosted runner. The job reads the tree and writes code scanning's list,
+# and nothing else.
+#
+# scripts/a-flow-across-files-nothing-followed.unit.test.ts holds this file,
+# its two configurations, the fixture and the report.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '47 2 * * 3' # weekly, Wednesday 02:47 UTC, clear of the nightly E2E's firings
+  workflow_dispatch:
+    inputs:
+      proof:
+        description: 'Also read the known-bad fixture, upload nothing, and be red unless both of its queries report there.'
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  # One queue per event. GitHub keeps one waiting run per group, and a newer
+  # one replaces it: keyed on the ref alone, a dispatch waiting behind a push
+  # run on main was replaced by the next push (the proof dispatch of
+  # 2026-11-26 could only wait until that push run had finished, 0178 T6).
+  group: codeql-${{ github.event_name }}-${{ github.ref }}
+  # A run on main is main's record: the next one waits, it does not cancel it.
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    name: CodeQL (JavaScript and TypeScript)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read # the checkout
+      security-events: write # the SARIF upload to code scanning
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+      - name: Start CodeQL, with the configuration the event asks for
+        uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          tools: linked # the bundle this release ships, never the runner's cached CodeQL (WHICH CODEQL, above)
+          config-file: ${{ inputs.proof && './.github/codeql/codeql-proof.yml' || './.github/codeql/codeql.yml' }}
+      - name: Analyse, and upload to code scanning unless this is the proof run
+        uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          category: /language:javascript-typescript
+          upload: ${{ inputs.proof && 'never' || 'always' }}
+          output: ${{ runner.temp }}/codeql-sarif
+      - name: Write what CodeQL found to the summary, and fail a scan that did not finish
+        env:
+          PROOF: ${{ inputs.proof }}
+          SARIF_DIR: ${{ runner.temp }}/codeql-sarif
+        run: |
+          node scripts/codeql-report.mjs

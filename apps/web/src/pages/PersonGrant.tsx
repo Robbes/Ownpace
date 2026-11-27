@@ -65,6 +65,9 @@ import { isAlpha } from '../components/AlphaNote.tsx';
 import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import { GrantPasswordCard } from '../components/GrantPasswordCard.tsx';
 import { YourNewAddress } from '../components/YourNewAddress.tsx';
+import { NumberToCheck, SenderName, numberToCheck, whoSent } from '../components/TheSender.tsx';
+import { WhereItRuns } from '../components/WhereItRuns.tsx';
+import { LinkToOnePage } from './PersonGrantOnePage.tsx';
 import {
   GrantScope,
   NotTheProvider,
@@ -213,7 +216,10 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
     return () => window.removeEventListener('pageshow', shown);
   }, []);
 
-  const who = data.askedBy ?? data.organisation;
+  // Who sent the link (0176 §7, T3): the name the member gave, else their
+  // address, else the organisation. Every {who} on the page is this one.
+  const who = whoSent(data);
+  const number = numberToCheck(data);
   const date = dateTime(data.expiresAt);
   const triesOf = (a: PersonGrantCard) => triesHere[a.ref] ?? a.tries ?? null;
   const stateOf = (a: PersonGrantCard): CardState =>
@@ -458,7 +464,7 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
           {progressUrl}
         </a>
       </p>
-      <p className="mt-2">{t('grant.person.keepIt')}</p>
+      <p className="mt-2">{t('grant.person.keepIt', { who })}</p>
     </div>
   );
 
@@ -480,31 +486,35 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
                 {isAlpha() && askedAgain.some((a) => (a.provider ?? 'google') === 'google') && ` ${t('grant.person.again.alpha')}`}
               </p>
             )}
-            {/* The sender's facts, under the label Sender: T3 gives it a name,
-                how the reader knows them, and a number to check. */}
-            <dl className="mt-4 p-4 border border-gray-300 rounded-lg bg-white grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-lg">
-              {data.checkedCompany && (
-                <>
-                  <dt className="text-gray-800">{t('grant.company')}</dt>
-                  <dd className="text-gray-900">
-                    <span className="block">{data.checkedCompany}</span>
-                    <span className="block text-base text-gray-800">{t('grant.companyChecked')}</span>
-                  </dd>
-                </>
-              )}
-              <dt className="text-gray-800">{t('grant.person.sender')}</dt>
-              <dd className="text-gray-900 break-all">{who}</dd>
-              {data.organisationPhone && (
-                <>
-                  <dt className="text-gray-800">{t('grant.phone')}</dt>
-                  <dd className="text-gray-900">
-                    <a className={QUIET} href={`tel:${data.organisationPhone.replace(/[^0-9+]/g, '')}`}>
-                      {data.organisationPhone}
-                    </a>
-                  </dd>
-                </>
-              )}
-            </dl>
+            {/* The sender's facts, under the label Sender (T3, §7): the name
+                the member gave, else their address, with the address under a
+                name, and a number to check, never as proof (D11). An address
+                breaks anywhere: in a grid, a line that breaks only between
+                words holds its column as wide as the address, and a phone of
+                320 pixels zooms out to fit it. */}
+            <div data-sender className="mt-4 p-4 border border-gray-300 rounded-lg bg-white">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-lg">
+                {data.checkedCompany && (
+                  <>
+                    <dt className="text-gray-800">{t('grant.company')}</dt>
+                    <dd className="text-gray-900">
+                      <span className="block">{data.checkedCompany}</span>
+                      <span className="block text-base text-gray-800">{t('grant.companyChecked')}</span>
+                    </dd>
+                  </>
+                )}
+                <dt className="text-gray-800">{t('grant.person.sender')}</dt>
+                <dd className="text-gray-900 wrap-anywhere">
+                  <span className="block">
+                    <SenderName facts={data} />
+                  </span>
+                  {data.sender?.name && data.askedBy && (
+                    <span className="block text-base text-gray-800 break-all">{data.askedBy}</span>
+                  )}
+                </dd>
+              </dl>
+              <NumberToCheck facts={data} className="mt-3 text-lg text-gray-900" />
+            </div>
             <p className="mt-4 text-lg text-gray-900">
               {oneRoute
                 ? t('grant.person.whatOne', {
@@ -696,7 +706,7 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
                   {migrationLines(a, { theyOpenIt: !theyOpenItFirst })}
                   <p className="mt-3 text-lg text-gray-900">{t('grant.until', { date })}</p>
                   {textsAccepted}
-                  {!data.organisationPhone && (
+                  {number === null && (
                     <p className="mt-3 text-lg text-amber-900" data-no-phone>
                       {t('grant.password.noPhone', { organisation: data.organisation, askedBy: who })}
                     </p>
@@ -825,7 +835,13 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
   return (
     <div data-step={step.kind}>
       {n > 0 && <p className="text-base text-gray-800">{t('grant.step', { n: String(n), total: String(total) })}</p>}
-      {step.kind === 'ask' && <p className="mt-2 text-lg text-gray-900">{t('grant.person.ownpace')}</p>}
+      {step.kind === 'ask' && (
+        <>
+          <p className="mt-2 text-lg text-gray-900">{t('grant.person.ownpace')}</p>
+          {/* Where the service runs (D16 (a)), when the stack names a country. */}
+          <WhereItRuns className="mt-1 text-lg text-gray-900" />
+        </>
+      )}
       <h1 ref={headingRef} tabIndex={-1} id={h1Id} className="mt-2 text-2xl font-semibold text-gray-900 break-words">
         {title}
       </h1>
@@ -834,6 +850,10 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
           quiet link, in one place, but on *not yet*, which holds it as a
           button; and the accessibility statement. */}
       <div data-foot className="mt-10 border-t border-gray-300 pt-4 space-y-1">
+        {/* The same sentences on one page, which prints (D15 (a)): on every screen. */}
+        <p>
+          <LinkToOnePage link={link} />
+        </p>
         {step.kind !== 'notYet' && (
           <ReportThisLink kind="grant" link={link} organisation={data.organisation} next="linkReport.next.grant" look="link" />
         )}

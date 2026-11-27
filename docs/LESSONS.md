@@ -35,6 +35,14 @@ reading a file drops off its entry by itself.
 
 - [an-issue-route-for-the-hosted-service](../scripts/an-issue-route-for-the-hosted-service.unit.test.ts) — AN ISSUE ROUTE FOR THE HOSTED SERVICE: a tester of the hosted Alpha who lands on GitHub's "New issue" page finds their way to a person first (workplan 0144 T6 (c)).
 
+### `.github/codeql/codeql-proof.yml`
+
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
+
+### `.github/codeql/codeql.yml`
+
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
+
 ### `.github/dependabot.yml`
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
@@ -79,6 +87,11 @@ reading a file drops off its entry by itself.
 
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
+
+### `.github/workflows/codeql.yml`
+
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 
 ### `.github/workflows/e2e-live-target.yml`
 
@@ -195,6 +208,7 @@ reading a file drops off its entry by itself.
 
 - [a-bill-of-materials-that-read-one-package-json](../scripts/a-bill-of-materials-that-read-one-package-json.unit.test.ts) — A BILL OF MATERIALS THAT READ ONE PACKAGE.JSON: alpha.18's `bom.json` lacked 56 production packages the apps import, and nothing said so (workplan 0006 §Q).
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 - [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -212,6 +226,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/semgrep.yml`
 
 - [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 
 ### `.github/workflows/windows-payload.yml`
@@ -606,6 +621,7 @@ reading a file drops off its entry by itself.
 ### `apps/selfhost/Dockerfile`
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
@@ -644,6 +660,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/Dockerfile`
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
@@ -717,6 +734,14 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/SupportLine.tsx`
 
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
+
+### `apps/web/src/components/WhereItRuns.tsx`
+
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
+
+### `apps/web/src/components/WhereItRuns.unit.test.tsx`
+
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 
 ### `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 
@@ -884,12 +909,21 @@ reading a file drops off its entry by itself.
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 
+### `apps/web/src/services/where-it-runs.ts`
+
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
+
+### `apps/web/src/services/where-it-runs.unit.test.ts`
+
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
+
 ### `apps/web/src/zod-without-eval.ts`
 
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
 
 ### `apps/web/vite.config.ts`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
@@ -1163,6 +1197,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/deploy-live.sh`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-a-dropped-connection-could-stop](../scripts/a-deploy-a-dropped-connection-could-stop.unit.test.ts) — A DEPLOY A DROPPED CONNECTION COULD STOP (live's deploy of 2026-11-08; workplan 0132 T6).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
@@ -1362,6 +1397,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/managed.env.example`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
@@ -1408,6 +1444,7 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts) — A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
@@ -1822,6 +1859,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/www.yml`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
@@ -1866,6 +1904,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.dev.yml`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
@@ -1874,6 +1913,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.drill.yml`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
@@ -1882,6 +1922,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.pglite.yml`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
@@ -1893,6 +1934,7 @@ reading a file drops off its entry by itself.
 ### `deploy/selfhost/compose.yml`
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
@@ -1918,6 +1960,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/selfhost.env.example`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
@@ -2081,6 +2124,7 @@ reading a file drops off its entry by itself.
 
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
 - [a-deploy-a-dropped-connection-could-stop](../scripts/a-deploy-a-dropped-connection-could-stop.unit.test.ts) — A DEPLOY A DROPPED CONNECTION COULD STOP (live's deploy of 2026-11-08; workplan 0132 T6).
@@ -2201,6 +2245,7 @@ reading a file drops off its entry by itself.
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-scan-that-tried-the-running-api](../scripts/a-scan-that-tried-the-running-api.unit.test.ts) — A SCAN THAT TRIED THE RUNNING API (workplan 0178 T7; the owner's decisions D3 (a) and D4 (a) of 2026-11-26).
 
@@ -3047,6 +3092,10 @@ reading a file drops off its entry by itself.
 
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 
+### `scripts/a-deploy-from-a-named-tag.unit.test.ts`
+
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
+
 ### `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
@@ -3148,6 +3197,10 @@ reading a file drops off its entry by itself.
 ### `scripts/clock-watch.mjs`
 
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
+
+### `scripts/codeql-report.mjs`
+
+- [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts) — A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
 
 ### `scripts/conflict-markers.mjs`
 
@@ -3519,6 +3572,7 @@ reading a file drops off its entry by itself.
 
 ### `site/build.mjs`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
@@ -3557,6 +3611,10 @@ reading a file drops off its entry by itself.
 - [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts) — THE HERO IS THE DRAWING (workplan 0152 T3).
 - [the-home-page-shows-the-app](../scripts/the-home-page-shows-the-app.unit.test.ts) — THE HOME PAGE SHOWS THE APP (workplan 0152 T3: "drawing now, app screen later").
 - [where-to-is-the-apps-own-list](../scripts/where-to-is-the-apps-own-list.unit.test.ts) — WHERE TO IS THE APP'S OWN LIST (workplan 0152 T4).
+
+### `site/country.mjs`
+
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 
 ### `site/destinations.mjs`
 
@@ -3651,6 +3709,7 @@ reading a file drops off its entry by itself.
 
 ### `site/prices.mjs`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
@@ -3676,6 +3735,7 @@ reading a file drops off its entry by itself.
 
 ### `site/site.unit.test.ts`
 
+- [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts) — A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
 
 ### `site/sources.mjs`
@@ -4070,6 +4130,35 @@ A COUNTER NO DEFAULT NAMES (workplan 0150, 2026-09-29; scripted 2026-10-03).
 Reads:
 
 - `deploy/compose/nextcloud-counters.sql`
+
+### [a-country-both-builds-know-about](../scripts/a-country-both-builds-know-about.unit.test.ts)
+
+A COUNTRY BOTH BUILDS KNOW ABOUT (workplan 0176 D16 (a), §22.5; the owner, 2026-11-26: *"P16: a"*).
+
+Reads:
+
+- `apps/selfhost/Dockerfile`
+- `apps/web/Dockerfile`
+- `apps/web/src/components/WhereItRuns.tsx`
+- `apps/web/src/components/WhereItRuns.unit.test.tsx`
+- `apps/web/src/services/where-it-runs.ts`
+- `apps/web/src/services/where-it-runs.unit.test.ts`
+- `apps/web/vite.config.ts`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `deploy/compose/www.yml`
+- `deploy/selfhost/compose.dev.yml`
+- `deploy/selfhost/compose.drill.yml`
+- `deploy/selfhost/compose.pglite.yml`
+- `deploy/selfhost/compose.yml`
+- `deploy/selfhost/selfhost.env.example`
+- `docs/managed-bring-up.md`
+- `scripts/a-deploy-from-a-named-tag.unit.test.ts`
+- `site/build.mjs`
+- `site/country.mjs`
+- `site/prices.mjs`
+- `site/site.unit.test.ts`
 
 ### [a-credential-the-next-step-printed](../scripts/a-credential-the-next-step-printed.unit.test.ts)
 
@@ -4605,6 +4694,20 @@ Reads:
 - `scripts/idp-pin-watch.mjs`
 - `scripts/image-scan.mjs`
 - `scripts/rotate-db-passwords.unit.test.ts`
+
+### [a-flow-across-files-nothing-followed](../scripts/a-flow-across-files-nothing-followed.unit.test.ts)
+
+A FLOW ACROSS FILES NOTHING FOLLOWED (workplan 0178 T5; the owner's D1 (a) and D8 (a) of 2026-11-26).
+
+Reads:
+
+- `.github/codeql/codeql-proof.yml`
+- `.github/codeql/codeql.yml`
+- `.github/workflows/codeql.yml`
+- `.github/workflows/security-scan.yml`
+- `.github/workflows/semgrep.yml`
+- `docs/testing.md`
+- `scripts/codeql-report.mjs`
 
 ### [a-folder-that-is-one-row-not-two-hundred](../scripts/a-folder-that-is-one-row-not-two-hundred.unit.test.ts)
 
@@ -5182,6 +5285,7 @@ Reads:
 
 - `.github/dependabot.yml`
 - `.github/workflows/ci.yml`
+- `.github/workflows/codeql.yml`
 - `.github/workflows/e2e-managed.yml`
 - `.github/workflows/e2e.yml`
 - `.github/workflows/hadolint.yml`
@@ -5697,6 +5801,10 @@ Reads:
 - `deploy/selfhost/compose.pglite.yml`
 - `deploy/selfhost/compose.yml`
 - `deploy/selfhost/selfhost.env.example`
+
+### [a-run-at-the-end-read-by-backtracking](../scripts/a-run-at-the-end-read-by-backtracking.unit.test.ts)
+
+A RUN AT THE END OF A TEXT, READ BY A PATTERN THAT BACKTRACKS.
 
 ### [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts)
 

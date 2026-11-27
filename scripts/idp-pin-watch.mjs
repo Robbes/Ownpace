@@ -85,6 +85,10 @@
  *                      zizmor image zizmor.yml audits the workflows with
  *                      (`ZIZMOR_IMAGE`, 2026-11-20), against ghcr.io's tags
  *                      of its shape and major; and the
+ *                      github/codeql-action codeql.yml analyses with and two
+ *                      other workflows upload with, every copy together, and
+ *                      the CodeQL bundle it ships, against upstream's git
+ *                      tags (`CODEQL_FILES`, 2026-11-26); and the
  *                      Node.js release keyring the Windows payload's
  *                      `node.exe` check reads (`NODE_RELEASE_KEYS` in
  *                      scripts/package-appliance.mjs, 2026-11-01), the file
@@ -488,6 +492,30 @@ export const SQUAWK_ARCHES = ['x64', 'arm64'];
 /** Said beside the squawk row when it is behind: the three values move together. */
 export const SQUAWK_NOTE =
   "move SQUAWK_VERSION and both SQUAWK_SHA256_* in migration-locks.yml's install step together, each sum the one GitHub's release page shows for squawk-linux-musl-x64 and -arm64 and the sum of the downloaded bytes, once the release is three days old";
+
+/**
+ * The github/codeql-action CodeQL runs with (workplan 0178 T5, 2026-11-26):
+ * codeql.yml's `init` and `analyze`, and the `upload-sarif` semgrep.yml and
+ * security-scan.yml send their SARIF with, every copy at one commit, since one
+ * release of the action both runs the analysis and takes its upload. Dependabot's
+ * `github-actions` entry moves the action, and it reads no CodeQL bundle: the
+ * bundle is the one that release ships (its `src/defaults.json`), since
+ * codeql.yml names none (`tools:`). So the row names the bundle beside the
+ * release, against upstream's git tags of the same major, and says when the
+ * copies disagree.
+ */
+export const CODEQL_FILES = ['.github/workflows/codeql.yml', '.github/workflows/semgrep.yml', '.github/workflows/security-scan.yml'];
+export const CODEQL_UPSTREAM = 'https://github.com/github/codeql-action';
+/** The action's parts that a workflow here runs, in the order codeql.yml runs them. */
+export const CODEQL_ACTIONS = ['github/codeql-action/init', 'github/codeql-action/analyze', 'github/codeql-action/upload-sarif'];
+/** Said beside the CodeQL row when it is behind. */
+export const CODEQL_NOTE =
+  "Dependabot's github-actions entry proposes the move, every copy of github/codeql-action in one pull request, once the release is three days old; codeql.yml runs the CodeQL bundle that release ships, and a newer bundle can report more or fewer alerts with the same queries, so read codeql.yml's next run on main";
+
+/** Every step of `workflow` that runs a part of github/codeql-action: the part, its commit and its release. */
+export function codeqlPins(workflow) {
+  return CODEQL_ACTIONS.flatMap((action) => stepsUsing(workflow, action).map((step) => ({ action, sha: step.sha, version: step.version })));
+}
 
 /**
  * The images two actions in images.yml run, named in their inputs (workplan
@@ -1769,6 +1797,28 @@ export async function routineRows(repo, net) {
     const newest = newestLike(version, tagsOf(await net.lsRemote(SQUAWK_UPSTREAM)));
     const state = stateOf(version, newest);
     return { pin: version, newest, state, ...(state === 'behind' ? { notes: [SQUAWK_NOTE] } : {}) };
+  }]);
+
+  // CodeQL (0178 T5, 2026-11-26): github/codeql-action, every copy at one
+  // commit, with the bundle that commit ships, against upstream's git tags of
+  // the same major.
+  jobs.push(['CodeQL', CODEQL_FILES.join(', '), async () => {
+    const pins = CODEQL_FILES.flatMap((file) => {
+      const found = codeqlPins(need(repo, file));
+      if (found.length === 0) throw new Error(`${file} runs no github/codeql-action`);
+      return found;
+    });
+    const copies = [...new Set(pins.map((p) => `${p.sha} ${p.version}`))];
+    const versions = [...new Set(pins.map((p) => p.version))].sort(compareParts);
+    if (versions.some((v) => !/^v\d+\.\d+\.\d+$/.test(v))) throw new Error(`a github/codeql-action step names no release beside its commit: ${versions.join(', ')}`);
+    const defaults = JSON.parse(await net.text(`https://raw.githubusercontent.com/github/codeql-action/${pins[0].sha}/src/defaults.json`));
+    const bundle = /^codeql-bundle-v(\d+\.\d+\.\d+)$/.exec(String(defaults?.bundleVersion ?? ''))?.[1];
+    if (!bundle) throw new Error(`github/codeql-action ${versions[0]} names no CodeQL bundle in its src/defaults.json`);
+    const newest = newestLike(versions[0], tagsOf(await net.lsRemote(CODEQL_UPSTREAM)));
+    const disagree = copies.length > 1;
+    const state = disagree ? 'behind' : stateOf(versions[0], newest);
+    const notes = [...(disagree ? ['the copies disagree'] : []), ...(state === 'behind' ? [CODEQL_NOTE] : [])];
+    return { pin: `${versions.join(' / ')} (bundle ${bundle})`, newest, state, ...(notes.length ? { notes } : {}) };
   }]);
 
   // cosign: what signs the images and what checks them. Named in a step

@@ -2642,9 +2642,10 @@ with it. To publish or re-publish:
 . deploy/compose/env-read.sh
 OWNPACE_APP_URL=https://app.ota.ownpace.eu \
 GOOGLE_ACCOUNT_SCOPE_CLASS="$(env_value deploy/compose/.env GOOGLE_ACCOUNT_SCOPE_CLASS)" \
+OWNPACE_COUNTRY="$(env_value deploy/compose/.env OWNPACE_COUNTRY)" \
 OWNPACE_STAGE="$(env_value deploy/compose/.env OWNPACE_STAGE)" node site/build.mjs   # test (OTA)
-# production (live): deploy-live.sh builds it, with --public and live's own OWNPACE_STAGE
-# and GOOGLE_ACCOUNT_SCOPE_CLASS (below)
+# production (live): deploy-live.sh builds it, with --public and live's own OWNPACE_STAGE,
+# GOOGLE_ACCOUNT_SCOPE_CLASS and OWNPACE_COUNTRY (below)
 docker compose -f deploy/compose/www.yml up -d
 ```
 
@@ -2785,10 +2786,11 @@ final.
    the checkout, whose exit code decides. A dry run runs that test build too;
    it builds nothing in the checkout. After the bring-up the deploy
    builds the site in the checkout
-   (`OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GOOGLE_ACCOUNT_SCOPE_CLASS=<live's> GIT_SHA=<commit> node site/build.mjs --public`,
-   where both settings are the values in live's `.env`, never the shell's; with
-   `alpha` the site carries the tester guide, and with
-   `restricted` Leaving Google says one Google sign-in),
+   (`OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GOOGLE_ACCOUNT_SCOPE_CLASS=<live's> OWNPACE_COUNTRY=<live's> GIT_SHA=<commit> node site/build.mjs --public`,
+   where the three settings are the values in live's `.env`, never the shell's; with
+   `alpha` the site carries the tester guide, with
+   `restricted` Leaving Google says one Google sign-in, and the home page names the
+   country `OWNPACE_COUNTRY` sets, or none),
    brings it up with
    `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate`
    (a `WWW_PORT` another container publishes makes this `up` fail, and the
@@ -3486,8 +3488,8 @@ mailbox.
 
 | Mail | Sent by, and when | Carries a code | What you do |
 |---|---|---|---|
-| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. Its link ends in `#register=` and the address it was sent to, so the sign-in page offers *Create your account* with that address filled in; the address is the one the mail prints, not a code. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the Alpha paragraph from the caught mail word for word, in the language it was sent in, with its two lines after it: the Alpha conditions' address and the tester guide's. |
-| *Ownpace — about your request* (`access_declined`; Dutch *over uw aanvraag*) | The API, when you decline with *Email them if you decline* ticked, which is the default | No | Forward it, or untick the box and write them yourself. |
+| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in; and at once, from the door, when somebody uses a code they were given, in the door's language (workplan 0177 §8) | No. Its link ends in `#register=` and the address it was sent to, so the sign-in page offers *Create your account* with that address filled in; the address is the one the mail prints, not a code. It no longer calls itself safe to forward (0177 §8). | Forward it to the address it was sent to. Or write them the same three steps yourself (open the sign-in page, choose *Create your account* with the address the mail names, choose a password and confirm the code the sign-in service mails), and on live copy the Alpha paragraph from the caught mail word for word, in the language it was sent in, with the Alpha conditions' address after it, and the tester guide's line from above it. |
+| *Ownpace — about your request* (`access_declined`; Dutch *over uw aanvraag*) | The API, when you decline with *Email them if you decline* ticked, which is the default. Never for a code: a code is not declined (0177 §8) | No | Forward it, or untick the box and write them yourself. |
 | *Ownpace — you are invited to join an organisation* (`member_invited`; Dutch *u bent uitgenodigd voor een organisatie*) | The API, when an owner or admin invites them on the Team page, or presses *Send again* on that row, in the organisation's summary language. During the Alpha it carries the same Alpha paragraph, with the conditions' and the guide's addresses in that language, before the privacy line. At most 20 a day per organisation, and one invitation at most once in ten minutes | No. It says it is safe to forward. | Forward it to the address it was sent to. |
 | Verify your address | The identity provider, when they register, and at a first sign-in with Microsoft (above) | **Yes** | Pass the code on within the hour, by the rule below. |
 | Password reset | The identity provider, when they ask for one | **Yes** | The same. |

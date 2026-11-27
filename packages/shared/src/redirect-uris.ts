@@ -48,6 +48,8 @@
  * to render on a screen an operator will photograph and paste into a console.
  */
 
+import { withoutTrailing } from './runs-at-the-ends.ts';
+
 /** Where a URI has to be registered, and by whom. */
 export type RedirectUriGroup = 'migration' | 'signIn' | 'socialSignIn';
 
@@ -89,7 +91,7 @@ export interface RedirectUriEnv {
 }
 
 const origin = (raw: string | undefined): string | null => {
-  const trimmed = (raw ?? '').trim().replace(/\/+$/, '');
+  const trimmed = withoutTrailing((raw ?? '').trim(), '/');
   return trimmed === '' ? null : trimmed;
 };
 

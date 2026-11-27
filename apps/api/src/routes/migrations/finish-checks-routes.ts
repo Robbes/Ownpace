@@ -21,6 +21,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { sql } from 'drizzle-orm';
 import { withTenant, type PgDatabase } from '@openmig/ledger';
@@ -44,7 +45,7 @@ import type { AuthenticatedRequest } from '../../types/api.ts';
 import { serverFault } from '../../server-fault.ts';
 import { refusedAsClosed } from '../../closed-organisation.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 let _pool: ReturnType<typeof getDbPool> | null = null;
 function pool(): ReturnType<typeof getDbPool> {

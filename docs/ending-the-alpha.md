@@ -37,7 +37,7 @@ reading the stage fails that guard until it has a line here.
 | The API's alpha rule: `apps/api/src/access-notify.ts` | `alphaFrom(env)`, read by `conditions-not-accepted.ts`, `config-guards.ts` and the access-granted mail | Every member is asked to accept the Alpha conditions, the privacy policy and the terms before any access is stored, once no text is a draft (0139 T3). The access-granted mail says it is the alpha. A blank `BACKUP_RETENTION_DAYS` stops the API from starting. | Nobody is asked to accept anything. The mail does not mention the alpha. A blank `BACKUP_RETENTION_DAYS` is a warning in production (`stand-up-live.sh` still refuses one on live). |
 | The sync tasks: `apps/worker/src/jobs/run-delta-sync.ts` | `process.env.OWNPACE_STAGE`, in the **jobs' environment**: the worker's, from compose | Nothing waits at the data ceiling. Every first copy is marked as the alpha's (`bytes_moved.alpha_bytes`, managed 0040) and never counts. | New first copies wait at the ceiling until a yes (0109 T6). First copies count from here. |
 | The web bundle: `apps/web/src/components/AlphaNote.tsx` | `import.meta.env.VITE_OWNPACE_STAGE`, **baked in at build** through the build arg in `apps/web/Dockerfile` | The Alpha note on every page, the sign-in page and the request page. A visitor without a session reads a line about the Alpha in the guides instead (workplan 0152 T1 (a)). The acceptance screen on load. The tester-guide link. The Billing page's alpha line, and its invoice-details card saying none are needed. | None of these. The invoice-details card asks for the details unless the tier is Free. |
-| The public site: `site/build.mjs` | `process.env.OWNPACE_STAGE` **at build** | The tester guide is built (`/alpha-guide.html`, `/nl/alpha-handleiding.html`), and so is the gift page (`/gift.html`, `/nl/cadeau.html`; workplan 0172). Every page says the Alpha to its visitor in one line under the header (workplan 0152 T1 (a)). | The guide, the gift page and the line are left out. The Alpha conditions page stays. *Give Ownpace* in the app does not follow this setting: to stop new gifts, set *Gifts per person* to 0 on the operator's **Gifts** screen; unused codes keep working until they expire or are revoked. |
+| The public site: `site/build.mjs` | `process.env.OWNPACE_STAGE` **at build** | The tester guide is built (`/alpha-guide.html`, `/nl/alpha-handleiding.html`), and so is the page about a recommendation (`/gift.html`, `/nl/cadeau.html`; workplans 0172, 0177). Every page says the Alpha to its visitor in one line under the header (workplan 0152 T1 (a)). | The guide, the page about a recommendation and the line are left out. The Alpha conditions page stays. *Recommend someone* in the app and the door of a code, `/code`, do not follow this setting: to stop new cards, set *Recommendations per person* to 0 on the operator's **Gifts** screen; unused codes keep working until they expire or are withdrawn. See *What changes for customers*. |
 | Compose: `deploy/compose/managed.yml` | `${OWNPACE_STAGE:-}` from live's `.env` | Handed to the api's environment, to the worker's (`worker.environment`, with `OWNPACE_BILLING_FROM` and the `MONEYBIRD_*` keys), and, as `VITE_OWNPACE_STAGE`, to the web image's build. | The same, empty. The api and the worker take it when their containers are recreated, and the bring-up recreates the worker whenever it replaces the api's container; the web only when its image is rebuilt. |
 | The env check: `deploy/compose/ensure-env-secrets.sh` | `env_value` from the stack's `.env`, as the bring-up's env phase and the gate's Fill step run it | A blank `BACKUP_RETENTION_DAYS` is written as `0` off live, where no copy is kept, so the API can start; on live it writes nothing and names 7 (workplan 0134). | Nothing: the API only warns about a blank line, and a value written during the alpha stays. |
 | The live deploy: `deploy/compose/deploy-live.sh` | `env_value` from live's `.env` (`SITE_STAGE`); and, for its refusal, as Compose hands it to the api, trimmed and in any case | Hands `alpha` to the site build, and refuses a `.env` that sets `MOLLIE_API_KEY` (workplan 0131 §3 T3). | Hands it an empty stage, and takes Mollie's key. Its refusal of a host in `OWNPACE_REACHABLE_HOSTS` holds after the alpha too (workplan 0136 T2). |
@@ -287,7 +287,7 @@ Before lifting the hold:
 3. **The web bundle has no alpha.** `https://app.ownpace.eu/login` shows no Alpha note, and
    neither does any signed-in page. `https://app.ownpace.eu/docs`, opened in a private window,
    shows no line about the Alpha under its title.
-4. **The site has no tester guide, no gift page, and no line about the Alpha** (only with `WWW_LIVE=true`):
+4. **The site has no tester guide, no page about a recommendation, and no line about the Alpha** (only with `WWW_LIVE=true`):
 
    ```bash
    curl -s -o /dev/null -w '%{http_code}\n' https://www.ownpace.eu/alpha-guide.html        # 404
@@ -367,6 +367,24 @@ Support should know before the day:
   difference: migrations, their run logs and their settings are in the application's database. A
   failed run's reference from before the switch is looked up on the operator log page as before:
   that page is the application's too.
+- **A recommendation gave what was free** (the owner's D5, workplan 0177 §13): *"free when it was
+  free. given during free-alpha doesn't make it free unlimited after alpha."* One made during the
+  Alpha gave its person the free Alpha, and nothing free after it: a person who came in with one
+  gets the new conditions like everybody else (*Before*, step 1). One that nobody has used still
+  lets its person in until its date, and then gives nothing that is not free for everybody. Turning
+  one into a paid code comes with payments (0177 step C).
+- **Every member may recommend someone** (the owner's D18, workplan 0177 §20.7): *"no, not in the
+  alpha. Yes after the alpha."* During the Alpha only the people the owner let in could; after the
+  switch every member has the number each person may give on the **Gifts** screen, those let in by
+  a recommendation too. The api reads the stage for it where it reads it for the access-granted
+  mail (`alphaFrom`, the row above), so emptying the stage is all it takes. Nothing refuses the
+  owner's own yes, before the switch or after it (D17).
+- **The two ceilings are the Alpha's** (D16, workplan 0177 §20): at most 50 people the owner lets
+  in, and at most 50 let in by a recommendation. They are two numbers on the operator's **Gifts**
+  screen, and the stage does not reach them: they keep counting and holding after the switch, with
+  the numbers they have, until 0177's step C says what limits a recommendation after the Alpha. Set
+  the second to 0 to stop codes letting anybody in; cards already out then meet the door's calm
+  *The Alpha is full for now*, and keep their code.
 - **Free runs one pass a day.** Each migration on Free copies once a day, 24 hours after its
   last pass started, its first copy included, and *Sync now* waits for the day; the final pass
   before the switch never waits. A paid tier keeps its schedule (workplan 0157 T2).
@@ -377,4 +395,5 @@ Decisions behind this page: ADR-0014 (*Amendment 2026-10-03*, "Not during the al
 axis and "The data, in total, and the alpha's"), workplan 0109 (T6), workplan 0131 (the alpha and
 who is let in), workplan 0139 (the texts, and privacy-task-records (a): the background tasks'
 records until the end of the Alpha), workplan 0086 (whether the paid service asks),
-workplan 0157 (each tier's pace).
+workplan 0157 (each tier's pace), workplan 0177 (a recommendation after the Alpha, and the two
+ceilings).

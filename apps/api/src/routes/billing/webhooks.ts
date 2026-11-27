@@ -14,6 +14,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/managed/schema-managed';
@@ -22,7 +23,7 @@ import { getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import { log } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /**
  * What Mollie took, in cents, from its amount (`"12.00"`, always two
