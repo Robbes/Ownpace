@@ -7425,6 +7425,7 @@ paths:
   /api/scope-manifest:
     get:
       tags: [Discovery]
+      security: []
       summary: What this product carries, and what it does not
       description: |
         The per-domain manifest the confirm screen renders: what migrates, what

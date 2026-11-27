@@ -4,6 +4,43 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, later still: step 1's four guards built, on
+`claude/ownpace-public-readiness-y7orc6-a21-sast-guards`, from `main` at `3c61e83`. Not merged:
+under D9 the pull request waits for alpha.21's builder pull requests.**
+
+- **The guards.** Each is a `scripts/*.unit.test.ts`; all four parse with the TypeScript
+  compiler through one shared reader, `scripts/sast-guard-source.ts`, so a comment or a string
+  that only names a thing is never a spot. Each has a named list of places with a reason per
+  place, and fails on one more, one fewer, or a file not listed.
+  - **G1 (T1)**, `a-page-given-html-as-html`: none in shipped code; two test files, listed.
+  - **G2 (T2)**, `sql-a-value-is-put-into`: 28 spots in ten files, each listed with the check
+    or the constant that makes it safe.
+  - **G3 (T3)**, `a-door-public-in-one-place-only`: 29 public routes, each with the
+    description's operations it serves and its reason; the link routes are held to `linkAuth`.
+  - **G4 (T4)**, `a-secret-handed-to-the-logger`: measured first. Four spots, all in two
+    commands an operator runs by hand, each printing what that operator asked for. Listed, so
+    it blocks (D2).
+- **Each was seen failing on its fixture.** With the four detectors made to find nothing, 11 of
+  the 17 cases failed, every fixture case among them; with the detectors, all 17 pass.
+- **G3 found two faults in the API description on `main`,** both the description's, neither a
+  hole: `POST /api/gifts/redeem` and `GET /api/scope-manifest` are public on purpose in the
+  code, and the description said they need sign-in. Both now carry `security: []`, so the
+  description has 33 opt-outs, not the 31 §5.1 counted.
+- **Against the builders' branches,** read on 2026-11-26: #2188 and #2189 change nothing any
+  guard reads. 0177 step A's back half adds `POST /api/gifts/check`, public, and gives the
+  redeem `security: []` too. When it merges, G3's list gains the new door, and the two edits to
+  the redeem's description become one. No branch read adds raw SQL or a secret-named log.
+- **After 0177 step A (#2198) reached `main` at `f9f24bef`,** merged in: G3 named one new door,
+  `POST /api/gifts/check`, public on purpose and described so, and it is in G3's list with its
+  reason, so 30 public routes. The redeem's two `security: []` became one. G1, G2 and G4 named
+  nothing new: the step's migration is SQL in a `.sql` file, which G2 does not read, and its log
+  calls hand over no secret-named value. 0176 step B (#2196) is still to come.
+- **After 0176 step B (#2196) reached `main` at `b0f1e140`,** merged in with #2199, #2200,
+  #2202 to #2205: the API's routers register 192 routes, one more, and the new one signs a
+  session in, so G3's list is unchanged at 30 public routes. G1 finds 2 (the two tests), G2 28
+  and G4 4, as before. D9 is lifted.
+- **T1 to T4 stay 📋 until the pull request merges.**
+
 **2026-11-26, evening: T5's two runs on `main`, and T6 begun.** #2194 merged as `b31ccaaf`.
 
 - **The first push run, 45886149663**, ran from 19:46:40 to 19:53:45 UTC and passed. CodeQL says it scanned all 2,500 TypeScript files, 66 of 66 JavaScript files, 19 of 19 GitHub Actions files and 1 of 1 HTML file. The report counted 2,689 files extracted. The strict file match held, and so did the floor of 1,000. So the two extraction IDs the report reads are the ones CodeQL writes, and §12's risk, files CodeQL's TypeScript cannot read, did not happen. It found **312 alerts under 17 queries**, uploaded to code scanning.
