@@ -331,7 +331,7 @@ describe('the operator’s Gifts', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'These count people. Google’s list of test users counts addresses, and ends at 100: each family member’s address and your own test addresses are on it too.',
+        'These count people. Google’s list of test users counts addresses, and ends at 100: the Google address of each member and of each person they help, family or acquaintance, takes a place, and so do your own test addresses.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('The most people you let in')).toBeInTheDocument();

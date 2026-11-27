@@ -228,6 +228,12 @@ describe('the second ceiling (§20.3)', () => {
     const refused = await request(app).post('/api/gifts').send({ locale: 'en' });
     expect(refused.status).toBe(409);
     expect(refused.body.error).toBe('no_room');
+    // In both languages, as the giver's page says it (0177, alpha.22).
+    expect(refused.body).toMatchObject({
+      reason: 'The Alpha is full for now. No new recommendation can be made.',
+      reasonNl: 'De Alpha is nu vol. U kunt nu geen aanbeveling maken.',
+    });
+    expect(refused.body.message).toBe(refused.body.reason);
     expect(await rows('SELECT 1 FROM gift WHERE giver_user_id = $1', [BRAM])).toHaveLength(0);
 
     // A card withdrawn gives its place back.

@@ -465,7 +465,7 @@ export const OPERATOR_STRINGS = {
   'gifts.count.rule':
     'At its number a recommendation lets nobody in, and no new card is made. Nothing refuses your own yes past yours.',
   'gifts.count.google':
-    'These count people. Google’s list of test users counts addresses, and ends at 100: each family member’s address and your own test addresses are on it too.',
+    'These count people. Google’s list of test users counts addresses, and ends at 100: the Google address of each member and of each person they help, family or acquaintance, takes a place, and so do your own test addresses.',
   'gifts.ceiling.owner': 'The most people you let in',
   'gifts.ceiling.recommendation': 'The most people let in by a recommendation',
   'gifts.rule.title': 'Recommendations per person',

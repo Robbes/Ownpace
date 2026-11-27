@@ -4,6 +4,25 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
+**2026-11-27, alpha.22: three of alpha.21's follow-ups, in one pull request, #2215**
+(`claude/ownpace-public-readiness-y7orc6-a22-a21-follow-ups`).
+
+- **The giver's refusals in both languages.** What #2206 left for after alpha.21: `POST
+  /api/gifts`, `GET /api/gifts/mine` and `POST /api/gifts/:id/revoke` now answer each refusal
+  with `reason` and `reasonNl` beside `message`, as the door's do: the number reached (409
+  `gift_limit`, with the number), a full Alpha (409 `no_room`), a card that is not theirs (404),
+  one no longer unused (409), and a sign-in with no organisation (400). The sentences live in
+  `gift-store.ts` beside D18's; the first two are the page's own (`give.atLimit`, `give.full`).
+  The operator's revoke keeps its English. Five cases in `gifts.unit.test.ts` and one in
+  `an-alpha-with-two-ceilings.unit.test.ts`, each failing first. The Dutch was drafted here, and
+  the owner read it on the pull request (*"2215: ok"*, 2026-11-27): the four new Dutch rows, the
+  fifth refusal kept, and the new English that says *recommendation* and *withdraw*.
+- **Google's list on *Gifts* (§20.5, §20.6).** Since 0176's D19 a member may help
+  acquaintances, so the sentence names each person they help, family or acquaintance (§20.6's
+  row). The owner read it on the pull request (*"2215: ok"*, 2026-11-27).
+- **The door's three answers** were made one size by #2210; a person's pages now do the same
+  for their two (0176's Status).
+
 **2026-11-27: step A is in alpha.21.** alpha.21, tagged at `c34b30f8` (0146), carries step A
 (#2198), its door's three answers kept one size when one wraps (#2210), and its words as the owner
 read them (#2206). The task table says so: T1 to T8, T10 and T16 are merged, and T11 is met by T1
@@ -1486,7 +1505,7 @@ English only (`apps/web/src/i18n/operator-strings.ts`). Drafts, for the owner's 
 | *Gifts*, under the counts | *At its number a recommendation lets nobody in, and no new card is made. Nothing refuses your own yes past yours.* |
 | *Gifts*, the two fields | *The most people you let in* · *The most people let in by a recommendation* |
 | *Gifts*, beside *Gifts per person*, during the Alpha (D18) | *During the Alpha only the people you let in have these. A person let in by a recommendation has none until the Alpha ends.* |
-| *Gifts*, about Google | *These count people. Google's list of test users counts addresses, and ends at 100: each family member's address and your own test addresses are on it too.* |
+| *Gifts*, about Google | *These count people. Google's list of test users counts addresses, and ends at 100: the Google address of each member and of each person they help, family or acquaintance, takes a place, and so do your own test addresses.* (alpha.22, for D19: it said *each family member's address and your own test addresses are on it too*) |
 | The queue, above the requests | *People you let in: {n} of {max}* |
 | *Support*, the Alpha's overview (D17) | *The Alpha* · *People you let in: {n} of {max}* · *People let in by a recommendation: {n} of {max}* · *Cards not used yet: {n}* · *Nothing refuses your own yes: you keep count. The numbers are set on Gifts.* |
 

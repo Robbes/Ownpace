@@ -720,7 +720,7 @@ paths:
                   redeemAt: { type: string, nullable: true }
                 required: [gifts, limit, held, room, onlyAfterAlpha, redeemAt]
         '400':
-          description: No organisation to give from.
+          description: No organisation to give from, said in English and Dutch (`reason`, `reasonNl`).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -757,8 +757,8 @@ paths:
             `gift_limit`: the giver holds as many cards as they may, with the
             number. `no_room`: the Alpha has no place for a new card.
             `only_after_alpha`: during the Alpha only the people the owner let
-            in may recommend (workplan 0177 D18), said in English and Dutch.
-            Nothing is made.
+            in may recommend (workplan 0177 D18). Each said in English and
+            Dutch (`reason`, `reasonNl`). Nothing is made.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -776,12 +776,12 @@ paths:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
-          description: No such gift, or not the caller's.
+          description: No such gift, or not the caller's, said in English and Dutch (`reason`, `reasonNl`).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '409':
-          description: Only an unused gift can be revoked.
+          description: Only an unused gift can be revoked, said in English and Dutch (`reason`, `reasonNl`).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
