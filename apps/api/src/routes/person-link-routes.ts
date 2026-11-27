@@ -62,15 +62,15 @@ import {
   expiryFromDays,
   type MappingLinkPurpose,
 } from '@openmig/ledger';
-import { listPersonLinks, readPerson, revokePersonLink } from '@openmig/managed';
-import { PERSON_NOT_FOUND, log, withoutTrailing } from '@openmig/shared';
+import { listPersonLinks, readPerson, readPersonVoice, revokePersonLink, setPersonVoice } from '@openmig/managed';
+import { DISCOVERY_DOMAINS, PERSON_NOT_FOUND, PERSON_VOICES, log, withoutTrailing, type DiscoveryDomain } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import { refusedUntilAccepted } from '../conditions-not-accepted.ts';
 import { grantLinkAsk, viewLinkRefusal } from './migrations/grant-link-readiness.ts';
 import { grantReadiness, readGrantRows } from './migrations/grant-subject.ts';
-import { readPersonGrantSubject } from './migrations/person-grant-subject.ts';
+import { readPersonGrantSubject, type PersonGrantAccount } from './migrations/person-grant-subject.ts';
 import { atTheLimit, issuePersonLinkWithinTheLimit } from './migrations/live-link-limit.ts';
 import { awaitingTheirGrant } from './migrations/start-when-granted.ts';
 
@@ -98,11 +98,19 @@ const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * differ by design (ADR-0035): a grant link's 1, 7 or 30 days on a progress
  * link would re-impose the credential's window on the page meant to outlive
  * it. `purpose` defaults to `'grant'`.
+ *
+ * Nothing asks how the person knows the member who makes the link: the
+ * owner, 2026-11-26, reversing workplan 0176's D7 (*"Does the relationship
+ * matter and need to be registered? I would like not to..."*). A `relation`
+ * sent anyway is not read, as any other field this schema does not name.
  */
 const IssueSchema = z
   .object({
     purpose: z.enum(MAPPING_LINK_PURPOSES).optional(),
     expiryDays: z.number().int().optional(),
+    // How the person's own pages speak to them, kept with the person (0176
+    // T7, D8 (a)): left out, it stays as it was; null unsets it.
+    voice: z.enum(PERSON_VOICES).nullable().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.expiryDays === undefined) return;
@@ -111,6 +119,24 @@ const IssueSchema = z
       ctx.addIssue({ code: 'custom', path: ['expiryDays'], message: 'not an offered expiry' });
     }
   });
+
+/**
+ * WHAT A PERSON'S LINK COPIES, AND WHERE TO (workplan 0176 T8, §12), for the
+ * message the member sends with it: the data types its accounts are asked
+ * for, in the scope table's order, and the destinations' kinds, in the order
+ * met, a source's destinations first. Kinds and codes, never an address: the
+ * member's screen words them in the person's language.
+ */
+function whatTheLinkCopies(accounts: ReadonlyArray<PersonGrantAccount>): { domains: DiscoveryDomain[]; to: string[] } {
+  const domains = DISCOVERY_DOMAINS.filter((d) => accounts.some((a) => a.ask.ok && a.ask.domains.includes(d)));
+  const to: string[] = [];
+  const add = (kind: string) => {
+    if (kind && !to.includes(kind)) to.push(kind);
+  };
+  for (const a of accounts.filter((x) => x.role === 'source')) for (const m of a.migrations) add(m.to.provider);
+  for (const a of accounts.filter((x) => x.role === 'target')) add(a.provider);
+  return { domains, to };
+}
 
 /** The browser-facing address, or null when this deployment cannot say. */
 function webUrl(): string | null {
@@ -192,7 +218,9 @@ router.post(
         const offered = MAPPING_LINK_PURPOSES.map((p) => `${p}: ${MAPPING_LINK_LIFETIMES[p].days.join(', ')}`).join('; ');
         return void res.status(400).json({
           error: 'invalid_body',
-          reason: `Send { purpose, expiryDays }. The expiries offered, in days, are — ${offered}.`,
+          reason:
+            `Send { purpose, expiryDays, voice }. The expiries offered, in days, are — ${offered}. ` +
+            `A voice is one of ${PERSON_VOICES.join(', ')}, or null.`,
         });
       }
       const purpose: MappingLinkPurpose = parsed.data.purpose ?? 'grant';
@@ -209,6 +237,7 @@ router.post(
       // A grant link asks for each account of theirs that is not connected,
       // or, when every one is, for each again (the header says why).
       let asksAgain: string[] | null = null;
+      let copies: { domains: DiscoveryDomain[]; to: string[] } | null = null;
       if (purpose === 'grant') {
         const subject = await withTenantDb(s.tenantId, pool(), (db) =>
           readPersonGrantSubject(db, s.tenantId, s.personId),
@@ -219,19 +248,27 @@ router.post(
           return void res.status(409).json({ error: 'nothing_to_grant', reason });
         }
         if (askable.every((a) => a.granted)) asksAgain = askable.flatMap((a) => a.migrations.map((m) => m.mappingId));
+        copies = whatTheLinkCopies(askable);
       }
 
       const days = parsed.data.expiryDays ?? MAPPING_LINK_LIFETIMES[purpose].fallback;
-      const outcome = await withTenantDb(s.tenantId, pool(), (db) =>
-        issuePersonLinkWithinTheLimit(db, {
+      const voiceGiven = parsed.data.voice;
+      const { outcome, voice } = await withTenantDb(s.tenantId, pool(), async (db) => {
+        const issued = await issuePersonLinkWithinTheLimit(db, {
           tenantId: s.tenantId,
           personId: s.personId,
           purpose,
           createdBy: req.userId ?? 'unknown',
           expiresAt: expiryFromDays(days),
           asksAgain,
-        }),
-      );
+        });
+        // The voice goes with the link it was chosen for, in its transaction
+        // (0176 T7): a link refused at the limit changes nothing.
+        if (issued.kind === 'issued' && voiceGiven !== undefined) {
+          await setPersonVoice(db, s.tenantId, s.personId, voiceGiven);
+        }
+        return { outcome: issued, voice: await readPersonVoice(db, s.tenantId, s.personId) };
+      });
       if (outcome.kind === 'at_the_limit') {
         return void res.status(409).json({
           error: 'grant_links_at_limit',
@@ -253,6 +290,12 @@ router.post(
         // Said, so the owner's screen can tell them why a link was made for
         // somebody whose accounts all read as connected.
         asksAgain: asksAgain !== null,
+        // What the link asks for, as kinds and codes, for the message the
+        // member sends with it (workplan 0176 T8): the screen words them.
+        ...(copies === null ? {} : { copies }),
+        // How the person's pages speak to them now (T7), which the message
+        // sent with the link speaks in too.
+        voice,
         // In the payload, not only on the screen, so ADR-0035's division of
         // labour survives a redesign.
         distribution:

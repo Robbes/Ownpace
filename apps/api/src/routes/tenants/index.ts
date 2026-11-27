@@ -10,7 +10,7 @@ import { Router } from 'express';
 import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth.ts';
+import { authenticate, requireRole, requireTenantMatch, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import membersRoutes from './members.ts';
 import { serverFault } from '../../server-fault.ts';
@@ -41,6 +41,9 @@ function getSharedPool() {
 }
 
 // Mount members routes
+// The members' doors read the organisation of the path too (`mergeParams`
+// in members.ts), and refuse one that is not the caller's, as every door
+// here does (`requireTenantMatch`).
 router.use('/:tenantId/members', membersRoutes);
 /**
  * What the generic update may change: the name, and nothing else.
@@ -132,7 +135,7 @@ router.post('/', authenticate, (_req: AuthenticatedRequest, res: Response) => {
  * 
  * Get tenant details
  */
-router.get('/:tenantId', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:tenantId', authenticate, requireTenantMatch(), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { tenantId } = req.params;
 
@@ -197,6 +200,7 @@ router.get('/:tenantId', authenticate, async (req: AuthenticatedRequest, res: Re
 router.put(
   '/:tenantId',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -281,6 +285,7 @@ router.put(
 router.put(
   '/:tenantId/contact',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -355,6 +360,7 @@ router.put(
 router.put(
   '/:tenantId/notifications',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -456,6 +462,7 @@ export function deleteTenantRefusal(): {
 router.delete(
   '/:tenantId',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner'),
   (_req: AuthenticatedRequest, res: Response) => {
     res.status(410).json(deleteTenantRefusal());
@@ -474,6 +481,7 @@ router.delete(
 router.post(
   '/:tenantId/close',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -537,6 +545,7 @@ router.post(
 router.post(
   '/:tenantId/reopen',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {

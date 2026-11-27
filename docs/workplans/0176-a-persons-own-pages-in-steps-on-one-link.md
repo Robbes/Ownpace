@@ -4,6 +4,45 @@
 
 ## Status — 2026-11-26 (update this block at the end of every session)
 
+**2026-11-26, the owner's read of #2196's Dutch:** of the relation, *"2: can we do without it?
+Does the relationship matter and need to be registered? I would like not to..."*; and *"11: ok"*,
+*"12: ok"*, *"13: ok"*, *"P: yes"*. So D7 is reversed (§18): nothing asks how the person knows the
+member, nothing keeps it, and no page says it; 0067 adds no column for it, changed in place, as it
+had run on no stack. *Aan jouw kant* (11) and the two reworded *migraties* lines (12) stand; 13 is
+moot. P: the privacy text changes in place under 1.0 once the lawyer has read it, in a later pull
+request. The rest of #2196's table is the owner's, as read.
+
+**2026-11-26: step B's main line, built as one draft pull request**
+(`claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-b`), on §23.2's first row, in its
+order, and carrying #2188 (the informal Dutch, merged into it at T7, as decided) and #2189's two
+places (merged on `main`).
+
+- **T3 (managed migration 0067):** a member's name and number (`tenant_member.display_name`,
+  `.phone`, `PUT /api/tenants/{id}/members/me`, *Team & organisation → When you send someone a
+  link*), and `person_link.made_from`, the grant link a progress link was handed over from. Both
+  pages say the name under *Sender*, the address under it, and a number to check, saying whose
+  (D11). No relation: D7 is reversed (above). The nine
+  sentences that described the sender name them (`a-sender-named-not-described`).
+- **T6, step B:** the progress page's answer carries `sender`, `organisationPhone` and, per
+  migration, `theOrganisationOpensIt`; the page names the sender at its foot and says *Pat can
+  open the copy at Soverin too.* where it is so. `askedBy` stays a string beside `sender`, for an
+  API a release behind.
+- **T8:** the tick before the button, the member's name asked once,
+  the Alpha's two lines for a Google account, thirty days first, how the page speaks to them,
+  and with the link a message in the person's voice and *Print a sheet for …* (the one page).
+- **T7 (managed migration 0068):** `person.voice` (`nl-u`, `nl-je`, `en`), chosen where the link
+  is made; both pages answer `language` and `register`; `InTheirVoice` reads the informal layer
+  first, and offers the language until the reader picks another. The server's sentences on a
+  person's link have their twins (`nlJe`), and the endings after a sign-in theirs
+  (`GRANT_ENDING_JE`); two guards read them (`every-server-u-has-its-je`,
+  `a-persons-link-says-je-where-their-pages-do`).
+- **T10 and T15, step B:** the tester guide's part for a family member's link, in both languages,
+  names the form and what the page shows of the sender; `docs/grant-links.md` follows; the
+  changelog. **The privacy text is not changed here:** the owner answered *"P: yes"*, in place
+  under 1.0 once the lawyer has read it; the sentences proposed for it are in the pull request.
+- **Still to come:** the lawyer's read of the privacy text, and E2E, which the maintainer
+  dispatches.
+
 **2026-11-26, the owner's answer to D19 (T17):** *"D19: familie of kennissen. I also want to
 support people helping out each other."*, and then: *"Or perhaps 'familie en kennissen', with a
 focus on family"*. Wider than the advice. A member may move accounts for family and for
@@ -53,6 +92,26 @@ of the main line's: `Grant.tsx` and `PersonGrant.tsx` are not opened.
   either. A sentence it adds to a step fails the one page's test until the one page says it too.
 - **Still the owner's:** set `OWNPACE_COUNTRY` in each stack's `.env` before its next deploy,
   and rebuild the web image: unset, live's home page names no country from then on.
+
+**2026-11-26, the owner's read of the twins:** *"#2188: ok, account: yes"*. The twins stand, and the two failure lines say *account* for *omgeving*, the owner's word, in both voices (`view.failure.sourceRefused`, `view.failure.formatRefused`).
+
+**2026-11-26: step B's informal Dutch, as a draft** (§23.2, *Beside it: the informal Dutch*;
+branch `claude/ownpace-public-readiness-y7orc6-a21-person-pages-step-b-informal`, one draft pull
+request). The *je* twin of step A's Dutch, which the owner read (*"Step A (#2180): ok"*). A
+person's two pages say 289 keys. 124 of them say *u* or *uw* to the reader, and each has its twin
+in `apps/web/src/i18n/informal.ts`. The other 165 need none.
+
+- **Nothing reads the layer yet.** T7's main line stores the register, sends it with the link's
+  answer, and reads the layer first (`index.tsx`, and `active-locale.ts` for the answers a
+  report can meet).
+- **The guard,** `apps/web/src/i18n/every-u-has-its-je.unit.test.ts`, reads the keys from the
+  code that draws the two pages. A new sentence there needs its twin at once. It holds each twin
+  to its sentence with only the pronouns turned, so a twin cannot go stale.
+- **The glossary's *Register*** says where *je* holds, and how a twin is made.
+- **Not here, as §23.2 says:** T3's and T8's new sentences, and the server's own (the endings, and
+  the refusals a person's link meets), which the main line twins in its own files.
+
+The owner reads the twins in the pull request. Still the owner's: T0 and T12.
 
 **2026-11-26, the owner's read of the block for families, and one word.** The owner: *"Families
 blot: ok. Use familielid (gezinslid is to limited to one household)"*. The block stands as built.
@@ -1494,6 +1553,9 @@ advised. The options stay, as the record of what was put.
   question put to the lawyer before it ships to anybody outside the Alpha. Answered: as
   advised.** Putting it to the lawyer is the owner's.
 - **D7. The relation.** (a) A fixed list (§7). (b) Free text. **Advice: (a). Answered: (a).**
+  **Reversed 2026-11-26**, when the owner read step B's Dutch (#2196): *"can we do without it?
+  Does the relationship matter and need to be registered? I would like not to..."* Nothing asks
+  it, keeps it, or says it; the page names the sender, and gives a number to check (D11).
 - **D8. *Je* or *u*: per person or per organisation.** (a) Per person. (b) One choice for the
   organisation. **Advice: (a):** a family says *je* to one parent and *u* to another.
   **Answered: (a).**

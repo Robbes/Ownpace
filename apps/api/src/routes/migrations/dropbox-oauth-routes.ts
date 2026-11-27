@@ -130,6 +130,8 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
   // A grant link's consent (workplan 0174 §6): Microsoft's branches, for
   // Dropbox. Nothing of the owner's ending below is reached.
   if (pending.link ?? pending.personLink) {
+    // How a person's pages speak to them (workplan 0176 T7): their ending says it.
+    const register = pending.personLink?.register;
     const finish = GRANT_PROVIDERS.dropbox?.finish;
     const decided = await decideDropboxLinkEnding(
       pending,
@@ -162,14 +164,16 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
             ...(decided.more ? { more: decided.more } : {}),
           },
           locale,
+          register,
         )
       : grantResultPage(
           {
             ok: false,
-            reason: typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale),
+            reason: typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale, register),
             ...(decided.link ? { link: decided.link } : {}),
           },
           locale,
+          register,
         );
     return page(decided.status, html);
   }

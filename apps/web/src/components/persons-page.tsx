@@ -11,10 +11,11 @@
  * their own words"*, so that a stage says *Wordt gekopieerd* to the person and
  * *Wordt gemigreerd* to the member, about the same numbers.
  *
- * `who` is whoever the page names as having sent the link: the address of the
- * member who made it on the link page, the organisation on the progress page,
- * until T3 gives the pages a name. A pause at the data ceiling says copying
- * waits for their choice (T6.3), with no price in it.
+ * `who` is whoever the page names as having sent the link (`whoSent`,
+ * `TheSender.tsx`): since step B the name the member gave (T3, T6), else the
+ * address of the member who made it on the link page, else the organisation.
+ * A pause at the data ceiling says copying waits for their choice (T6.3),
+ * with no price in it.
  */
 import React from 'react';
 
