@@ -35,6 +35,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   printed. `scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts` runs both against a fake API,
   database and DAV server. No product code changes.
 
+### Fixed
+
+- **Two answers stay one size when one of them wraps, and the giver's page hears its refusals in
+  Dutch too** (workplans 0176, 0177). On a person's link and progress page, the two answers to a
+  question are one height even where a phone's narrow column wraps the longer one, as the door of
+  a code's three are; and making or withdrawing a recommendation, when refused (the number
+  reached, a full Alpha, a card no longer unused or not the giver's, no organisation), answers in
+  English and Dutch alike.
+
 ## [0.2.0-alpha.21] - 2026-11-27
 
 A person's grant link now asks for each account of theirs that a migration reads from or writes to:

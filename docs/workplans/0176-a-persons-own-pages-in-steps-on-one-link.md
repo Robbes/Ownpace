@@ -2,7 +2,23 @@
 
 > **In one line:** The two pages a person opens from a link, with no account of their own: the permission asked in short steps, with Google's screens told before they come; one link for the whole journey; a stop that can be taken back; and *je* or *u* as the organisation chooses (the owner, 2026-11-26).
 
-## Status — 2026-11-26 (update this block at the end of every session)
+## Status — 2026-11-27 (update this block at the end of every session)
+
+**2026-11-27, alpha.22: two of alpha.21's follow-ups, in one pull request, #2215**
+(`claude/ownpace-public-readiness-y7orc6-a22-a21-follow-ups`).
+
+- **Two answers of one size, whatever wraps (T9, §13).** The four groups of answers on a
+  person's pages that stacked (`space-y-3`) are a grid whose rows are one height
+  (`grid auto-rows-fr gap-3`), as the door of a code's three are since #2210 (0177): *Did {who}
+  tell you about this link themselves?* and *Sign in with …* / *No, rather not* on the link
+  (`PersonGrant.tsx`), and the stop's *No, do not stop* / *Yes, stop* and the password's *Keep
+  it* / *Yes, remove it* on the progress page (`View.tsx`). The managed UI smoke has a case for
+  each, which narrows the group to its shortest answer's width so the longer one wraps; all four
+  failed on the stack first (heights 84 and 60, 80 and 60, 84 and 60, 60 and 112).
+- **D19 and Google's list.** The operator's *Gifts* says that the Google address of each
+  member and of each person they help, family or acquaintance, takes a place on Google's list
+  (0177 §20.6), as §18's reading of D19 says. The owner read the sentence on the pull request
+  (*"2215: ok"*, 2026-11-27).
 
 **2026-11-26, the owner's answer for #2197, D19's words:** *"Q2: a, and I approve, note layer
 review needed."* (*layer* read as *lawyer*), and *"Dutch read 1: #2197, yes as advised."*. The
@@ -323,7 +339,7 @@ only what it names. T13 and T14 are answered. T16 holds the website's three deci
 | T6 The progress page: nothing to do, how far, how long | builder | 📋 Planned | §10, §21.4. The total is there since 0154. Step A: the first line, the words, no price, the refresh. Step B: who can open the copy and the sender, two additions to the server's answer. M. |
 | T7 *Je* or *u*, and the page's language, chosen per person | builder | 📋 Planned | §11. After T2, so each sentence is written once. A managed migration. L. D8 is answered: per person. |
 | T8 Making the link: tell first, a message to send, 30 days | builder | 📋 Planned | §12. M. |
-| T9 Size, contrast and targets on the two pages | builder | 📋 Planned | §13. No schema. M. |
+| T9 Size, contrast and targets on the two pages | builder | 📋 Planned | §13. No schema. M. alpha.22: two answers stay one size when one of them wraps, a grid as on the door (Status, 2026-11-27). |
 | T10 What follows: the guides, the privacy text, ADR-0035, the glossary | builder | 📋 Planned | §14. With each step. M. The website's share is T15. |
 | T11 Proofs: unit, the managed UI smoke, integration | builder | 📋 Planned | §16. With each step. |
 | T12 A first test with three people | owner | ⏳ **Owner** | §17. After step A is on a stack the owner can reach. |
@@ -1721,7 +1737,7 @@ not. The options stay, as the record of what was put.
     above (*Alleen particulieren …*), the GDPR question (Art. 2(2)(c)) whether helping an
     acquaintance stays a personal activity, and the guide's sentence.
   - **Google's list:** each person helped with a Google account takes a place on Google's list
-    of test users, as plan 0177 §20.5 counts them.
+    of test users, as plan 0177 §20.5 counts them. The operator's *Gifts* says so since alpha.22 (0177 §20.6).
 
 ## 19. Not in this plan
 

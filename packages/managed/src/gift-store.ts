@@ -269,6 +269,49 @@ export const GIFT_ONLY_AFTER_ALPHA: Bilingual = {
 };
 
 /**
+ * THE GIVER'S OTHER REFUSALS, IN BOTH LANGUAGES (0177, after alpha.21): what
+ * `POST /api/gifts`, `GET /api/gifts/mine` and `POST /api/gifts/:id/revoke`
+ * answer besides D18's, said as the giver's page says it, with *u*. The
+ * number each person may recommend reached (409 `gift_limit`), in the page's
+ * own words for one card (`give.atLimit`) and with the number for more.
+ */
+export function giftAtLimit(limit: number): Bilingual {
+  return limit === 1
+    ? {
+        en: 'You have recommended someone already. Withdraw an unused card to make another.',
+        nl: 'U hebt al iemand aanbevolen. Trek een ongebruikte kaart in om een nieuwe te maken.',
+      }
+    : {
+        en: `You have recommended ${limit} people already. Withdraw an unused card to make another.`,
+        nl: `U hebt al ${limit} mensen aanbevolen. Trek een ongebruikte kaart in om een nieuwe te maken.`,
+      };
+}
+
+/** The Alpha has no place for a new card (409 `no_room`, §20.3), as the page's `give.full` says it. */
+export const GIFT_NO_ROOM: Bilingual = {
+  en: 'The Alpha is full for now. No new recommendation can be made.',
+  nl: 'De Alpha is nu vol. U kunt nu geen aanbeveling maken.',
+};
+
+/** A card to withdraw that is not the giver's, or no card at all (404): one sentence for both. */
+export const GIFT_NOT_THEIRS: Bilingual = {
+  en: 'This recommendation is not yours, or does not exist.',
+  nl: 'Deze aanbeveling is niet van u, of bestaat niet.',
+};
+
+/** A card to withdraw that was used, withdrawn or expired already (409). */
+export const GIFT_NOT_UNUSED: Bilingual = {
+  en: 'Only an unused recommendation can be withdrawn.',
+  nl: 'Alleen een ongebruikte aanbeveling kan worden ingetrokken.',
+};
+
+/** A sign-in with no organisation of its own, on the giver's page (400). */
+export const GIFT_NO_ORGANISATION: Bilingual = {
+  en: 'A recommendation is made from an organisation, and this sign-in has none.',
+  nl: 'Een aanbeveling maakt u vanuit een organisatie, en bij deze aanmelding hoort er geen.',
+};
+
+/**
  * A member's number, and D18's rule in its one place (workplan 0177 §20.7; the
  * owner, 2026-11-26: *"no, not in the alpha. Yes after the alpha."*).
  *

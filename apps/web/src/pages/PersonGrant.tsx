@@ -538,8 +538,9 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
             <p id={questionId} className="mt-6 text-lg font-semibold text-gray-900">
               {t('grant.person.told', { who })}
             </p>
-            {/* Two answers of one size, and neither louder (R6): not yet is as good an answer. */}
-            <div role="group" aria-labelledby={questionId} data-answers className="mt-3 space-y-3">
+            {/* Two answers of one size, and neither louder (R6): not yet is as good an answer. One
+                size whatever wraps: each row of the grid is as tall as the taller answer. */}
+            <div role="group" aria-labelledby={questionId} data-answers className="mt-3 grid auto-rows-fr gap-3">
               <button
                 type="button"
                 data-main
@@ -789,7 +790,8 @@ export const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> =
             <p className="mt-6 text-lg text-gray-900">{t('grant.person.see.stop')}</p>
             <p className="mt-3 text-lg text-gray-900">{t('grant.until', { date })}</p>
             {textsAccepted}
-            <div data-answers className="mt-6 space-y-3">
+            {/* One size whatever wraps: each row of the grid is as tall as the taller answer. */}
+            <div data-answers className="mt-6 grid auto-rows-fr gap-3">
               <button
                 type="button"
                 data-main

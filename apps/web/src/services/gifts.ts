@@ -160,9 +160,9 @@ export type CardRefusal = 'gift_limit' | 'no_room' | 'only_after_alpha';
  * built): the number each person may recommend reached, a full Alpha, and,
  * during it, a member let in by a recommendation (D18). The page loaded with
  * room and the answer changed before the press: a second tab, or the Alpha
- * filling up. The server's sentences for the first two are English only, so
- * the page says all three in its own words and language, as its panel does
- * when it knows before the press.
+ * filling up. The page says all three in its own words and language, as its
+ * panel does when it knows before the press; the server's `reason` and
+ * `reasonNl` say the same since alpha.22.
  */
 export function cardRefused(err: unknown): CardRefusal | null {
   if (!axios.isAxiosError(err) || err.response?.status !== 409) return null;

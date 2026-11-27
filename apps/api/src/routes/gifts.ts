@@ -35,12 +35,17 @@ import { withSubject, withSubjectAndTenant } from '@openmig/ledger';
 import {
   GIFT_ALREADY_IN,
   GIFT_FULL,
+  GIFT_NO_ORGANISATION,
+  GIFT_NO_ROOM,
+  GIFT_NOT_THEIRS,
+  GIFT_NOT_UNUSED,
   GIFT_ONLY_AFTER_ALPHA,
   GIFT_REFUSAL,
   GIFT_TOO_MANY_TRIES,
   GIFTS_PER_PERSON_MAX,
   alphaCounts,
   checkGift,
+  giftAtLimit,
   giftLimitFor,
   giftState,
   giftsHeldBy,
@@ -140,7 +145,7 @@ router.get('/mine', authenticate, async (req: AuthenticatedRequest, res: Respons
     if (!userId) return;
     const tenantId = req.tenantId;
     if (!tenantId) {
-      res.status(400).json({ error: 'Bad request', message: 'A recommendation is made from an organisation.' });
+      res.status(400).json({ error: 'Bad request', message: GIFT_NO_ORGANISATION.en, ...reasonPair(GIFT_NO_ORGANISATION) });
       return;
     }
     const { gifts, limit, held, room } = await withSubjectAndTenant(pool(), userId, tenantId, async (db) => ({
@@ -172,7 +177,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     if (!userId) return;
     const tenantId = req.tenantId;
     if (!tenantId) {
-      res.status(400).json({ error: 'Bad request', message: 'A recommendation is made from an organisation.' });
+      res.status(400).json({ error: 'Bad request', message: GIFT_NO_ORGANISATION.en, ...reasonPair(GIFT_NO_ORGANISATION) });
       return;
     }
     const parsed = MakeSchema.safeParse(req.body ?? {});
@@ -189,23 +194,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       return;
     }
     if (outcome.kind === 'atLimit') {
-      res.status(409).json({
-        error: 'gift_limit',
-        message:
-          outcome.limit === 1
-            ? 'You have recommended someone already. Withdraw an unused card to make another.'
-            : `You have recommended ${outcome.limit} people already. Withdraw an unused card to make another.`,
-        limit: outcome.limit,
-      });
+      const said = giftAtLimit(outcome.limit);
+      res.status(409).json({ error: 'gift_limit', message: said.en, ...reasonPair(said), limit: outcome.limit });
       return;
     }
     if (outcome.kind === 'noRoom') {
       // The second ceiling (0177 §20.3, rule 1): a card on paper says the
       // person is let in at once, so none is made that the Alpha could not keep.
-      res.status(409).json({
-        error: 'no_room',
-        message: 'The Alpha is full for now. No new recommendation can be made.',
-      });
+      res.status(409).json({ error: 'no_room', message: GIFT_NO_ROOM.en, ...reasonPair(GIFT_NO_ROOM) });
       return;
     }
     // By the gift's id, never its code: the code is shown once, here, to them.
@@ -223,7 +219,7 @@ router.post('/:id/revoke', authenticate, async (req: AuthenticatedRequest, res: 
     if (!userId) return;
     const id = pathId(req);
     if (!id) {
-      res.status(404).json({ error: 'Not Found', message: 'No such gift.' });
+      res.status(404).json({ error: 'Not Found', message: GIFT_NOT_THEIRS.en, ...reasonPair(GIFT_NOT_THEIRS) });
       return;
     }
     const outcome = await withSubject(pool(), userId, (db) => revokeGift(db, id, userId));
@@ -233,11 +229,33 @@ router.post('/:id/revoke', authenticate, async (req: AuthenticatedRequest, res: 
   }
 });
 
-function answerRevoke(res: Response, id: string, outcome: Awaited<ReturnType<typeof revokeGift>>): void {
+/**
+ * A revoke's answer. The giver's carries both languages, as their page is
+ * read in either; the operator's *Gifts* is English only, and keeps its own
+ * words: *not yours* is no answer to the operator, who may revoke any.
+ */
+function answerRevoke(
+  res: Response,
+  id: string,
+  outcome: Awaited<ReturnType<typeof revokeGift>>,
+  who: 'giver' | 'operator' = 'giver',
+): void {
   if (outcome === 'notFound') {
-    res.status(404).json({ error: 'Not Found', message: 'No such gift.' });
+    res
+      .status(404)
+      .json(
+        who === 'giver'
+          ? { error: 'Not Found', message: GIFT_NOT_THEIRS.en, ...reasonPair(GIFT_NOT_THEIRS) }
+          : { error: 'Not Found', message: 'No such gift.' },
+      );
   } else if (outcome === 'notUnused') {
-    res.status(409).json({ error: 'Conflict', message: 'Only an unused gift can be revoked.' });
+    res
+      .status(409)
+      .json(
+        who === 'giver'
+          ? { error: 'Conflict', message: GIFT_NOT_UNUSED.en, ...reasonPair(GIFT_NOT_UNUSED) }
+          : { error: 'Conflict', message: 'Only an unused gift can be revoked.' },
+      );
   } else {
     log.info(`[gift] gift ${id} revoked`);
     res.json({ revoked: true, id });
@@ -507,7 +525,7 @@ router.post('/operator/:id/revoke', authenticateSubject, async (req: Authenticat
       res.status(404).json({ error: 'Not Found', message: 'No such gift.' });
       return;
     }
-    answerRevoke(res, id, await withSubject(pool(), userId, (db) => revokeGift(db, id, userId)));
+    answerRevoke(res, id, await withSubject(pool(), userId, (db) => revokeGift(db, id, userId)), 'operator');
   } catch (error) {
     serverFault(res, 'gift_operator_revoke_failed', 'revoking this gift', error);
   }

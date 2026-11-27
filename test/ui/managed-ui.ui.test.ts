@@ -68,7 +68,7 @@ import { createReadStream, existsSync, mkdtempSync, readFileSync, rmSync, statSy
 import { tmpdir } from 'node:os';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, type Browser, type BrowserContextOptions, type Page, type Request } from 'playwright-core';
+import { chromium, type Browser, type BrowserContextOptions, type Locator, type Page, type Request } from 'playwright-core';
 import { envsubst, headersFor, parseNginx } from '../../scripts/nginx-config.mjs';
 import {
   APP_SCREEN_NOW,
@@ -2445,6 +2445,89 @@ describe("nothing small on a person's pages (0176 T9)", () => {
       await l.page.close();
     });
   }
+});
+
+/**
+ * TWO ANSWERS OF ONE SIZE, WHATEVER WRAPS (0176 §13), as the door of a code
+ * keeps its three (0177 §10). With a runner's wider fonts an answer can take
+ * two lines at 320 pixels, and in a stack it then stood taller than the other.
+ * Each group is narrowed here to the width of its shortest answer on one
+ * line, measured in the browser, so the longer answer must wrap on any font:
+ * through the elements' own style, which the page's policy allows, as it does
+ * no style tag.
+ */
+async function answersNarrowed(group: Locator): Promise<string[]> {
+  await group.evaluate((el) => {
+    const answers = [...el.querySelectorAll('button')];
+    const oneLine = answers.map((b) => {
+      b.style.width = 'max-content';
+      const width = b.getBoundingClientRect().width;
+      b.style.width = '';
+      return width;
+    });
+    (el as HTMLElement).style.maxWidth = `${Math.ceil(Math.min(...oneLine)) + 1}px`;
+  });
+  const sizes = await group.getByRole('button').evaluateAll((buttons) =>
+    buttons.map((b) => {
+      const box = b.getBoundingClientRect();
+      return `${Math.round(box.width)} by ${Math.round(box.height)}`;
+    }),
+  );
+  expect(sizes, 'the two answers').toHaveLength(2);
+  // The longest answer takes two lines here, so the case named is the case measured.
+  expect(Math.max(...sizes.map((s) => Number(s.split(' by ')[1]))), 'an answer that wraps').toBeGreaterThan(60);
+  return sizes;
+}
+
+describe("a person's pages keep their two answers one size when one wraps (0176 §13)", () => {
+  it(`on a person's link: did ${ASKED_BY} tell you about it`, async () => {
+    const l = await open(`/grant/${PERSON_GRANT_LINK}`, { signedIn: false, locale: 'en', narrow: true });
+    await l.page.getByRole('heading', { level: 1, name: PERSON_LINK_WALK[0]!.h1.en }).waitFor({ timeout: 15_000 });
+    const group = l.page.getByRole('group', { name: `Did ${ASKED_BY} tell you about this link themselves?` });
+    const sizes = await answersNarrowed(group);
+    expect(new Set(sizes).size, `the two answers' sizes: ${sizes.join(', ')}`).toBe(1);
+    expectClean(l, "a person's link with an answer that wraps");
+    await l.page.close();
+  });
+
+  it("on a person's link: sign in with Google, or rather not", async () => {
+    const l = await open(`/grant/${PERSON_GRANT_LINK}`, { signedIn: false, locale: 'en', narrow: true });
+    for (const screen of PERSON_LINK_WALK) {
+      await l.page.getByRole('heading', { level: 1, name: screen.h1.en }).waitFor({ timeout: 15_000 });
+      if (screen.next) await l.page.getByRole('button', { name: screen.next.en, exact: true }).click();
+    }
+    const group = l.page.locator('[data-answers]');
+    const sizes = await answersNarrowed(group);
+    expect(new Set(sizes).size, `the two answers' sizes: ${sizes.join(', ')}`).toBe(1);
+    expectClean(l, "a person's sign-in with an answer that wraps");
+    await l.page.close();
+  });
+
+  it("on a person's progress page: stop copying, or not", async () => {
+    const l = await open(`/view/${PERSON_VIEW_LINK}`, { signedIn: false, locale: 'en', narrow: true });
+    await l.page.getByRole('button', { name: 'Stop copying', exact: true }).first().click();
+    await l.page.getByRole('heading', { level: 1, name: 'Stop copying from your Google account?' }).waitFor({ timeout: 10_000 });
+    const sizes = await answersNarrowed(l.page.locator('[data-answers]'));
+    expect(new Set(sizes).size, `the two answers' sizes: ${sizes.join(', ')}`).toBe(1);
+    expectClean(l, "a person's stop with an answer that wraps");
+    await l.page.close();
+  });
+
+  it("on a person's progress page: remove the password they gave, or keep it", async () => {
+    const key = `GET /api/view/${PERSON_VIEW_LINK}`;
+    const saved = FIXTURES[key] as Record<string, unknown>;
+    FIXTURES[key] = { ...saved, destinations: [{ ref: 'c'.repeat(32), provider: 'soverin', drive: false }] };
+    try {
+      const l = await open(`/view/${PERSON_VIEW_LINK}`, { signedIn: false, locale: 'en', narrow: true });
+      await l.page.getByRole('button', { name: 'Remove my password', exact: true }).click();
+      const sizes = await answersNarrowed(l.page.locator('[data-answers]'));
+      expect(new Set(sizes).size, `the two answers' sizes: ${sizes.join(', ')}`).toBe(1);
+      expectClean(l, "a person's password with an answer that wraps");
+      await l.page.close();
+    } finally {
+      FIXTURES[key] = saved;
+    }
+  });
 });
 
 /**
