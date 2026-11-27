@@ -56,6 +56,12 @@
  *     its kept door as a refusal, and the reading is RED when the leak is
  *     taken out of what it flagged. On the API every verdict is counted and no
  *     operation is named.
+ * 10. A TOKEN PROVED, AND A PERSON TO ASK ABOUT (2026-11-27). Each member's
+ *     token is proved accepted at `/api/me` before it is used, so a token the
+ *     API refused (an expired one, a secret that did not take) is a scan that
+ *     did not finish, never a night of 401s read as refusals. And a person of
+ *     the first organisation is made before its ids are read, so the person
+ *     doors are asked, not listed as not asked.
  *  9. THE JOBS DATABASE (the maintainer's answer of 2026-11-26). The API gets
  *     a `JOBS_DATABASE_URL` on the stack's own Postgres, as the jobs role
  *     `deploy/compose/jobs-role.sql` makes, with a password of the run's own,
@@ -78,6 +84,8 @@ import {
   CHECKS,
   CONFIG,
   CONTAINERS,
+  FIRST_ID_QUERIES,
+  FIRST_PERSON_SQL,
   FIXTURE,
   IMAGE,
   JOBS_ROLE_SQL,
@@ -96,6 +104,7 @@ import {
   report,
   run,
   scanArgs,
+  SIGNED_IN_AT,
   stackImages,
   unflagged,
   withVerdict,
@@ -503,6 +512,49 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
       expect(v.markdown).toContain('The scan did not finish');
       expect(base.calls.at(-1)!.args[0]).toBe('rm');
     }
+  });
+
+  it('proves each member’s token is accepted at /api/me before it is used, by environment only (10)', async () => {
+    const { calls, docker } = stub(FIXTURE_FLAGGED(), reportJson());
+    const { v, masked } = await go(docker);
+    expect(v.code).toBe(0);
+    const proofs = calls.filter((c) => c.args.join(' ').includes(SIGNED_IN_AT));
+    expect(proofs.map((c) => c.env?.PROBE_TOKEN)).toEqual([masked[5], masked[6]]);
+    for (const c of proofs) {
+      expect(c.args).toEqual(expect.arrayContaining(['exec', '--env', 'PROBE_TOKEN']));
+      for (const t of [masked[5]!, masked[6]!]) expect(c.args.join(' ')).not.toContain(t);
+    }
+    const at = (pred: (c: (typeof calls)[number]) => boolean) => calls.findIndex(pred);
+    expect(at((c) => c.env?.PROBE_TOKEN === masked[5])).toBeLessThan(at((c) => c.args[0] === 'run' && c.args.includes(SCHEMATHESIS)));
+    expect(at((c) => c.env?.PROBE_TOKEN === masked[6])).toBeLessThan(at((c) => c.args.some((a) => a.endsWith('/another-organisations-ids.mjs'))));
+  });
+
+  it('stops, asking and scanning nothing, when a token is not accepted: 401s would read as refusals (10)', async () => {
+    for (const which of [0, 1]) {
+      const base = stub(FIXTURE_FLAGGED(), reportJson());
+      let seen = -1;
+      const docker: Docker = (args, opts) => {
+        if (args.join(' ').includes(SIGNED_IN_AT)) {
+          seen += 1;
+          if (seen === which) return { status: 1, stdout: '', stderr: '401', error: undefined, signal: null };
+        }
+        return base.docker(args, opts);
+      };
+      const { v } = await go(docker);
+      expect(v.code).toBe(1);
+      expect(v.markdown).toMatch(/The scan did not finish:.*token was not accepted/);
+      expect(base.calls.some((c) => c.args.includes(`/src/${API_DESCRIPTION}`))).toBe(false);
+    }
+  });
+
+  it('makes a person of the first organisation before its ids are read, so the person doors are asked (10)', async () => {
+    const { calls, docker } = stub(FIXTURE_FLAGGED(), reportJson());
+    await go(docker);
+    const made = calls.findIndex((c) => c.input === FIRST_PERSON_SQL);
+    const read = calls.findIndex((c) => c.args.includes(FIRST_ID_QUERIES.personId!));
+    expect(made).toBeGreaterThan(-1);
+    expect(made).toBeLessThan(read);
+    expect(FIRST_PERSON_SQL).toContain(OTHERS.ids.tenantId);
   });
 
   it('passes a dispatch’s seed to the API’s scan when it is digits, and no other', async () => {

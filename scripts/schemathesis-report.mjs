@@ -211,6 +211,24 @@ export const FIRST_ID_QUERIES = {
 };
 
 /**
+ * A person of the first organisation, made before its ids are read: the demo
+ * seed makes none, and without one every door that names a person is not
+ * asked (2026-11-27). Made once; a second run changes nothing.
+ */
+export const FIRST_PERSON_SQL =
+  "INSERT INTO person (tenant_id, display_name) SELECT 'a0000000-0000-4000-8000-000000000001', 'A person of the first organisation' " +
+  "WHERE NOT EXISTS (SELECT 1 FROM person WHERE tenant_id = 'a0000000-0000-4000-8000-000000000001');\n";
+
+/**
+ * Where each member's token is proved accepted before it is used (2026-11-27).
+ * A token the API refuses would make every answer a 401, which the scan's
+ * `ignored_auth` and the second identity both read as a door that refused:
+ * a night of refusals that proved nothing. So a token that does not answer 200
+ * here is a scan that did not finish.
+ */
+export const SIGNED_IN_AT = '/api/me';
+
+/**
  * What the second-identity check wrote: `{ asked, notAsked }`, or why it
  * cannot be read (`stopped`).
  */
@@ -614,8 +632,20 @@ export async function run({
       if (ready) return report({ ...base, stopped: ready });
     }
 
+    // Each token proved accepted before it is used (SIGNED_IN_AT, above), by
+    // environment only.
+    const accepted = (value, who) => {
+      const ran = docker(
+        ['exec', '--env', 'PROBE_TOKEN', CONTAINERS.fixture, 'node', '-e',
+          `fetch('http://${LOOPBACK}:${API_PORT}${SIGNED_IN_AT}', { headers: { authorization: 'Bearer ' + process.env.PROBE_TOKEN } }).then((r) => process.exit(r.status === 200 ? 0 : 1), () => process.exit(1))`],
+        { env: { ...process.env, PROBE_TOKEN: value } },
+      );
+      return ran.error || ran.status !== 0 ? `${who}'s token was not accepted at ${SIGNED_IN_AT}, so its answers would all be refusals that prove nothing` : null;
+    };
     const token = signToken(root, secrets.jwtSecret, MEMBERS[0]);
     mask(token);
+    const first = accepted(token, 'the first member');
+    if (first) return report({ ...base, stopped: first });
     const scanEnv = { env: { ...process.env, DAST_TOKEN: token } };
     docker(scanArgs(image, { root, out, uid, description: join(FIXTURE.dir, 'openapi.yaml'), port: FIXTURE_PORT, report: 'fixture.json' }), scanEnv);
     const proof = readRun(join(out, 'fixture.json'));
@@ -625,6 +655,8 @@ export async function run({
     // takes the first organisation's seeded rows away.
     const other = signToken(root, secrets.jwtSecret, MEMBERS[1]);
     mask(other);
+    const second = accepted(other, 'the second member');
+    if (second) return report({ ...base, proof, stopped: second });
     const ask = (description, port, ids) =>
       readOthers(docker(
         ['exec', '--env', 'OTHER_TOKEN', '--env', 'FIRST_IDS', CONTAINERS.fixture, 'node', join(root, 'scripts/another-organisations-ids.mjs'), join(root, description), String(port)],
@@ -632,6 +664,11 @@ export async function run({
       ));
     const othersProof = ask(OTHERS.description, FIXTURE_PORT, OTHERS.ids);
     if (othersProof.stopped || othersUnproved(othersProof).length) return report({ ...base, proof, othersProof });
+    const person = docker(['exec', '-i', CONTAINERS.db, 'psql', '-v', 'ON_ERROR_STOP=1', '-q', '-U', 'ownpace', '-d', 'ownpace'], {
+      input: FIRST_PERSON_SQL,
+      env: { ...process.env },
+    });
+    if (person.error || person.status !== 0) return report({ ...base, proof, othersProof, stopped: `a person of the first organisation was not made (${why(person)})` });
     const ids = { tenantId: OTHERS.ids.tenantId, ownerEmail: MEMBERS[0].email };
     for (const [name, sql] of Object.entries(FIRST_ID_QUERIES)) {
       const got = docker(['exec', CONTAINERS.db, 'psql', '-At', '-v', 'ON_ERROR_STOP=1', '-U', 'ownpace', '-d', 'ownpace', '-c', sql]);

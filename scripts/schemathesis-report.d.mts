@@ -102,6 +102,8 @@ export declare const MIN_ASKS: number;
 export declare const VERDICTS: ReadonlyArray<string>;
 export declare const OTHERS_WITHHELD: ReadonlyArray<string>;
 export declare const FIRST_ID_QUERIES: Readonly<Record<string, string>>;
+export declare const FIRST_PERSON_SQL: string;
+export declare const SIGNED_IN_AT: string;
 
 export interface OthersAsked {
   readonly operation: string;
