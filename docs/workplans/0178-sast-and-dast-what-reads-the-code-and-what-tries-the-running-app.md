@@ -38,7 +38,9 @@ mandatory, not to switch the limit off without it, and not to key by anything bu
   limiter does not cover.
 - **The maintainer's dismissals, the same day:** 96 of CodeQL's alerts dismissed with the reasons
   reviewed under T6 (test-only code, false positives and won't-fix), and 5 reviewed groups had
-  already closed on their own.
+  already closed on their own. Six more after a second read the same day: five of CodeQL's (four
+  in test code, one a false positive, its pattern measured linear on large inputs) and one of
+  Semgrep's (a false positive: a link the API issued, not an address a person typed).
 
 **2026-11-27: alpha.21 carries T1 to T5, T7 and T10; T6's reading goes on.** alpha.21, tagged at
 `c34b30f8` (0146), carries the four guards (T1 to T4, #2191), CodeQL report only (T5, #2194, and
@@ -241,7 +243,7 @@ one before it to be quiet on `main`.
 | T3 Guard: every door either signs in, or is public in the code and in the API description alike | builder | ✅ Merged, alpha.21 (#2191, `11e1df10`) | §5.1 G3. The static half of class 9. Blocks. M. By the analyst session, after alpha.21's builds (D9). |
 | T4 Guard: a secret-named key handed to the logger | builder | ✅ Merged, alpha.21 (#2191, `11e1df10`) | §5.1 G4. Measured first; blocks only if quiet. S. By the analyst session, after alpha.21's builds (D9). |
 | T5 CodeQL, report only: push to `main`, weekly, dispatch | builder | ✅ Merged, alpha.21 (#2194, `b31ccaaf`; #2202 after its first runs) | §4.1, §8 step 2. D1. Not on pull requests. `codeql.yml`, its report, its fixture and its guard; the Status entry of that day. |
-| T6 CodeQL's first list, read alert by alert | builder | 🔄 Read in alpha.21; three changes merged (#2203, #2205, #2207); 96 alerts dismissed by the maintainer 2026-11-27; the whole API's request limit built for alpha.22 (the maintainer's decision of 2026-11-27), not merged | §8 step 2. As 0166 read Trivy's and Semgrep's. 312 alerts under 17 queries on `b31ccaaf`; the Status entry of that evening. |
+| T6 CodeQL's first list, read alert by alert | builder | 🔄 Read in alpha.21; three changes merged (#2203, #2205, #2207); 102 alerts dismissed by the maintainer 2026-11-27 (96, then six more: five of CodeQL's, one of Semgrep's); the whole API's request limit built for alpha.22 (the maintainer's decision of 2026-11-27), not merged | §8 step 2. As 0166 read Trivy's and Semgrep's. 312 alerts under 17 queries on `b31ccaaf`; the Status entry of that evening. |
 | T7 Schemathesis against the API on a GitHub-hosted runner, nightly, report only | builder | ✅ Merged, alpha.21 (#2192, `18901d3f`); first hosted run 45926079250, green | §6, §8 step 3. D3, D4. With a known-bad fixture it must flag. M. By a new session, after alpha.21's builds (D9). |
 | T8 Schemathesis on every pull request, two checks blocking | builder | 📋 Planned | §8 step 4. After T7 is quiet on `main` for 14 nights (D4), so it may fall after alpha.21's release. S. |
 | T9 CodeQL queries that may block, one at a time | builder | 📋 Planned | §8 step 5. After T6's reading and the owner's word per query (D8), so it may fall after alpha.21's release. S each. |
