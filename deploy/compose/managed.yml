@@ -1186,6 +1186,9 @@ services:
       # 2, NetBird and the web's nginx (managed.env.example; workplan 0132 T3 (d)).
       TRUST_PROXY: ${TRUST_PROXY:-}
       ACCESS_REQUEST_MAX_PER_HOUR: ${ACCESS_REQUEST_MAX_PER_HOUR:-}
+      # The whole API's request limit, per address under the same TRUST_PROXY
+      # (apps/api/src/api-rate-limit.ts; workplan 0178 T6). Empty is 1200 a minute.
+      API_MAX_REQUESTS_PER_MINUTE: ${API_MAX_REQUESTS_PER_MINUTE:-}
       # PROBLEM REPORTS (workplan 0130), read by apps/api/src/services/zammad.ts
       # and report-channel.ts. Setting URL and TOKEN files each report as a
       # Zammad ticket. Without them, a report goes by mail through the SMTP_*

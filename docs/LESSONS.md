@@ -327,6 +327,10 @@ reading a file drops off its entry by itself.
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
+### `apps/api/src/api-rate-limit.ts`
+
+- [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
+
 ### `apps/api/src/audit-key.ts`
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
@@ -5015,6 +5019,7 @@ A LIMIT THE API WAS NEVER HANDED.
 
 Reads:
 
+- `apps/api/src/api-rate-limit.ts`
 - `apps/api/src/index.ts`
 - `apps/api/src/knock-limit.ts`
 - `deploy/compose/managed.env.example`

@@ -3952,6 +3952,14 @@ No script can do these. The script checks each one before it changes anything.
    NetBird's own cluster adds a hop is not in its source; the check in *After
    the script*, step 6, settles it.
 
+   The same count keys the whole API's request limit (workplan 0178 T6):
+   `API_MAX_REQUESTS_PER_MINUTE`, empty for 1,200 a minute from one address,
+   `/api/ready` never limited, a refusal 429 with `Retry-After`. On live it is
+   per visitor. On a stack whose `TRUST_PROXY` is empty (the OTA stack, a dev
+   or smoke stack) it is one budget for every caller, which the default is
+   sized never to reach there; the API's start says which of the two it has
+   (`[api] at most … requests a minute to /api from one address`).
+
    **`MAX_PASSES_IN_FLIGHT=6`** is live's cap on passes running at once. The
    worker is sized from it (*The job runner*): a stack at 6 sets
    `WORKER_CPUS=4` and `WORKER_MEMORY=4352m` in its `.env` beside it. The OTA

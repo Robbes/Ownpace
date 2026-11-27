@@ -48,6 +48,17 @@ function knockLimitNames(): string[] {
   return [...new Set([...body.matchAll(/\benv\.([A-Z][A-Z0-9_]*)\b/g)].map((m) => m[1]!))];
 }
 
+/** The names `apiRateLimitFromEnv` reads: the whole API's limit (workplan 0178 T6). */
+function apiRateLimitNames(): string[] {
+  const source = read('apps/api/src/api-rate-limit.ts');
+  const start = source.indexOf('export function apiRateLimitFromEnv');
+  expect(start, 'apiRateLimitFromEnv moved or was renamed').toBeGreaterThan(-1);
+  const rest = source.slice(start + 1);
+  const next = rest.search(/\nexport (function|const|interface|type) /);
+  const body = next === -1 ? rest : rest.slice(0, next);
+  return [...new Set([...body.matchAll(/\benv\.([A-Z][A-Z0-9_]*)\b/g)].map((m) => m[1]!))];
+}
+
 function apiEnvironment(): Record<string, unknown> {
   const doc = parseYaml(read('deploy/compose/managed.yml')) as {
     services: Record<string, { environment?: Record<string, unknown> }>;
@@ -58,13 +69,22 @@ function apiEnvironment(): Record<string, unknown> {
 }
 
 describe('the access-request limit can be set on a managed stack', () => {
-  const names = [trustProxyName(), ...knockLimitNames()];
+  const names = [trustProxyName(), ...knockLimitNames(), ...apiRateLimitNames()];
   const passed = apiEnvironment();
   const example = read('deploy/compose/managed.env.example');
 
   it('finds both knobs, so an empty comparison cannot pass', () => {
     expect(names).toContain('TRUST_PROXY');
     expect(names).toContain('ACCESS_REQUEST_MAX_PER_HOUR');
+    expect(names).toContain('API_MAX_REQUESTS_PER_MINUTE');
+  });
+
+  it('says beside the whole API\'s limit that live is per caller and an empty TRUST_PROXY is one budget', () => {
+    const at = example.search(/^API_MAX_REQUESTS_PER_MINUTE=/m);
+    expect(at, 'managed.env.example has no API_MAX_REQUESTS_PER_MINUTE').toBeGreaterThan(-1);
+    const before = example.slice(Math.max(0, at - 1200), at);
+    expect(before).toMatch(/stand-up-live\.sh/);
+    expect(before).toMatch(/one budget/i);
   });
 
   it.each(names.map((name) => [name] as const))('the api container is handed %s', (name) => {

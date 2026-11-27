@@ -12,6 +12,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { Pool } from 'pg';
 import { accessLog } from './access-log.ts';
+import { apiRateLimit, apiRateLimitAtStart, apiRateLimitFromEnv } from './api-rate-limit.ts';
 import {
   appEventSinkOn,
   auditExportOn,
@@ -114,6 +115,17 @@ app.use(cors({
 // Without the link credentials, OAuth codes and query values `combined` wrote
 // out in full: `access-log.ts` says what is kept and why.
 app.use(accessLog());
+/**
+ * One request limit for the whole API (workplan 0178 T6; the maintainer's
+ * decision of 2026-11-27): per address, generous, `/api/ready` never limited.
+ * HERE, before every `/api` route and router, the problem reports included,
+ * because Express runs middleware in the order it is mounted, and a router
+ * mounted above this line would not be limited at all. The doors' own stricter
+ * limits stay behind it. `api-rate-limit.ts` says why, and
+ * `one-limit-for-the-whole-api.unit.test.ts` fails on a route above it.
+ */
+const apiLimit = apiRateLimitFromEnv();
+app.use('/api', apiRateLimit(apiLimit));
 // "Report a problem" (workplan 0130), BEFORE the global JSON parser: its body
 // carries a screenshot, and it parses with a larger limit of its own.
 app.use('/api/problem-reports', problemReportRoutes());
@@ -400,6 +412,9 @@ if (process.env.NODE_ENV !== 'test') {
   // may not hold stops the start here, in its one sentence, rather than failing
   // each press afterwards.
   log.info(`[api] jobs run on ${jobRunner()}`);
+  // The request limit, and whether it is per caller or one budget for every
+  // caller (0178 T6): without TRUST_PROXY nothing else would show which.
+  log.info(apiRateLimitAtStart(apiLimit, trustProxy));
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');
