@@ -11,12 +11,15 @@
  * picks, whatever the app's; and the person at the door, `/code`. The
  * operator's screens are English only, in `operator-strings.ts`.
  *
- * The sentences are 0177 §7's, as drafts for the owner's read, but for the
- * five the owner read on 2026-11-26 (*"The G6 Dutch: all ok"*): `give.does`,
- * `give.handOver`, `card.alpha`, `code.in.title` and the first sentence of
- * `code.in.left`. Until T9 gives the door the giver's name, a row with
- * `{giver}` says *the person you got the code from* (§7). The refusals at the
- * door are the server's sentences, in both languages, and not here.
+ * Most sentences are 0177 §7's drafts. The owner read five of them on
+ * 2026-11-26 (*"The G6 Dutch: all ok"*): `give.does`, `give.handOver`,
+ * `card.alpha`, `code.in.title` and the first sentence of `code.in.left`. The
+ * ones step A wrote that §7 does not give, the door's two one-sentence field
+ * hints among them, the owner read the same day in #2198's table (*"Dutch
+ * read 2 (#2198's sentences): ok, as advised"*). Until T9 gives the door the
+ * giver's name, a row with `{giver}` says *the person you got the code from*
+ * (§7). The refusals at the door are the server's sentences, in both
+ * languages, and not here.
  */
 
 export const en = {
