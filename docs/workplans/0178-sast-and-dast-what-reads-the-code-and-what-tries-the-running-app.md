@@ -35,6 +35,10 @@ under D9 the pull request waits for alpha.21's builder pull requests.**
   reason, so 30 public routes. The redeem's two `security: []` became one. G1, G2 and G4 named
   nothing new: the step's migration is SQL in a `.sql` file, which G2 does not read, and its log
   calls hand over no secret-named value. 0176 step B (#2196) is still to come.
+- **After 0176 step B (#2196) reached `main` at `b0f1e140`,** merged in with #2199, #2200,
+  #2202 to #2205: the API's routers register 192 routes, one more, and the new one signs a
+  session in, so G3's list is unchanged at 30 public routes. G1 finds 2 (the two tests), G2 28
+  and G4 4, as before. D9 is lifted.
 - **T1 to T4 stay 📋 until the pull request merges.**
 
 **2026-11-26, evening: T5's two runs on `main`, and T6 begun.** #2194 merged as `b31ccaaf`.
