@@ -58,13 +58,16 @@ import { answerAddressChangeByLink } from '@openmig/managed';
 import {
   ADDRESS_CHANGE_MAX,
   ADDRESS_CHANGE_NOT_FOUND,
+  inLocale,
   invalidAddressChange,
   pseudonymizer,
   type AddressChangeRefusal,
   type Bilingual,
+  type Register,
 } from '@openmig/shared';
 import { withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
+import { registerOfPerson } from '../person-register.ts';
 import type { PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import { auditPseudonymKey } from '../audit-key.ts';
@@ -87,12 +90,17 @@ export const ONLY_THE_ANSWER: Bilingual = {
   nl:
     'Stuur alleen { "state", "newAddress" }: "confirmed" of "proposed", en het nieuwe adres dat deze pagina ' +
     'toonde. Via deze link kunt u alleen zeggen of uw nieuwe adres klopt; er kan hier niets aan worden gewijzigd.',
+  // With je, for a person whose pages say je (workplan 0176 T7, §11).
+  nlJe:
+    'Stuur alleen { "state", "newAddress" }: "confirmed" of "proposed", en het nieuwe adres dat deze pagina ' +
+    'toonde. Via deze link kun je alleen zeggen of je nieuwe adres klopt; er kan hier niets aan worden gewijzigd.',
 };
 
 /** No row of this person's has that ref: somebody else's, a deleted one, or one never made, alike. */
 export const NOT_ONE_OF_YOURS: Bilingual = {
   en: 'This address change is not one of yours, or it no longer exists. Open this page again to see your own.',
   nl: 'Deze adreswijziging is niet van u, of bestaat niet meer. Open deze pagina opnieuw om de uwe te zien.',
+  nlJe: 'Deze adreswijziging is niet van jou, of bestaat niet meer. Open deze pagina opnieuw om de jouwe te zien.',
 };
 
 /** The row's new address is not the one the page showed: nothing was written. */
@@ -103,15 +111,24 @@ export const CHANGED_SINCE_SHOWN: Bilingual = {
   nl:
     'Uw nieuwe adres is gewijzigd sinds deze pagina werd geopend, dus er is niets opgeslagen. ' +
     'Open deze pagina opnieuw om het te zien zoals het nu is.',
+  nlJe:
+    'Je nieuwe adres is gewijzigd sinds deze pagina werd geopend, dus er is niets opgeslagen. ' +
+    'Open deze pagina opnieuw om het te zien zoals het nu is.',
 };
 
 /** The code a stale page's answer is refused with, as a stale withdrawal is (`person-progress.ts`). */
 export const LINK_ADDRESS_CHANGED = 'changed';
 
-const notOneOfYours = (): AddressChangeRefusal => ({
+const notOneOfYours = (register?: Register): AddressChangeRefusal => ({
   error: ADDRESS_CHANGE_NOT_FOUND,
   message: NOT_ONE_OF_YOURS.en,
-  messageNl: NOT_ONE_OF_YOURS.nl,
+  messageNl: inLocale(NOT_ONE_OF_YOURS, 'nl', register),
+});
+
+/** A pair with its Dutch in the person's register (0176 T7), for a helper that takes a pair. */
+const inTheirRegister = (text: Bilingual, register: Register | undefined): Bilingual => ({
+  en: text.en,
+  nl: inLocale(text, 'nl', register),
 });
 
 function refuse(res: Response, status: 400 | 404 | 409, refusal: AddressChangeRefusal): void {
@@ -133,9 +150,11 @@ export function answerAddressChangeThroughLink(
       // The grant door's routes refuse a closed organisation (0085 T2), so
       // this one does, by the same code and in the same words.
       if (door === 'grant' && tenantId !== undefined && (await refusedAsClosed(res, tenantId, pool()))) return;
-      const parsed = AnswerSchema.safeParse(req.body ?? {});
-      if (!parsed.success) return void refuse(res, 400, invalidAddressChange(ONLY_THE_ANSWER));
       const person = link.personLink;
+      // How the person's pages speak to them (0176 T7): each refusal below says its Dutch in it.
+      const register = person ? await registerOfPerson(pool(), person.tenantId, person.personId) : undefined;
+      const parsed = AnswerSchema.safeParse(req.body ?? {});
+      if (!parsed.success) return void refuse(res, 400, invalidAddressChange(inTheirRegister(ONLY_THE_ANSWER, register)));
       // A migration's own link is nobody's: it reaches no row.
       if (!person) return void refuse(res, 404, notOneOfYours());
       // Read before the transaction opens: the key is the owner's alone and is
@@ -154,10 +173,10 @@ export function answerAddressChangeThroughLink(
         return void refuse(res, 409, {
           error: LINK_ADDRESS_CHANGED,
           message: CHANGED_SINCE_SHOWN.en,
-          messageNl: CHANGED_SINCE_SHOWN.nl,
+          messageNl: inLocale(CHANGED_SINCE_SHOWN, 'nl', register),
         });
       }
-      refuse(res, 404, notOneOfYours());
+      refuse(res, 404, notOneOfYours(register));
     } catch (error) {
       serverFault(res, 'link_address_change_failed', 'saving your answer about your new address', error);
     }

@@ -149,12 +149,10 @@ describe('API Tenant Isolation', () => {
       // In this test, tenant B's token sets context to tenant B, so the query for tenant A
       // should return nothing (RLS filters out tenant A's rows when context is tenant B).
       // The test passes if we don't get tenant A's actual data back.
-      expect([200, 404]).toContain(response.status);
-      
-      if (response.status === 200 && response.body.id) {
-        // If it returns 200 with a body, it should NOT be tenant A's data
-        expect(response.body.id).not.toBe(API_TENANT_A);
-      }
+      // Refused before anything is read: the path names an organisation that
+      // is not the caller's (`requireTenantMatch`, workplan 0178 T10's reading).
+      expect(response.status).toBe(403);
+      expect(response.body.id).toBeUndefined();
     });
   });
 

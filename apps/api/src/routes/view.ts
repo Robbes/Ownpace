@@ -78,6 +78,7 @@ import { readLinkAddressChanges } from '@openmig/managed';
 import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { PersonLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
+import { registerOfPerson } from '../person-register.ts';
 import { answerAddressChangeThroughLink } from './link-address-changes.ts';
 import { withdrawGrant } from './withdraw-grant.ts';
 import { readGrantRows } from './migrations/grant-subject.ts';
@@ -130,15 +131,19 @@ router.get(
         // A person's page: every migration of theirs, as `person-progress.ts`
         // reads it. The person gone takes their links with them, so a null
         // here is an organisation that is gone.
-        const { tenantId, personId, expiresAt } = req.personLink;
+        const { tenantId, personId, expiresAt, linkId } = req.personLink;
         const view = await withTenantDb(tenantId, pool(), async (db) => {
-          const page = await readPersonView(db, { tenantId, personId, expiresAt });
+          const page = await readPersonView(db, { tenantId, personId, expiresAt, linkId });
           // Their own rows of the address changes, the one exception to
           // counts and states (see the header): to confirm or send back.
           return page && { ...page, addressChanges: await readLinkAddressChanges(db, tenantId, personId) };
         });
-        // Their page, not a migration, is what is gone (workplan 0176 D1, §21.3).
-        if (!view) return void res.status(409).json({ error: 'not_found', ...reasonPair(PERSON_PAGE_GONE) });
+        // Their page, not a migration, is what is gone (workplan 0176 D1, §21.3),
+        // said in their register where the person is still there to have one (T7).
+        if (!view) {
+          const register = await registerOfPerson(pool(), tenantId, personId);
+          return void res.status(409).json({ error: 'not_found', ...reasonPair(PERSON_PAGE_GONE, register) });
+        }
         return void res.json(view);
       }
       const { tenantId, mappingId, expiresAt } = req.mappingLink!;
@@ -264,7 +269,9 @@ router.post(
         if ('destination' in parsed.data) {
           // A destination's password (0174 §4.3): removed here, nothing to revoke at the provider.
           const removed = await withdrawPersonDestination(pool(), { tenantId, personId, linkId }, parsed.data.destination);
-          if (!removed.ok) return void res.status(409).json(withdrawalRefusalBody(removed));
+          if (!removed.ok) {
+            return void res.status(409).json(withdrawalRefusalBody(removed, await registerOfPerson(pool(), tenantId, personId)));
+          }
           return void res.json(removed.withdrawal);
         }
         const result = await withdrawPersonGrant(
@@ -273,7 +280,9 @@ router.post(
           parsed.data.account,
           tokenRevoker(),
         );
-        if (!result.ok) return void res.status(409).json(withdrawalRefusalBody(result));
+        if (!result.ok) {
+          return void res.status(409).json(withdrawalRefusalBody(result, await registerOfPerson(pool(), tenantId, personId)));
+        }
         return void res.json(result.withdrawal);
       }
       const { tenantId, mappingId, linkId } = req.mappingLink!;

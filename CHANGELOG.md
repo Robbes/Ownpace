@@ -28,6 +28,30 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   The privacy policy says what is kept of a gift (§4.4, *Gifts*), why and on what basis (§5), and
   for how long (§9), and that a declined request gives the gift back, so the giver can tell; in
   place under 1.0, as the owner read it.
+- **A person's own pages, step B: who sends the link, a link made after telling them, and *je* or
+  *u* per person** (alpha.21; workplan 0176 step B, T3, T6, T7, T8; managed migrations 0067 and
+  0068). A person's link page and progress page say who sent the link: the name the member gave,
+  and a number to check, the member's own, else the organisation's, saying whose, beside *Or use
+  the number you already have* (never as proof). Nothing asks, keeps or says how the person knows
+  the member (the owner, 2026-11-26). Each member gives that name and number under **Team & organisation**, *When
+  you send someone a link*. Every sentence of those pages that said *whoever set this up* names
+  the sender now. The progress page says, under a migration whose destination is the
+  organisation's, that the sender can open the copy there too, and names the sender at its foot.
+  A person's link is made after telling them: a tick before the button (*I have told Anna that a
+  link is coming*), how the page speaks to them (*Dutch, with u*,
+  *Dutch, with je* or *English*, kept with the person), thirty days first, and with the link a
+  message to send in the person's language and register, which the member may change, and *Print
+  a sheet for …*, which opens the link's one page. With *je*, every sentence on the person's
+  pages is its *je* twin, and so are the server's own: a refused link, a stop that could not be
+  done, and the page after a sign-in at Google, Microsoft, Dropbox or Cirrux. A page opens in the
+  language chosen for the person until the reader picks another. The steps say where the service
+  runs, when the stack names a country, and each links to its one page. Unset, a person's pages
+  read as before: the browser's language, with *u*.
+  **Nederlands:** de pagina's van een persoon noemen wie de link stuurde: de naam die het lid
+  opgaf, en een nummer om na te gaan, met *Of gebruik het nummer dat u al van {who} hebt*. Een link wordt gemaakt nadat het lid het heeft
+  verteld, met een bericht om mee te sturen in de taal van de persoon. Per persoon kiest het lid
+  of de pagina's *u* of *je* zeggen, of Engels; met *je* zeggen de pagina's en de server het
+  overal met *je*.
 - **A person's link on one page, and where the service runs** (alpha.21; workplan 0176 step B,
   D15 (a) and D16 (a)). *Everything on one page* (`/grant/<link>/all`) says everything the steps
   of a person's grant link say, at once, in their order and in their own words, and prints: one

@@ -292,6 +292,16 @@ export const tenantMember = pgTable(
     joinedAt: timestamp('joined_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * The member's name as the people they send a person's link to know them,
+     * and their own number (workplan 0176 T3, D11; managed migration 0067).
+     * Written only by that member (`PUT …/members/me`), each held to a shape
+     * there (`senderNameFrom`, `senderPhoneFrom`) and by the migration's
+     * CHECKs. NULL: the page names them by their address, and shows the
+     * organisation's number, as the organisation's.
+     */
+    displayName: text('display_name'),
+    phone: text('phone'),
   },
   (t) => [
     index('ix_tenant_member_tenant').on(t.tenantId),
@@ -728,6 +738,12 @@ export const person = pgTable(
      * one column, which Drizzle cannot say. Drizzle authors no DDL here (ADR-0045).
      */
     userId: text('user_id'),
+    /**
+     * How this person's own pages speak to them, as a member chose it
+     * (workplan 0176 T7, D8 (a); managed migration 0068): `nl-u`, `nl-je` or
+     * `en` (`PERSON_VOICES`). NULL: the browser's language, with *u*.
+     */
+    voice: text('voice'),
   },
   (t) => [
     index('person_tenant_idx').on(t.tenantId, t.createdAt),
@@ -788,6 +804,13 @@ export const personLink = pgTable(
      * asks only for what is not connected.
      */
     asksAgain: uuid('asks_again').array(),
+    /**
+     * A progress link the ending handed over after a sign-in: the grant link
+     * it was signed in through, whose member its page names (workplan 0176
+     * T6; managed migration 0067). Its key to `(id, tenant_id)` is the SQL's.
+     * NULL for every other link.
+     */
+    madeFrom: uuid('made_from'),
   },
   (t) => [index('person_link_person_idx').on(t.personId, t.createdAt)],
 );
