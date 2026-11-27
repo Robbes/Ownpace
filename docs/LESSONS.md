@@ -1769,6 +1769,7 @@ reading a file drops off its entry by itself.
 
 - [a-blip-the-smoke-would-have-failed-on](../scripts/a-blip-the-smoke-would-have-failed-on.unit.test.ts) — The smoke gate's reads of the identity provider ride out a gateway error from the front; its writes are still sent once.
 - [a-count-the-gate-took-for-a-fourth-level](../scripts/a-count-the-gate-took-for-a-fourth-level.unit.test.ts) — A COUNT CALLED `items`, AND A GATE THAT TOOK IT FOR A FOURTH LEVEL.
+- [a-door-and-a-grant-the-gate-walks](../scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts) — A DOOR AND A GRANT THE GATE WALKS (workplan 0179 T2, T3 and T4; the maintainer's D1 (a) of 2026-11-27: new sections of the managed smoke).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
 - [a-ledger-that-outlived-its-mail-server](../scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts) — A LEDGER THAT OUTLIVED ITS MAIL SERVER (workplan 0119; the owner's choice of 2026-11-20, quoted in ADR-0022's update of that date).
@@ -3179,6 +3180,10 @@ reading a file drops off its entry by itself.
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 
+### `scripts/a-password-link-the-gate-types.unit.test.ts`
+
+- [a-door-and-a-grant-the-gate-walks](../scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts) — A DOOR AND A GRANT THE GATE WALKS (workplan 0179 T2, T3 and T4; the maintainer's D1 (a) of 2026-11-27: new sections of the managed smoke).
+
 ### `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 
 - [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts) — A DATABASE YOU CAN ASK, ON A MACHINE WITH NO CONTAINER RUNTIME.
@@ -4580,6 +4585,15 @@ Reads:
 - `packages/shared/src/target-domains.unit.test.ts`
 - `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+
+### [a-door-and-a-grant-the-gate-walks](../scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts)
+
+A DOOR AND A GRANT THE GATE WALKS (workplan 0179 T2, T3 and T4; the maintainer's D1 (a) of 2026-11-27: new sections of the managed smoke).
+
+Reads:
+
+- `deploy/compose/smoke-managed.sh`
+- `scripts/a-password-link-the-gate-types.unit.test.ts`
 
 ### [a-door-public-in-one-place-only](../scripts/a-door-public-in-one-place-only.unit.test.ts)
 
