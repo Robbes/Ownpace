@@ -7270,8 +7270,9 @@ fi
 # over HTTP against a real stack, through PgBouncer, behind the real rate limit
 # (workplan 0179, G1). So, on the demo stack:
 #
-#  1. the demo organisation B's owner makes one recommendation (`POST /api/gifts`),
-#     and is answered its code once;
+#  1. the demo organisation B's owner, as the gate signed them in
+#     (`APPLY_SUBJECT`), makes one recommendation (`POST /api/gifts`), and is
+#     answered its code once;
 #  2. the door checks it (`POST /api/gifts/check`) and refuses a code nobody made,
 #     with the one refusal every bad code gets (410);
 #  3. the door lets an address in with it (`POST /api/gifts/redeem`, 201), and the
@@ -7300,16 +7301,39 @@ gift_door() {
   printf '%s %s\n' "${out##*$'\n'}" "${out%$'\n'*}"
 }
 
-# gift_take_back — what this gate's runs made, by the address and the demo giver.
+# gift_take_back — what this gate's runs made, by what the gate owns.
+#
+# THE GIVER IS THE SIGNED-IN SUBJECT, NOT THE SEED'S. On the real stack the
+# owner is signed in through the identity provider, a fresh subject each run
+# (`sign_in_as`, above), so `APPLY_SUBJECT` is the gift's giver and
+# `APPLY_SUB` (`seed:demo-owner-b`) only on the mint path. E2E (managed)
+# 45976766670 asked by `APPLY_SUB`, found no gift, and left its spent one.
+#
+# So a gift of demo organisation B is this gate's, and taken back, when:
+#  - it points at a request this gate made (`smoke-gift-…@smoke.local`), or
+#  - its giver is this run's subject, or
+#  - it points at no request, and its giver is a member of no organisation at
+#    all: an earlier run's, whose request is gone (ON DELETE SET NULL) and whose
+#    subject the identity provider's take-back removed with its memberships.
+# Nothing else makes a gift in demo organisation B: the gifts door is the only
+# writer (`gift-store.ts`), demo B's members are the seed's owner (a member
+# still) and this gate's signed-in subjects (removed at each run's end), and a
+# gift of anybody who is still a member of any organisation is never touched.
+GIFT_OURS="tenant_id = '${APPLY_TENANT}' AND (
+    redeemed_request_id IN (SELECT id FROM access_request WHERE email LIKE '${GIFT_EMAIL_LIKE}')
+    OR giver_user_id = '${APPLY_SUBJECT}'
+    OR (redeemed_request_id IS NULL AND NOT EXISTS (SELECT 1 FROM tenant_member m WHERE m.user_id = gift.giver_user_id)))"
 gift_take_back() {
   local tenants t left
   tenants="$(q "SELECT tenant_id FROM access_request WHERE email LIKE '${GIFT_EMAIL_LIKE}' AND tenant_id IS NOT NULL")" || return 1
-  q "DELETE FROM gift WHERE tenant_id = '${APPLY_TENANT}' AND giver_user_id = '${APPLY_SUB}'" >/dev/null || return 1
+  # The gifts BEFORE their requests: deleting a request nulls the gift's
+  # pointer, and the first clause above could no longer find it.
+  q "DELETE FROM gift WHERE ${GIFT_OURS}" >/dev/null || return 1
   q "DELETE FROM access_request WHERE email LIKE '${GIFT_EMAIL_LIKE}'" >/dev/null || return 1
   for t in $tenants; do
     q "DELETE FROM tenant WHERE id = '${t}'" >/dev/null || return 1
   done
-  left="$(q "SELECT (SELECT count(*) FROM gift WHERE tenant_id = '${APPLY_TENANT}' AND giver_user_id = '${APPLY_SUB}')
+  left="$(q "SELECT (SELECT count(*) FROM gift WHERE ${GIFT_OURS})
     + (SELECT count(*) FROM access_request WHERE email LIKE '${GIFT_EMAIL_LIKE}')")" || return 1
   [ "$left" = "0" ] || { echo "after the take-back, ${left} gift or request row(s) of this gate remain"; return 1; }
   return 0
@@ -7361,7 +7385,7 @@ if [ -n "$GIFT_CODE" ]; then
     made="$(q "SELECT (SELECT count(*) FROM tenant WHERE id = '${GIFT_TENANT}')
       ||'/'|| (SELECT count(*) FROM tenant_member WHERE tenant_id = '${GIFT_TENANT}'
                  AND role = 'owner' AND status = 'invited' AND email = '${GIFT_EMAIL}')
-      ||'/'|| (SELECT count(*) FROM gift WHERE tenant_id = '${APPLY_TENANT}' AND giver_user_id = '${APPLY_SUB}'
+      ||'/'|| (SELECT count(*) FROM gift WHERE tenant_id = '${APPLY_TENANT}' AND giver_user_id = '${APPLY_SUBJECT}'
                  AND redeemed_at IS NOT NULL AND redeemed_request_id = '${req_id}')")"
     if [ "$made" = "1/1/1" ]; then
       echo "the three writes landed together: organisation/owner-invitation/spent-gift = ${made}"

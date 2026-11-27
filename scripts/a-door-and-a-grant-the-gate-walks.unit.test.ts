@@ -62,6 +62,13 @@ const API = 'http://api.test';
 const NC = 'http://nc.test';
 const TENANT = 'b0000000-0000-4000-8000-000000000002';
 const SUB = 'seed:demo-owner-b';
+/**
+ * The subject the gate signs the owner in as on the real stack: a fresh one
+ * from the identity provider each run (smoke-managed.sh, `sign_in_as`), and so
+ * NOT the seed's `APPLY_SUB`, which is the giver only on the mint path. E2E
+ * (managed) 45976766670 asked about the gift by `APPLY_SUB` and found none.
+ */
+const SUBJECT = '330194772417845251';
 const TARGET_PASSWORD = 'fixture-not-a-password-target';
 /** A code as the API mints one: shown once, never to be printed or passed as an argument. */
 const CODE = 'K7QM-3XPD-W9RT-HC4N';
@@ -79,7 +86,10 @@ const keyFile = (key: string): string => createHash('md5').update(key).digest('h
  * in a subshell that cannot hand a variable back. `jq`, `sed` and `date` are
  * the real ones, as the gate's; `sleep` waits for nothing.
  */
-function run(section: string, api: Api): { out: string; calls: string[]; argv: string; stdin: string; fail: boolean } {
+function run(
+  section: string,
+  api: Api,
+): { out: string; calls: string[]; argv: string; stdin: string; sql: string[]; fail: boolean } {
   const dir = mkdtempSync(join(tmpdir(), 'smoke-door-grant-'));
   try {
     for (const [key, value] of Object.entries(api)) {
@@ -101,6 +111,7 @@ function run(section: string, api: Api): { out: string; calls: string[]; argv: s
       'APPLY_TOKEN="aaaa.bbbb.cccc"',
       `APPLY_TENANT="${TENANT}"`,
       `APPLY_SUB="${SUB}"`,
+      `APPLY_SUBJECT="${SUBJECT}"`,
       'TARGET_DAV_USER="tenant-b-target"',
       `TARGET_DAV_PASSWORD="${TARGET_PASSWORD}"`,
       'POLLS=3',
@@ -110,7 +121,8 @@ function run(section: string, api: Api): { out: string; calls: string[]; argv: s
       `CALLS="${join(dir, 'calls')}"`,
       `ARGV="${join(dir, 'argv')}"`,
       `STDIN="${join(dir, 'stdin')}"`,
-      ': > "$CALLS"; : > "$ARGV"; : > "$STDIN"',
+      `SQL="${join(dir, 'sql')}"`,
+      ': > "$CALLS"; : > "$ARGV"; : > "$STDIN"; : > "$SQL"',
       'answer() {',
       '  local d n',
       `  d="$ANSWERS/$(printf '%s' "$1" | md5sum | cut -c1-16)"`,
@@ -162,6 +174,8 @@ function run(section: string, api: Api): { out: string; calls: string[]; argv: s
       // `q` by what it asks, its answer the body after the code.
       'q() {',
       '  argv "$@"',
+      // Each query whole, as one record: a query spans lines.
+      '  printf "%s\\0" "$1" >> "$SQL"',
       '  local key',
       '  case "$1" in',
       '    *"SELECT tenant_id FROM access_request"*) key=gift-tenants ;;',
@@ -184,6 +198,10 @@ function run(section: string, api: Api): { out: string; calls: string[]; argv: s
       '    *) key=unknown ;;',
       '  esac',
       '  printf "q %s\\n" "$key" >> "$CALLS"',
+      // On the real stack the owner is signed in, so a gift asked for by the
+      // seed's subject is nobody's: the spent-gift count is 0, as run
+      // 45976766670 read it.
+      `  case "$1" in *"giver_user_id = '${SUB}'"*) [ "$key" = gift-made ] && { printf "1/1/0\\n"; return 0; } ;; esac`,
       '  local got; got="$(answer "q $key")"',
       '  [ "${got%% *}" = 599 ] && { printf "\\n"; return 0; }',
       '  printf "%s\\n" "${got#* }"',
@@ -201,7 +219,8 @@ function run(section: string, api: Api): { out: string; calls: string[]; argv: s
     const calls = readFileSync(join(dir, 'calls'), 'utf8').split('\n').filter(Boolean);
     const argv = readFileSync(join(dir, 'argv'), 'utf8');
     const stdin = readFileSync(join(dir, 'stdin'), 'utf8');
-    return { out, calls, argv, stdin, fail: out.includes('fail=1') };
+    const sql = readFileSync(join(dir, 'sql'), 'utf8').split('\0').filter(Boolean);
+    return { out, calls, argv, stdin, sql, fail: out.includes('fail=1') };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -307,6 +326,30 @@ describe("the gate walks a recommendation's code through its own door (0179 T2)"
 
     const b = run(DOOR, door({ 'q gift-requests': [0, '2'] }));
     expect(b.fail).toBe(true);
+  });
+
+  it('asks about the gift by the subject the owner is signed in as, never the seed’s', () => {
+    const { sql } = run(DOOR, door());
+    const gifts = sql.filter((l) => l.includes('FROM gift'));
+    expect(gifts.length).toBeGreaterThanOrEqual(3); // the take-back, its count, the spent gift
+    for (const query of gifts) {
+      expect(query).not.toContain(`'${SUB}'`);
+    }
+    expect(gifts.some((q) => q.includes(`redeemed_request_id = `) && q.includes(`'${SUBJECT}'`))).toBe(true);
+  });
+
+  it('takes back the gate’s gifts by what the gate owns: its requests, its subject, and a giver who is nobody’s member', () => {
+    const { sql } = run(DOOR, door());
+    const deleted = sql.filter((l) => l.startsWith('DELETE FROM gift'));
+    expect(deleted.length).toBeGreaterThan(0);
+    for (const del of deleted) {
+      expect(del).toContain(`tenant_id = '${TENANT}'`);
+      expect(del).toContain("email LIKE 'smoke-gift-%@smoke.local'");
+      expect(del).toContain(`giver_user_id = '${SUBJECT}'`);
+      // The leftover of a run before this fix: spent, its request gone, its giver nobody's member.
+      expect(del).toContain('redeemed_request_id IS NULL');
+      expect(del).toContain('NOT EXISTS (SELECT 1 FROM tenant_member');
+    }
   });
 
   it('takes back first and after, the gift and the request before the organisation, and fails when rows remain', () => {
