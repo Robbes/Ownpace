@@ -4,6 +4,22 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
+**2026-11-27, the first managed E2E of T2 to T4, and its fix.** E2E (managed) 45976766670 ran
+the branch at `5a3bf08a`. On the real stack T3 and T4 passed whole: Start on the waiting migration
+answered `awaiting_grant` with `startsWhenGranted`, the grant started it and its pass completed
+(it met `adopted=3`), the page spoke *je*, the stop held the migration, the second stop was
+refused in *je*, and the take-back ran. In T2 the check, the 410 for a code nobody made, the 201
+and the spent code's two refusals passed; one check failed, `organisation/owner-invitation/
+spent-gift = 1/1/0`. The cause: on the real stack the owner is signed in through the identity
+provider, a fresh subject each run, so the gift's giver is `APPLY_SUBJECT`, and the section asked
+by `APPLY_SUB`, the seed's subject. So its take-back deleted no gift either, and one spent gift of
+that run stayed in demo organisation B. Fixed: the section asks by `APPLY_SUBJECT`, and its
+take-back removes a gift of demo organisation B that points at a request this gate made, or whose
+giver is this run's subject, or that points at no request and whose giver is a member of no
+organisation, which is that run's leftover. The harness now signs the owner in as a subject that
+is not the seed's: on the section as it ran, three cases fail; on the fix, all 22 pass. Waiting
+for the managed E2E again.
+
 **2026-11-27, later: T2 to T4 built, waiting for their managed E2E.** Two new sections of
 `deploy/compose/smoke-managed.sh`, as D1 (a) says, on
 `claude/ownpace-public-readiness-y7orc6-a22-e2e-managed-flows`: *a recommendation's code, at its
@@ -28,9 +44,9 @@ lines and §4.2 were read again there.
 |---|---|---|---|
 | T0 The read and this plan | builder | ✅ Written | This file. |
 | T1 §2.3 written down | builder | ✅ Done | In this plan's pull request: `docs/testing.md`, `docs/managed-bring-up.md`, the pull request template. |
-| T2 The recommendation door, on the managed smoke | builder | 🔧 Built, managed E2E to run | `smoke-managed.sh`, with its harness test; D1 (a). |
-| T3 A grant that copies, and *Stop copying*, on the managed smoke | builder | 🔧 Built, managed E2E to run | In the same pull request as T2. |
-| T4 The voice chosen for a person, on the managed smoke | builder | 🔧 Built, managed E2E to run | Inside T3's section: the progress link made in *je*. |
+| T2 The recommendation door, on the managed smoke | builder | 🔧 Fixed after its first run, managed E2E to run again | Run 45976766670: one check failed (the giver's subject); fixed. |
+| T3 A grant that copies, and *Stop copying*, on the managed smoke | builder | ✅ Passed on the real stack | Run 45976766670; in the same pull request as T2, not merged yet. |
+| T4 The voice chosen for a person, on the managed smoke | builder | ✅ Passed on the real stack | Run 45976766670; inside T3's section. |
 | T5 The appliance upgraded from the previous release | — | ⏭ Next | D2 (a): a step on the Postgres night. |
 | T6 The owner's appliance flows | — | 🕓 After alpha.22 | |
 | T7 A real browser against the real managed API | — | 🕓 After alpha.22 | D4 (b). |
