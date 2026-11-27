@@ -1,0 +1,37 @@
+# A KNOWN-BAD API DESCRIPTION FOR THE SECOND IDENTITY'S PROOF ONLY (workplan
+# 0178 T10).
+#
+# Nothing ships this, and nothing in apps/ or packages/ imports it. It is the
+# description of two more routes of `server.mjs` beside it, each secured and
+# each taking an organisation's id:
+#   /orgs/{tenantId}/things  answers whoever asks with that organisation's
+#                            data (the leak `another-organisations-ids.mjs`
+#                            must flag);
+#   /orgs/{tenantId}/kept    refuses everyone (404), and must be read as a
+#                            refusal.
+openapi: 3.1.0
+info:
+  title: A known-bad fixture for the second identity's proof
+  version: 0.0.0
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+security:
+  - bearerAuth: []
+paths:
+  /orgs/{tenantId}/things:
+    get:
+      operationId: leaksAnotherOrganisation
+      parameters:
+        - { name: tenantId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: The organisation's things, to whoever asks }
+  /orgs/{tenantId}/kept:
+    get:
+      operationId: keepsAnotherOrganisation
+      parameters:
+        - { name: tenantId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '404': { description: Refused, whoever asks }

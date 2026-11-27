@@ -17,6 +17,15 @@
  *   GET /throws                   answers 500 to every request
  *                                 (`not_a_server_error`)
  *
+ * And two for the second identity's proof (T10), described in
+ * `another-organisation.yaml`:
+ *
+ *   GET /orgs/{id}/things         answers whoever asks with that
+ *                                 organisation's id in its body (the leak
+ *                                 `scripts/another-organisations-ids.mjs`
+ *                                 must flag)
+ *   GET /orgs/{id}/kept           refuses whoever asks (404)
+ *
  * The real API is the subject of the scan; this is the scan's known-bad case.
  *
  *   node scripts/fixtures/schemathesis-known-bad/server.mjs <port>
@@ -41,6 +50,13 @@ const server = createServer((req, res) => {
     // THE FAULT: a crash on input the description allows.
     res.writeHead(500, { 'content-type': 'text/plain' });
     res.end('a known-bad fixture fails here on purpose');
+    return;
+  }
+  const org = /^\/orgs\/([^/]+)\/(things|kept)$/.exec(path);
+  if (req.method === 'GET' && org?.[2] === 'things') {
+    // THE FAULT: the token is never read, and the organisation the path names is served.
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ organisation: decodeURIComponent(org[1]), things: ['a known-bad fixture serves this on purpose'] }));
     return;
   }
   res.writeHead(404, { 'content-type': 'text/plain' });

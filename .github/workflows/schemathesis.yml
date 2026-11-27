@@ -18,6 +18,13 @@
 # operation on purpose, and must flag both, or the scan of the API is not
 # believed and the job is red.
 #
+# THE SECOND IDENTITY (0178 T10) runs in the same job, before Schemathesis
+# scans the API: scripts/another-organisations-ids.mjs asks every secured
+# operation that takes an id for the first seeded organisation's ids with the
+# second organisation's owner's token, and each must refuse. Its own proof
+# comes first, against the fixture's another-organisation.yaml: a door that
+# serves whichever organisation it is asked for must be read as a leak.
+#
 # IT BLOCKS NOTHING YET. The job fails only when the scan did not finish
 # (security-scan.yml's rule). Per pull request, blocking ignored_auth and
 # not_a_server_error, is T8, after 14 quiet nights on main; so there is no
