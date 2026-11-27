@@ -4566,6 +4566,19 @@ fix.
 > stack*, below). The PostgreSQL databases take a minor back and forth (a
 > minor never changes the storage format), but the same order keeps them from
 > having to.
+>
+> **A migration moves the stack one way too** (workplan 0179, §2.3). The API
+> applies both migration chains at start, the shared one
+> (`packages/ledger/migrations`) and the managed one
+> (`packages/managed/migrations`), and refuses to start on a database whose
+> highest applied migration is newer than its own (the downgrade guard in
+> `packages/ledger/src/migrate.ts`). So E2E (managed) on a branch that adds a
+> migration to either chain leaves every nightly of `main`, and every other
+> branch's E2E, with an API that will not start, until the migration is on
+> `main` and they have taken it in. The same order holds: such a branch's E2E
+> is dispatched last, when it is ready to merge, and it merges before the next
+> 03:30 UTC nightly. A migration is never removed from the stack's database to
+> get past this; the fix is the merge.
 
 **The PostgreSQL database runs a build of the official image, without gosu,
 as uid 70.** `postgres` runs

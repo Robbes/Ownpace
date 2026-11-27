@@ -43,6 +43,7 @@ import {
   davAuthHeader,
   getDomainStatusFor,
   runPassNow,
+  statusAfterAPass,
   startMapping,
 } from './apply-deletion-lib.ts';
 
@@ -157,8 +158,9 @@ describe('archive import — a Takeout into the real Nextcloud (0116 T10)', () =
 
   it('a second import writes nothing', async () => {
     const before = await getDomainStatusFor(ARCHIVE_MAPPING_ID, 'file');
-    await runPassNow(ARCHIVE_MAPPING_ID);
-    const after = await getDomainStatusFor(ARCHIVE_MAPPING_ID, 'file');
+    // A pass the schedule starts can begin between the one asked for and the read: this
+    // reads once none is running (apply-deletion-lib.ts, 2026-11-27).
+    const after = await statusAfterAPass(ARCHIVE_MAPPING_ID, 'file');
     expect(after?.state).toBe('completed');
     expect(after?.itemsFailed).toBe(0);
     expect(after?.itemsSynced, 'a second import of the same archive wrote something').toBe(before?.itemsSynced);
