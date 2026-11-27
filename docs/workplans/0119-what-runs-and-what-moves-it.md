@@ -4,6 +4,26 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
+**2026-11-27: the identity provider's pin moves to Zitadel v4.20.6, for alpha.22 (the pin watch's
+#2218).** Six commits after v4.20.5, read on 2026-11-27 from upstream's release notes and the list
+of files they change. One is in what runs here: the event store's projection handlers recover from a
+panic instead of stopping (upstream #13079). The rest: login v2's registration language
+(`apps/login`, which does not run here), the tarpit's delays recorded as a span and a log line, a
+faster lookup of users by login name, documentation, and a file of upstream's own tooling. None is
+marked a security fix. `go.mod` is v4.20.5's, so x/net's CVE-2026-78661 stays: the image scan on the
+branch (Security Scan 45994825290) reads it as v4.20.6's one high, with no critical. `cmd/setup`
+and `internal/migration` are unchanged, so no setup step is expected. `cmd/defaults.yaml` gains one
+comment line, under the error log's stack traces, so the service ping's default and the telemetry
+switch hold, and `a-service-that-phones-home` moves its row to v4.20.6. Read through ghcr.io's
+registry on 2026-11-27, without running them: per platform, v4.20.6's two base layers are v4.20.5's
+byte for byte, and the layer that holds the binary grows by 5,315 bytes (linux/amd64) and 4,584
+bytes (linux/arm64) compressed. Published 2026-11-25 at 10:01 UTC, so its three-day floor ends
+2026-11-28 at 10:01 UTC. The owner, 2026-11-27: *"move Zitadel to v4.20.6 in alpha.22: yes"*;
+told then that it keeps x/net's CVE, *"Keep it"*. So after its floor it takes the route issue
+#2218 gives: the owner dumps the OTA instance's `zitadel` database first (`dump-idp.sh`), E2E
+(managed) applies it there, and the owner checks one sign-in and one forgot-password mail, as for
+v4.20.5; live takes it from alpha.22's tag.
+
 **2026-11-27: what alpha.21 moves, which live takes with its deploy.** The fold for
 `v0.2.0-alpha.21` (0146's entry of the same day) carries what `main` merged after alpha.20's C,
 `70582df2`: 45 pull requests (0146's entry lists them). What alpha.21 moves:

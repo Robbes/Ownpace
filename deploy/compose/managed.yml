@@ -638,6 +638,30 @@ services:
     # live: the OTA instance's `zitadel` database dumped by hand first, E2E
     # (managed) on its branch, and the owner's hand check there, as for
     # v4.20.4.
+    #
+    # v4.20.6, from the pin watch (issue #2218): six commits after v4.20.5,
+    # read on 2026-11-27 from upstream's release notes and the list of files
+    # they change. One is in what runs here: the event store's projection
+    # handlers recover from a panic instead of stopping (upstream #13079). The
+    # rest: login v2's registration language (apps/login, which does not run
+    # here), the tarpit's delays recorded as a span and a log line, a faster
+    # lookup of users by login name, documentation, and a file of upstream's
+    # own tooling. None is marked a security fix. go.mod is v4.20.5's, so the
+    # image scan still reads x/net's CVE-2026-78661 in it (Security Scan run
+    # 45994825290, on its branch). cmd/setup and internal/migration are
+    # unchanged, so no setup step is expected. cmd/defaults.yaml gains one
+    # comment line, under the error log's stack traces, so the service ping's
+    # default and the telemetry switch hold. Its images, read through
+    # ghcr.io's registry on 2026-11-27 without being run: per platform, the
+    # two base layers are v4.20.5's byte for byte, and the layer that holds the
+    # binary grows by 5,315 bytes (linux/amd64) and 4,584 bytes (linux/arm64)
+    # compressed. Published 2026-11-25 at 10:01 UTC, so its three-day floor
+    # ends 2026-11-28 at 10:01 UTC. The owner said yes on 2026-11-27, "move
+    # Zitadel to v4.20.6 in alpha.22: yes", and, told that it keeps x/net's
+    # CVE, "Keep it". So after its floor it takes the route issue #2218
+    # gives: the OTA instance's `zitadel` database dumped by hand first, E2E
+    # (managed) on its branch, and the owner's hand check there, as for
+    # v4.20.5.
     image: ghcr.io/zitadel/zitadel:v4.20.6
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped

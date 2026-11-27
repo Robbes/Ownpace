@@ -312,7 +312,7 @@ interface Row {
   readonly holds?: (svc: Service, entry: Entry) => string[];
 }
 
-const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.5';
+const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.6';
 const MAILPIT =
   'axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e';
 /**
@@ -363,7 +363,7 @@ function builtFrom(svc: Service, entry: Entry): { from?: string; problems: strin
 export const SWITCHED: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:zitadel': {
     readAt: ZITADEL,
-    why: 'a daily service ping with instance domains and resource counts, to zitadel.com (cmd/defaults.yaml at v4.19.2, unchanged at v4.19.4, its ServicePing and Telemetry unchanged at v4.19.5, v4.20.0, v4.20.1, v4.20.2, v4.20.3, v4.20.4 and v4.20.5, whose one commit after v4.20.4 is in apps/login alone)',
+    why: 'a daily service ping with instance domains and resource counts, to zitadel.com (cmd/defaults.yaml at v4.19.2, unchanged at v4.19.4, its ServicePing and Telemetry unchanged at v4.19.5, v4.20.0, v4.20.1, v4.20.2, v4.20.3, v4.20.4 and v4.20.5, whose one commit after v4.20.4 is in apps/login alone, and at v4.20.6, whose one change there is a comment under the error log\'s stack traces)',
     holds: (svc) => zitadelProblems(environmentOf(svc)),
   },
   'deploy/compose/managed.yml:mailpit': {
