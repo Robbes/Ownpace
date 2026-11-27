@@ -527,3 +527,63 @@ describe('a face that answered but could not be measured says why, on the line (
     expect(qualificationEvidence(nl, half)).toEqual(['E-mail — niet gemeten: FETCH timed out after 30 s']);
   });
 });
+
+describe('one Soverin card for both kinds: the Carries line names the kind (workplan 0175 T3, §5.5, §11)', () => {
+  const AT = '2026-11-27T10:00:00.000Z';
+  const faces = (file: { answer: 'yes' | 'no' | 'unknown'; detail: string; reason?: 'structural' }) => ({
+    mail: { answer: 'yes' as const, detail: 'd' },
+    calendar: { answer: 'yes' as const, detail: 'd' },
+    contact: { answer: 'yes' as const, detail: 'd' },
+    file,
+    task: { answer: 'yes' as const, detail: 'd' },
+  });
+  const plainNo = { answer: 'no' as const, reason: 'structural' as const, detail: 'not a face' };
+  const personal = {
+    domains: faces(plainNo),
+    soverin: { kind: 'personal', davRoot: 'https://caldav.soverin.net/', measuredAt: AT },
+  };
+
+  it('a personal mailbox, in English and in Dutch', () => {
+    expect(qualificationText(en, personal)).toBe(
+      'Soverin (personal). Carries: Email · Calendar · Contacts · Tasks',
+    );
+    expect(qualificationText(nl, personal)).toBe(
+      'Soverin (persoonlijk). Omvat: E-mail · Agenda · Contacten · Taken',
+    );
+  });
+
+  it("a personal mailbox's files are a reasoned no, said in the reader's language", () => {
+    expect(qualificationEvidence(en, personal)).toEqual([
+      'Files: A personal Soverin mailbox has no file storage; a Soverin Suite licence adds it.',
+    ]);
+    expect(qualificationEvidence(nl, personal, { locale: 'nl' })).toEqual([
+      'Bestanden: Een persoonlijke Soverin-mailbox heeft geen bestandsopslag; een Soverin Suite-licentie voegt die toe.',
+    ]);
+  });
+
+  it('a Suite mailbox, once T0 lets the Test find one', () => {
+    const suite = {
+      domains: faces({ answer: 'yes', detail: 'd' }),
+      soverin: { kind: 'suite', davRoot: 'https://suite.example/remote.php/dav/', measuredAt: AT },
+    };
+    expect(qualificationText(en, suite)).toBe('Soverin Suite. Carries: Email · Calendar · Contacts · Files · Tasks');
+    expect(qualificationText(nl, suite)).toBe('Soverin Suite. Omvat: E-mail · Agenda · Contacten · Bestanden · Taken');
+  });
+
+  it('a kind not told apart is said plainly, with the reason verbatim, in either language', () => {
+    const reason = "Soverin's personal server refused this mailbox's login: 401 Unauthorized";
+    const unknown = { domains: faces(plainNo), soverin: { kind: 'unknown', reason, measuredAt: AT } };
+    expect(qualificationText(en, unknown)).toBe('Carries: Email · Calendar · Contacts · Tasks');
+    expect(qualificationEvidence(en, unknown)).toEqual([
+      `We could not tell which kind of Soverin mailbox this is. ${reason}`,
+    ]);
+    expect(qualificationEvidence(nl, unknown, { locale: 'nl' })).toEqual([
+      `Wij konden niet vaststellen wat voor Soverin-mailbox dit is. ${reason}`,
+    ]);
+  });
+
+  it('a record with no kind (tested before 0175) reads as it always did', () => {
+    expect(qualificationText(en, { domains: faces(plainNo) })).toBe('Carries: Email · Calendar · Contacts · Tasks');
+    expect(qualificationEvidence(en, { domains: faces(plainNo) })).toEqual([]);
+  });
+});

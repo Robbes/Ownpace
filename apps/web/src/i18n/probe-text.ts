@@ -37,6 +37,7 @@ import {
   type RefusalLocale,
   type WhatHappenedAnswer,
   reasonEarnsASentence,
+  soverinRecordOf,
 } from '@openmig/shared';
 import type { StringKey } from './strings.ts';
 import { DOMAIN_STRING_KEY } from './domain-words.ts';
@@ -279,7 +280,7 @@ export function probeText(
 export function qualificationText(
   t: Translate,
   qualification:
-    | { domains: QualifiedDomains }
+    | { domains: QualifiedDomains; soverin?: unknown }
     | undefined,
 ): string | null {
   if (!qualification) return null;
@@ -287,7 +288,14 @@ export function qualificationText(
     (domain) => faceOf(qualification.domains, domain).answer === 'yes',
   );
   if (carried.length === 0) return null;
-  return `${t('probe.qualify.lead')} ${carried.map((d) => t(faceLabel(d))).join(' · ')}`;
+  const line = `${t('probe.qualify.lead')} ${carried.map((d) => t(faceLabel(d))).join(' · ')}`;
+  // WHICH KIND OF SOVERIN MAILBOX (workplan 0175 §5.5): one card serves both,
+  // and the line says which the Test found, in the provider's own words. A
+  // kind not told apart is said under the card (`qualificationEvidence`).
+  const kind = soverinRecordOf(qualification)?.kind;
+  if (kind === 'personal') return `${t('probe.soverin.personal')} ${line}`;
+  if (kind === 'suite') return `${t('probe.soverin.suite')} ${line}`;
+  return line;
 }
 
 /**
@@ -320,7 +328,7 @@ export function qualificationText(
 export function qualificationEvidence(
   t: Translate,
   qualification:
-    | { domains: QualifiedDomains }
+    | { domains: QualifiedDomains; soverin?: unknown }
     | undefined,
   options: { readonly measures?: boolean; readonly locale?: RefusalLocale } = {},
 ): string[] {
@@ -328,6 +336,17 @@ export function qualificationEvidence(
   const measures = options.measures !== false;
   const locale = options.locale ?? 'en';
   const lines: string[] = [];
+  // A Soverin mailbox whose kind the Test could not tell (workplan 0175
+  // §5.5): said plainly, with the words of what failed verbatim, because
+  // they are the remedy. A personal one's files are a reasoned no worth the
+  // person's time: a Suite licence is what adds them (§6).
+  const soverin = soverinRecordOf(qualification);
+  if (soverin?.kind === 'unknown') {
+    lines.push(soverin.reason ? `${t('probe.soverin.unknown')} ${soverin.reason}` : t('probe.soverin.unknown'));
+  }
+  if (soverin?.kind === 'personal' && faceOf(qualification.domains, 'file').answer === 'no') {
+    lines.push(`${t(faceLabel('file'))}: ${t('probe.soverin.personalFiles')}`);
+  }
   for (const domain of QUALIFICATION_KEYS) {
     const d = faceOf(qualification.domains, domain);
     // A face that answered needs no explanation for not answering; only its
