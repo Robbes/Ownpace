@@ -806,7 +806,7 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
   // 2026-11-17, alpha.12 by those of 2026-11-19, alpha.13 by those of
   // 2026-11-20, alpha.14 by those of 2026-11-21, alpha.15 by those of
   // 2026-11-22, alpha.16 and alpha.17 by others of the same day, alpha.18 by those of
-  // 2026-11-23, alpha.19 by those of 2026-11-24, alpha.20 by others of the same day, alpha.21 by those of 2026-11-26, and nothing else.
+  // 2026-11-23, alpha.19 by those of 2026-11-24, alpha.20 by others of the same day, alpha.21 by those of 2026-11-27, and nothing else.
   it('is taken only for a version the owner named, each a pre-release', () => {
     expect(WAIVER_VERSIONS).toEqual([V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21]);
     for (const v of WAIVER_VERSIONS) {
