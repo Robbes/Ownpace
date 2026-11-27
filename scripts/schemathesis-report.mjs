@@ -221,6 +221,14 @@ export const INSTALL_THE_QUEUES =
   "const worker = new PgBossJobRunner({ connectionString: process.env.JOBS_DATABASE_URL, schema: 'pgboss' }); " +
   'await worker.start(JOB_CATALOG); await worker.stop({ graceful: false }); })';
 
+/**
+ * Where the member's token is proved accepted before it is used (2026-11-27).
+ * A token the API refuses would make every answer a 401, which `ignored_auth`
+ * reads as a door that refused: a night of refusals that proved nothing. So a
+ * token that does not answer 200 here is a scan that did not finish.
+ */
+export const SIGNED_IN_AT = '/api/me';
+
 /** What Schemathesis's config file says: the token from the environment, never on a command line. */
 export const CONFIG = 'headers = { Authorization = "Bearer ${DAST_TOKEN}" }\n';
 
@@ -508,8 +516,20 @@ export async function run({
       if (ready) return report({ ...base, stopped: ready });
     }
 
+    // Each token proved accepted before it is used (SIGNED_IN_AT, above), by
+    // environment only.
+    const accepted = (value, who) => {
+      const ran = docker(
+        ['exec', '--env', 'PROBE_TOKEN', CONTAINERS.fixture, 'node', '-e',
+          `fetch('http://${LOOPBACK}:${API_PORT}${SIGNED_IN_AT}', { headers: { authorization: 'Bearer ' + process.env.PROBE_TOKEN } }).then((r) => process.exit(r.status === 200 ? 0 : 1), () => process.exit(1))`],
+        { env: { ...process.env, PROBE_TOKEN: value } },
+      );
+      return ran.error || ran.status !== 0 ? `${who}'s token was not accepted at ${SIGNED_IN_AT}, so its answers would all be refusals that prove nothing` : null;
+    };
     const token = signToken(root, secrets.jwtSecret, MEMBERS[0]);
     mask(token);
+    const first = accepted(token, 'the first member');
+    if (first) return report({ ...base, stopped: first });
     const scanEnv = { env: { ...process.env, DAST_TOKEN: token } };
     docker(scanArgs(image, { root, out, uid, description: join(FIXTURE.dir, 'openapi.yaml'), port: FIXTURE_PORT, report: 'fixture.json' }), scanEnv);
     const proof = readRun(join(out, 'fixture.json'));

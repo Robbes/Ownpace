@@ -35,6 +35,7 @@ export declare const MEMBERS: ReadonlyArray<{ readonly sub: string; readonly ema
 export declare const PULL_DELAYS: ReadonlyArray<number>;
 export declare const READY_POLLS: number;
 export declare const CONFIG: string;
+export declare const SIGNED_IN_AT: string;
 export declare const JOBS_ROLE_SQL: string;
 export declare const INSTALL_THE_QUEUES: string;
 

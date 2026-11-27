@@ -46,6 +46,10 @@
  *  7. EVERY VALUE THE RUN MAKES IS MASKED before it is used, the token among
  *     them, and the token reaches Schemathesis through its environment and a
  *     config file, never a command line.
+ * 10. A TOKEN PROVED (2026-11-27). The member's token is proved accepted at
+ *     `/api/me` before Schemathesis uses it, so a token the API refused (an
+ *     expired one, a secret that did not take) is a scan that did not finish,
+ *     never a night of 401s that `ignored_auth` reads as refusals.
  *  9. THE JOBS DATABASE (the maintainer's answer of 2026-11-26). The API gets
  *     a `JOBS_DATABASE_URL` on the stack's own Postgres, as the jobs role
  *     `deploy/compose/jobs-role.sql` makes, with a password of the run's own,
@@ -80,6 +84,7 @@ import {
   report,
   run,
   scanArgs,
+  SIGNED_IN_AT,
   stackImages,
   unflagged,
   type Docker,
@@ -446,6 +451,28 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
       expect(v.markdown).toContain('The scan did not finish');
       expect(base.calls.at(-1)!.args[0]).toBe('rm');
     }
+  });
+
+  it('proves the member’s token is accepted at /api/me before Schemathesis uses it, by environment only (10)', async () => {
+    const { calls, docker } = stub(FIXTURE_FLAGGED(), reportJson());
+    const { v, masked } = await go(docker);
+    expect(v.code).toBe(0);
+    const proofs = calls.filter((c) => c.args.join(' ').includes(SIGNED_IN_AT));
+    expect(proofs.map((c) => c.env?.PROBE_TOKEN)).toEqual([masked[5]]);
+    expect(proofs[0]!.args).toEqual(expect.arrayContaining(['exec', '--env', 'PROBE_TOKEN']));
+    expect(proofs[0]!.args.join(' ')).not.toContain(masked[5]!);
+    const at = (pred: (c: (typeof calls)[number]) => boolean) => calls.findIndex(pred);
+    expect(at((c) => c.env?.PROBE_TOKEN === masked[5])).toBeLessThan(at((c) => c.args[0] === 'run' && c.args.includes(SCHEMATHESIS)));
+  });
+
+  it('stops, scanning nothing, when the token is not accepted: its 401s would read as refusals (10)', async () => {
+    const base = stub(FIXTURE_FLAGGED(), reportJson());
+    const docker: Docker = (args, opts) =>
+      args.join(' ').includes(SIGNED_IN_AT) ? { status: 1, stdout: '', stderr: '401', error: undefined, signal: null } : base.docker(args, opts);
+    const { v } = await go(docker);
+    expect(v.code).toBe(1);
+    expect(v.markdown).toMatch(/The scan did not finish:.*token was not accepted/);
+    expect(base.calls.some((c) => c.args[0] === 'run' && c.args.includes(SCHEMATHESIS))).toBe(false);
   });
 
   it('passes a dispatch’s seed to the API’s scan when it is digits, and no other', async () => {
