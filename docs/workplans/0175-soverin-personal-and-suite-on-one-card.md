@@ -36,6 +36,17 @@ On branch `claude/ownpace-public-readiness-y7orc6-a22-soverin-card`, one draft p
   measured once by its next pass. **Integration on the dev Nextcloud is not written**: with C
   unasked, the Nextcloud would stand for Suite in nothing this half does; it lands with T2's
   Suite half.
+- **T0, 2026-11-27, from the maintainer:** there is no Suite mailbox yet; the maintainer is asking
+  Soverin for one. So T2 merges with the `personal` and `unknown` kinds only (D7 (a), §10's last
+  paragraph).
+- **Plan 0179 (#2213, its D3 (a), decided 2026-11-27)** proves Soverin end to end with stand-ins
+  now (a Stalwart answering as a personal mailbox; a Stalwart with a Nextcloud as Suite) and with a
+  real account later. That work is 0179's. §12's integration proof is shaped for it to reuse:
+  `measureSoverinKind(config, login)` (`packages/orchestration/src/soverin-kind.ts`) measures any
+  DAV root it is given, and `soverinTargetForPass` with `rememberSoverinKind`
+  (`packages/orchestration/src/soverin-pass.ts`, its SQL proved in
+  `a-soverin-kind-kept-on-the-row.integration.test.ts`) is the pass's seam; a stand-in needs only
+  a `soverin` row whose `host` names it.
 - **What no test here proves is a real Soverin mailbox of either kind; T0 is that proof, and the
   maintainer runs it.** Waiting for T0: Suite's host and pin (D5), Suite's half of T2's rule, the
   Suite login box (T3), T4 (files), T6 (grant links).
