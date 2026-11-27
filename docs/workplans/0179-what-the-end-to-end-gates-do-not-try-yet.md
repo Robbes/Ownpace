@@ -4,6 +4,22 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
+**2026-11-27, the product gap T5 found, fixed (the maintainer's *"a"*).** On
+`claude/ownpace-public-readiness-y7orc6-a22-prefix-root-files`, as its own pull request. The
+WebDAV writer (`packages/engines/src/webdav-target-writer.ts`) now makes the destination folder
+(`targetFolderPrefix`, its whole chain) before any write at the top of the source: from
+`ensureDirectory('')` and from `upsertFile` when a file has no parent of its own, once per writer
+however many files go side by side, and before the pieces of a large file are joined. Tests first,
+against a fake that answers as Sabre does (404 for a PROPFIND or PUT under a missing folder, 409 for
+a MKCOL or MOVE whose parent is missing, 405 for a MKCOL of one that is there):
+`a-file-at-the-top-under-a-new-folder.unit.test.ts`, 4 of its 6 first cases failed before the fix,
+the first with the E2E's own *File with name /From Google/Drive could not be located*; all 7 pass
+after, with the engines suite (479). The Cirrux Drive writer has no such gap (it prefixes the path
+before it makes the parent, so a top-level file's parent is the folder itself); the JMAP file
+writer does not apply the prefix to files at all, the gap 0144 already names. The upgrade gate
+keeps making its own folder: the release it upgrades from keeps the gap. Waits for the E2E
+(self-hosted, Postgres and PGlite) and the managed E2E.
+
 **2026-11-27, T5's first E2E, and its fix.** E2E (self-hosted, Postgres) 45992857614 ran #2220 at
 `41275b5e`: two of the gate's four tests passed (the migrations, the ledger kept), and two failed,
 both on files. The released appliance PUT every root-level file into the gate's target folder,

@@ -165,8 +165,12 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    * to go is a conflict this writer must not paper over; see `upsertFile`.
    */
   private readonly rootDirs = new Set<string>();
-  /** Whether `targetFolderPrefix`'s own chain has been created this session. */
-  private prefixRootReady = false;
+  /**
+   * `targetFolderPrefix`'s own chain, being made or made, once per writer.
+   * A promise rather than a flag so that files written side by side share one
+   * ask; cleared when it fails, so the next file asks again.
+   */
+  private prefixRootReady: Promise<void> | undefined;
   /**
    * The account's Nextcloud upload area, or `undefined` when the files URL is
    * not Nextcloud's shape (`nextcloudUploadsUrl`).
@@ -215,6 +219,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
   async ensureDirectory(folder: FileFolder): Promise<string> {
     const directoryPath = this.normalizeRelativePath(folder.path);
     if (directoryPath === '') {
+      // The root is the destination folder when one is set, and that folder
+      // may not exist yet (workplan 0179, the maintainer's "a" of 2026-11-27).
+      await this.ensurePrefixRoot();
       return '';
     }
     await this.ensureCollectionPath(directoryPath);
@@ -258,10 +265,25 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    *
    * Not recorded in `rootDirs`: that map is keyed in source-relative space and
    * an entry for `Google` there would match a source folder of that name.
+   *
+   * Reached from the ROOT as well as from every subfolder (workplan 0179, the
+   * maintainer's "a" of 2026-11-27): `ensureDirectory('')` and a file at the
+   * top of the source both come here. Until then only a subfolder did, so a
+   * file at the top that went before any subfolder was PUT into a folder that
+   * was not there, and Sabre answered 404 `File with name /<folder> could not
+   * be located` — 28 files of one E2E run, left failed.
    */
-  private async ensurePrefixRoot(): Promise<void> {
-    const prefix = this.config.targetFolderPrefix;
-    if (!prefix || this.prefixRootReady) return;
+  private ensurePrefixRoot(): Promise<void> {
+    if (!this.config.targetFolderPrefix) return Promise.resolve();
+    this.prefixRootReady ??= this.makePrefixRoot().catch((err: unknown) => {
+      this.prefixRootReady = undefined;
+      throw err;
+    });
+    return this.prefixRootReady;
+  }
+
+  private async makePrefixRoot(): Promise<void> {
+    const prefix = this.config.targetFolderPrefix ?? '';
     const segments = this.normalizeRelativePath(prefix).split('/').filter(Boolean);
     for (let depth = 1; depth <= segments.length; depth++) {
       const at = segments.slice(0, depth).join('/');
@@ -282,7 +304,6 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         );
       }
     }
-    this.prefixRootReady = true;
   }
 
   private async ensureCollectionPath(path: string): Promise<void> {
@@ -1059,9 +1080,12 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     //
     // Not on the overwrite path: a file being rewritten exists, so its
     // collection does too.
+    //
+    // A file at the top has no parent of its own, but it has the destination
+    // folder, which `ensureCollectionPath` makes on the way to any other.
     if (!overwrite) {
       const parent = this.parentOf(filePath);
-      if (parent !== '') await this.ensureCollectionPath(parent);
+      await (parent !== '' ? this.ensureCollectionPath(parent) : this.ensurePrefixRoot());
     }
 
     /**

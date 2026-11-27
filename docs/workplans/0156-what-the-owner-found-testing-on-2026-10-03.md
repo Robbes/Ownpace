@@ -2,7 +2,7 @@
 
 > **In one line:** Six defects from the owner's testing on 2026-10-03: a permission list that read other migrations' sources, a verification one missing folder ended, invitations mailed to nobody, files over 1 GiB refused by Nextcloud, a first copy run once a day, and two deletion switches that read as one.
 
-## Status — 2026-10-21 (update this block at the end of every session)
+## Status — 2026-11-27 (update this block at the end of every session)
 
 **2026-10-03: opened from the owner's report of six screenshots**, on the managed edition, with
 three migrations in one organisation: *MS-2-NC* (a Microsoft account into Nextcloud), *Goog2NC*
@@ -38,6 +38,13 @@ first: `claim-invitation-under-rls` 8 of 21 and `decline-invitation-under-rls` 5
 without 0059, and `an-invitation-that-is-mailed` 3 of 14 and `an-invitation-in-any-case`
 (integration) 3 of 4 failed on 29693244. The review round's two integration cases and two 409
 assertions failed on the first build. All are green after. §3 says what changed.
+
+**2026-11-27: T2's reading of a missing folder is kept, and the writer now makes the folder on
+the write side** (workplan 0179, the maintainer's *"a"*). The WebDAV writer made a destination
+folder that was not there only on the way to a subfolder, so a file at the top of the source,
+written first, failed with Sabre's 404; it now makes the folder for the root too. A listing of a
+missing folder still says `TargetFolderMissingError` and makes nothing, which
+`a-file-at-the-top-under-a-new-folder.unit.test.ts` now pins beside the fix.
 
 | Task | Status | Notes |
 |---|---|---|
