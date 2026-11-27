@@ -35,7 +35,6 @@ export declare const MEMBERS: ReadonlyArray<{ readonly sub: string; readonly ema
 export declare const PULL_DELAYS: ReadonlyArray<number>;
 export declare const READY_POLLS: number;
 export declare const CONFIG: string;
-export declare const SIGNED_IN_AT: string;
 export declare const JOBS_ROLE_SQL: string;
 export declare const INSTALL_THE_QUEUES: string;
 
@@ -88,8 +87,39 @@ export declare function report(opts: {
   event?: string;
   stopped?: string | null;
   proof?: Run | null;
+  othersProof?: Others | null;
+  others?: Others | null;
   scan?: Run | null;
 }): Verdict;
+
+export declare const OTHERS: {
+  readonly description: string;
+  readonly ids: Readonly<Record<string, string>>;
+  readonly leaks: ReadonlyArray<string>;
+  readonly refuses: ReadonlyArray<string>;
+};
+export declare const MIN_ASKS: number;
+export declare const VERDICTS: ReadonlyArray<string>;
+export declare const OTHERS_WITHHELD: ReadonlyArray<string>;
+export declare const FIRST_ID_QUERIES: Readonly<Record<string, string>>;
+export declare const FIRST_PERSON_SQL: string;
+export declare const SIGNED_IN_AT: string;
+
+export interface OthersAsked {
+  readonly operation: string;
+  readonly via: string;
+  readonly status: number;
+  readonly verdict: string;
+}
+export type Others =
+  | { readonly stopped?: undefined; readonly asked: ReadonlyArray<OthersAsked>; readonly notAsked: ReadonlyArray<{ readonly operation: string; readonly why: string }> }
+  | { readonly stopped: string };
+export declare function readOthers(ran: ReturnType<Docker>): Others;
+export declare function withVerdict(reading: Others & { asked: ReadonlyArray<OthersAsked> }, verdict: string): string[];
+export declare function othersUnproved(
+  reading: Others & { asked: ReadonlyArray<OthersAsked> },
+  proof?: typeof OTHERS,
+): Array<{ operation: string; must: 'leak' | 'refused' }>;
 
 export declare function signToken(root: string, secret: string, member: { sub: string; email: string }): string;
 

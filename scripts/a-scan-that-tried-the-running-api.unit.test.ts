@@ -46,10 +46,22 @@
  *  7. EVERY VALUE THE RUN MAKES IS MASKED before it is used, the token among
  *     them, and the token reaches Schemathesis through its environment and a
  *     config file, never a command line.
- * 10. A TOKEN PROVED (2026-11-27). The member's token is proved accepted at
- *     `/api/me` before Schemathesis uses it, so a token the API refused (an
- *     expired one, a secret that did not take) is a scan that did not finish,
- *     never a night of 401s that `ignored_auth` reads as refusals.
+ *  8. THE SECOND IDENTITY (0178 T10, D7 (a)). Every secured operation that
+ *     takes an id is asked with the first organisation's ids and the second
+ *     organisation's owner's token, by the path and by the organisation
+ *     header, and must refuse (`scripts/another-organisations-ids.mjs`). It
+ *     runs before Schemathesis scans the API, whose deletes take the first
+ *     organisation's rows away. Its own proof first: the fixture's door that
+ *     serves whichever organisation the path names must be read as a leak and
+ *     its kept door as a refusal, and the reading is RED when the leak is
+ *     taken out of what it flagged. On the API every verdict is counted and no
+ *     operation is named.
+ * 10. A TOKEN PROVED, AND A PERSON TO ASK ABOUT (2026-11-27). Each member's
+ *     token is proved accepted at `/api/me` before it is used, so a token the
+ *     API refused (an expired one, a secret that did not take) is a scan that
+ *     did not finish, never a night of 401s read as refusals. And a person of
+ *     the first organisation is made before its ids are read, so the person
+ *     doors are asked, not listed as not asked.
  *  9. THE JOBS DATABASE (the maintainer's answer of 2026-11-26). The API gets
  *     a `JOBS_DATABASE_URL` on the stack's own Postgres, as the jobs role
  *     `deploy/compose/jobs-role.sql` makes, with a password of the run's own,
@@ -65,21 +77,29 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSy
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { once } from 'node:events';
+import { parse as parseYaml } from 'yaml';
 import {
   API_DESCRIPTION,
   BLOCKS_LATER,
   CHECKS,
   CONFIG,
   CONTAINERS,
+  FIRST_ID_QUERIES,
+  FIRST_PERSON_SQL,
   FIXTURE,
   IMAGE,
   JOBS_ROLE_SQL,
   LOOPBACK,
+  MIN_ASKS,
   MIN_OPERATIONS,
+  OTHERS,
+  OTHERS_WITHHELD,
   WITHHELD,
   flagged,
   fromOf,
   readReport,
+  othersUnproved,
+  readOthers,
   readRun,
   report,
   run,
@@ -87,9 +107,11 @@ import {
   SIGNED_IN_AT,
   stackImages,
   unflagged,
+  withVerdict,
   type Docker,
   type Reading,
 } from './schemathesis-report.mjs';
+import { TENANT_HEADER, asksFor, classify, verdictOf } from './another-organisations-ids.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
@@ -133,11 +155,34 @@ const FIXTURE_FLAGGED = () =>
     { code: 'ST103', operations: ['GET /throws'] },
   ]);
 
+/** What the second-identity check writes, as `docker exec` hands it back. */
+const said = (body: unknown) => ({ status: 0, stdout: `${JSON.stringify(body)}\n`, stderr: '', error: undefined, signal: null });
+
+/** The fixture's reading when the leak is a leak and the kept door refuses, as measured on 2026-11-26. */
+const OTHERS_READ = () => ({
+  asked: [
+    { operation: 'GET /orgs/{tenantId}/things', via: 'path', status: 200, carries: true },
+    { operation: 'GET /orgs/{tenantId}/things', via: 'header', status: 200, carries: true },
+    { operation: 'GET /orgs/{tenantId}/kept', via: 'path', status: 404, carries: false },
+    { operation: 'GET /orgs/{tenantId}/kept', via: 'header', status: 404, carries: false },
+  ],
+  notAsked: [],
+});
+
+/** An API's reading with `n` refusals and whatever else is given. */
+const API_READ = (more: Array<{ operation: string; via: string; status: number; carries: boolean }> = [], n = MIN_ASKS) => ({
+  asked: [...Array.from({ length: n }, (_, i) => ({ operation: `GET /api/r${i}/{mappingId}`, via: 'path', status: 404, carries: false })), ...more],
+  notAsked: [{ operation: 'GET /api/x/{link}', why: 'no id of the first organisation for {link}' }],
+});
+
 const reading = (d: unknown) => {
   const r = readReport(d);
   if (r.stopped) throw new Error(r.stopped);
   return r as Reading;
 };
+
+const othersOk = () => readOthers(said(OTHERS_READ())) as ReturnType<typeof readOthers> & { asked: unknown[] };
+const apiOk = (more: Parameters<typeof API_READ>[0] = [], n = MIN_ASKS) => readOthers(said(API_READ(more, n)));
 
 describe('the workflow: where it runs, and when (1, 2)', () => {
   it('runs nightly on main and on dispatch, never on a pull request or a push', () => {
@@ -228,7 +273,7 @@ describe('the proof: the known-bad fixture (3, 6)', () => {
       d.failures = d.failures.map((f) => ({ ...f, operations: f.operations.filter((op) => !(f.code === (fault.check === 'ignored_auth' ? 'ST401' : 'ST101') && op === fault.operation)) }));
       const without = reading(d);
       expect(unflagged(without)).toEqual([fault]);
-      const out = report({ image: SCHEMATHESIS, proof: without, scan: reading(reportJson()) });
+      const out = report({ image: SCHEMATHESIS, proof: without, othersProof: othersOk(), others: apiOk(), scan: reading(reportJson()) });
       expect(out.code).toBe(1);
       expect(out.markdown).toContain('The scan did not finish');
       expect(out.markdown).toContain(`\`${fault.check}\` on the fixture's \`${fault.operation}\``);
@@ -269,7 +314,7 @@ describe('the report: what fails, and what it names (4, 5)', () => {
       { code: 'ST108', operations: ['GET /api/d'] },
       { code: 'ST999', operations: ['GET /api/e'] },
     ]));
-    const out = report({ image: SCHEMATHESIS, event: 'schedule', proof: proof(), scan });
+    const out = report({ image: SCHEMATHESIS, event: 'schedule', proof: proof(), othersProof: othersOk(), others: apiOk(), scan });
     expect(out.code).toBe(0);
     for (const check of CHECKS) expect(out.markdown).toMatch(new RegExp(`\\| \`${check}\` \\| \\d+ \\|`));
     expect(out.markdown).toContain('| `not_a_server_error` | 2 | Not yet (T8) |');
@@ -283,7 +328,7 @@ describe('the report: what fails, and what it names (4, 5)', () => {
   it('counts the operations every check flags on the API and never names one', () => {
     expect(WITHHELD).toEqual(CHECKS);
     const scan = reading(reportJson({}, [{ code: 'ST401', operations: ['GET /api/a-door', 'GET /api/another-door'] }]));
-    const out = report({ image: SCHEMATHESIS, proof: proof(), scan });
+    const out = report({ image: SCHEMATHESIS, proof: proof(), othersProof: othersOk(), others: apiOk(), scan });
     expect(out.code).toBe(0);
     expect(out.markdown).not.toContain('a-door');
     expect(out.lines.join('\n')).not.toContain('a-door');
@@ -306,11 +351,11 @@ describe('the report: what fails, and what it names (4, 5)', () => {
     for (const [d, why] of cases) {
       const scan = readReport(d);
       expect(scan.stopped).toMatch(why);
-      const out = report({ image: SCHEMATHESIS, proof: proof(), scan });
+      const out = report({ image: SCHEMATHESIS, proof: proof(), othersProof: othersOk(), others: apiOk(), scan });
       expect(out.code).toBe(1);
     }
     const few = reading(reportJson({ operations: { total: 3, selected: 3, tested: 3, errored: 0, skipped: 0 } }));
-    expect(report({ image: SCHEMATHESIS, proof: proof(), scan: few }).markdown).toContain(`fewer than the ${MIN_OPERATIONS}`);
+    expect(report({ image: SCHEMATHESIS, proof: proof(), othersProof: othersOk(), others: apiOk(), scan: few }).markdown).toContain(`fewer than the ${MIN_OPERATIONS}`);
     const dir = tempDir('st-');
     expect(readRun(join(dir, 'none.json')).stopped).toBe('Schemathesis wrote no report');
     writeFileSync(join(dir, 'bad.json'), '{');
@@ -331,7 +376,7 @@ describe('the report: what fails, and what it names (4, 5)', () => {
 });
 
 describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
-  function stub(fixture: unknown, api: unknown) {
+  function stub(fixture: unknown, api: unknown, others: { proof: unknown; api: unknown } = { proof: OTHERS_READ(), api: API_READ() }) {
     const calls: Array<{ args: string[]; env?: NodeJS.ProcessEnv; input?: string }> = [];
     const docker: Docker = (args, opts = {}) => {
       calls.push({ args, env: opts.env, input: opts.input });
@@ -341,6 +386,9 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
         const name = args[i + 1]!.replace('/out/', '');
         const body = name === 'fixture.json' ? fixture : api;
         if (body) writeFileSync(join(out, name), JSON.stringify(body));
+      }
+      if (args.some((a) => a.endsWith('/another-organisations-ids.mjs'))) {
+        return said(args.some((a) => a.endsWith(OTHERS.description)) ? others.proof : others.api);
       }
       return { status: 0, stdout: '', stderr: '', error: undefined, signal: null };
     };
@@ -375,10 +423,23 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
     const scans = runs.filter((c) => c.args.includes(SCHEMATHESIS)).map((c) => c.args[c.args.indexOf('run', c.args.indexOf(SCHEMATHESIS)) + 1]);
     expect(scans).toEqual([`/src/${FIXTURE.dir}/openapi.yaml`, `/src/${API_DESCRIPTION}`]);
     // Every value made here is masked, and the token reaches Schemathesis by its environment only.
-    expect(masked).toHaveLength(6);
-    const token = masked[5];
+    expect(masked).toHaveLength(7);
+    const token = masked[5]!;
+    const other = masked[6]!;
+    for (const c of calls) expect(c.args.join(' ')).not.toContain(other);
+    const asks = calls.filter((c) => c.args.some((a) => a.endsWith('/another-organisations-ids.mjs')));
+    expect(asks).toHaveLength(2);
+    for (const c of asks) {
+      expect(c.env?.OTHER_TOKEN).toBe(other);
+      expect(c.args.slice(0, 5)).toEqual(['exec', '--env', 'OTHER_TOKEN', '--env', 'FIRST_IDS']);
+    }
+    expect(JSON.parse(asks[0]!.env!.FIRST_IDS!)).toEqual(OTHERS.ids);
+    expect(JSON.parse(asks[1]!.env!.FIRST_IDS!)).toMatchObject({ tenantId: OTHERS.ids.tenantId, ownerEmail: 'owner-a@demo.openmigrate.test' });
+    // The second identity is asked before Schemathesis scans the API, whose deletes take the first organisation's rows away.
+    const at = (pred: (c: { args: string[] }) => boolean) => calls.findIndex(pred);
+    expect(at((c) => c.args.some((a) => a.endsWith(API_DESCRIPTION)) && c.args[0] === 'exec')).toBeLessThan(at((c) => c.args.includes(`/src/${API_DESCRIPTION}`)));
     for (const c of calls) expect(c.args.join(' ')).not.toContain(token);
-    for (const c of calls) for (const s of masked.slice(0, 5)) expect(c.args.join(' ')).not.toContain(s);
+    for (const c of calls) for (const v of masked.slice(0, 5)) expect(c.args.join(' ')).not.toContain(v);
     for (const c of runs.filter((r) => r.args.includes(SCHEMATHESIS))) expect(c.env?.DAST_TOKEN).toBe(token);
     expect(readFileSync(join(out, 'schemathesis.toml'), 'utf8')).toBe(CONFIG);
     // app_user's password goes through stdin.
@@ -453,26 +514,47 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
     }
   });
 
-  it('proves the member’s token is accepted at /api/me before Schemathesis uses it, by environment only (10)', async () => {
+  it('proves each member’s token is accepted at /api/me before it is used, by environment only (10)', async () => {
     const { calls, docker } = stub(FIXTURE_FLAGGED(), reportJson());
     const { v, masked } = await go(docker);
     expect(v.code).toBe(0);
     const proofs = calls.filter((c) => c.args.join(' ').includes(SIGNED_IN_AT));
-    expect(proofs.map((c) => c.env?.PROBE_TOKEN)).toEqual([masked[5]]);
-    expect(proofs[0]!.args).toEqual(expect.arrayContaining(['exec', '--env', 'PROBE_TOKEN']));
-    expect(proofs[0]!.args.join(' ')).not.toContain(masked[5]!);
+    expect(proofs.map((c) => c.env?.PROBE_TOKEN)).toEqual([masked[5], masked[6]]);
+    for (const c of proofs) {
+      expect(c.args).toEqual(expect.arrayContaining(['exec', '--env', 'PROBE_TOKEN']));
+      for (const t of [masked[5]!, masked[6]!]) expect(c.args.join(' ')).not.toContain(t);
+    }
     const at = (pred: (c: (typeof calls)[number]) => boolean) => calls.findIndex(pred);
     expect(at((c) => c.env?.PROBE_TOKEN === masked[5])).toBeLessThan(at((c) => c.args[0] === 'run' && c.args.includes(SCHEMATHESIS)));
+    expect(at((c) => c.env?.PROBE_TOKEN === masked[6])).toBeLessThan(at((c) => c.args.some((a) => a.endsWith('/another-organisations-ids.mjs'))));
   });
 
-  it('stops, scanning nothing, when the token is not accepted: its 401s would read as refusals (10)', async () => {
-    const base = stub(FIXTURE_FLAGGED(), reportJson());
-    const docker: Docker = (args, opts) =>
-      args.join(' ').includes(SIGNED_IN_AT) ? { status: 1, stdout: '', stderr: '401', error: undefined, signal: null } : base.docker(args, opts);
-    const { v } = await go(docker);
-    expect(v.code).toBe(1);
-    expect(v.markdown).toMatch(/The scan did not finish:.*token was not accepted/);
-    expect(base.calls.some((c) => c.args[0] === 'run' && c.args.includes(SCHEMATHESIS))).toBe(false);
+  it('stops, asking and scanning nothing, when a token is not accepted: 401s would read as refusals (10)', async () => {
+    for (const which of [0, 1]) {
+      const base = stub(FIXTURE_FLAGGED(), reportJson());
+      let seen = -1;
+      const docker: Docker = (args, opts) => {
+        if (args.join(' ').includes(SIGNED_IN_AT)) {
+          seen += 1;
+          if (seen === which) return { status: 1, stdout: '', stderr: '401', error: undefined, signal: null };
+        }
+        return base.docker(args, opts);
+      };
+      const { v } = await go(docker);
+      expect(v.code).toBe(1);
+      expect(v.markdown).toMatch(/The scan did not finish:.*token was not accepted/);
+      expect(base.calls.some((c) => c.args.includes(`/src/${API_DESCRIPTION}`))).toBe(false);
+    }
+  });
+
+  it('makes a person of the first organisation before its ids are read, so the person doors are asked (10)', async () => {
+    const { calls, docker } = stub(FIXTURE_FLAGGED(), reportJson());
+    await go(docker);
+    const made = calls.findIndex((c) => c.input === FIRST_PERSON_SQL);
+    const read = calls.findIndex((c) => c.args.includes(FIRST_ID_QUERIES.personId!));
+    expect(made).toBeGreaterThan(-1);
+    expect(made).toBeLessThan(read);
+    expect(FIRST_PERSON_SQL).toContain(OTHERS.ids.tenantId);
   });
 
   it('passes a dispatch’s seed to the API’s scan when it is digits, and no other', async () => {
@@ -499,5 +581,150 @@ describe('the run, against a stubbed docker (1, 3, 4, 7)', () => {
     expect(args).toEqual(expect.arrayContaining(['--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '/r:/src:ro', '/o:/out', '--generation-database', 'none']));
     expect(args[args.indexOf('--workdir') + 1]).toBe('/out');
     expect(args[args.indexOf('--checks') + 1]).toBe(CHECKS.join(','));
+  });
+});
+
+describe('the second identity: the first organisation’s ids with the second’s token (0178 T10, D7 (a))', () => {
+  const proof = () => reading(FIXTURE_FLAGGED());
+  const withOthers = (othersProof: ReturnType<typeof readOthers>, others: ReturnType<typeof readOthers> = apiOk()) =>
+    report({ image: SCHEMATHESIS, proof: proof(), othersProof, others, scan: reading(reportJson()) });
+
+  it('reads 401, 403 and 404 as a refusal, a 2xx or 3xx carrying the first organisation’s values as a leak, one without as answered, and the rest as other', () => {
+    for (const s of [401, 403, 404]) expect(classify(s)).toBe('refused');
+    for (const s of [200, 201, 204, 302]) expect(classify(s)).toBe('answered');
+    for (const s of [0, 400, 409, 410, 422, 429, 500, 503]) expect(classify(s)).toBe('other');
+    expect(verdictOf({ status: 200, carries: true })).toBe('leak');
+    expect(verdictOf({ status: 200, carries: false })).toBe('answered');
+    expect(verdictOf({ status: 404, carries: true })).toBe('refused');
+  });
+
+  it('serves its leak for real: the fixture answers whoever asks with the organisation the path names, and refuses the kept door', async () => {
+    const port = 39500 + Math.floor(Math.random() * 400);
+    const child = spawn(process.execPath, [join(ROOT, FIXTURE.dir, 'server.mjs'), String(port)], { stdio: ['ignore', 'pipe', 'inherit'] });
+    try {
+      await once(child.stdout!, 'data');
+      const leak = await fetch(`http://${LOOPBACK}:${port}/orgs/${OTHERS.ids.tenantId}/things`);
+      expect(leak.status).toBe(200);
+      expect(await leak.text()).toContain(OTHERS.ids.tenantId);
+      expect((await fetch(`http://${LOOPBACK}:${port}/orgs/${OTHERS.ids.tenantId}/kept`)).status).toBe(404);
+    } finally {
+      child.kill();
+    }
+  });
+
+  it('holds when the leak is read as a leak and the kept door as a refusal, and is RED when the leak is taken out of what it flagged', () => {
+    expect(othersUnproved(othersOk() as never)).toEqual([]);
+    expect(withOthers(othersOk()).code).toBe(0);
+    const healed = OTHERS_READ();
+    healed.asked = healed.asked.map((a) => (a.operation.endsWith('/things') ? { ...a, status: 404, carries: false } : a));
+    const out = withOthers(readOthers(said(healed)));
+    expect(out.code).toBe(1);
+    expect(out.markdown).toContain("did not read the fixture's `GET /orgs/{tenantId}/things` as a leak");
+    // A leak with nothing of the first organisation's in it is answered, not a leak: red too.
+    const empty = OTHERS_READ();
+    empty.asked = empty.asked.map((a) => (a.operation.endsWith('/things') ? { ...a, carries: false } : a));
+    expect(withOthers(readOthers(said(empty))).code).toBe(1);
+    // And a kept door that answered is red: the reading would call everything a refusal or nothing.
+    const opened = OTHERS_READ();
+    opened.asked = opened.asked.map((a) => (a.operation.endsWith('/kept') ? { ...a, status: 200 } : a));
+    expect(withOthers(readOthers(said(opened))).markdown).toContain("did not read the fixture's `GET /orgs/{tenantId}/kept` as a refusal");
+  });
+
+  it('asks the API only once its proof holds, and never scans the API when it does not', async () => {
+    const calls: string[][] = [];
+    const healed = OTHERS_READ();
+    healed.asked = healed.asked.filter((a) => !a.operation.endsWith('/things'));
+    const docker: Docker = (args) => {
+      calls.push(args);
+      const i = args.indexOf('--report-json-path');
+      if (i >= 0) writeFileSync(join(args.find((a) => a.endsWith(':/out'))!.slice(0, -5), args[i + 1]!.replace('/out/', '')), JSON.stringify(FIXTURE_FLAGGED()));
+      if (args.some((a) => a.endsWith('/another-organisations-ids.mjs'))) return said(healed);
+      return { status: 0, stdout: '', stderr: '', error: undefined, signal: null };
+    };
+    const v = await run({ root: ROOT, docker, env: { SCHEMATHESIS_IMAGE: SCHEMATHESIS }, wait: async () => {}, mask: () => {}, out: tempDir('st-oth-') });
+    expect(v.code).toBe(1);
+    expect(calls.filter((c) => c.some((a) => a.endsWith('/another-organisations-ids.mjs')))).toHaveLength(1);
+    expect(calls.some((c) => c.includes(`/src/${API_DESCRIPTION}`))).toBe(false);
+  });
+
+  it('counts every verdict on the API and names no operation, not asked ones included', () => {
+    expect(OTHERS_WITHHELD).toEqual(['leak', 'answered', 'other', 'refused']);
+    const out = withOthers(othersOk(), apiOk([
+      { operation: 'GET /api/a-leaking-door/{tenantId}', via: 'path', status: 200, carries: true },
+      { operation: 'PUT /api/an-answering-door/{tenantId}', via: 'path', status: 200, carries: false },
+      { operation: 'POST /api/a-body-first/{mappingId}', via: 'path', status: 400, carries: false },
+    ]));
+    expect(out.code).toBe(0);
+    for (const hidden of ['a-leaking-door', 'an-answering-door', 'a-body-first', '/api/x/{link}', '/api/r0/']) {
+      expect(out.markdown).not.toContain(hidden);
+      expect(out.lines.join('\n')).not.toContain(hidden);
+    }
+    expect(out.markdown).toContain('| leak | 1 | 1 |');
+    expect(out.markdown).toContain('| answered | 1 | 1 |');
+    expect(out.markdown).toContain('| other | 1 | 1 |');
+    expect(out.markdown).toContain('| not asked | — | 1 |');
+    expect(out.markdown).toContain('**No operation of the API is named here, under any verdict.**');
+    // The fixture's doors are named: they are faults on purpose.
+    expect(out.markdown).toContain('`GET /orgs/{tenantId}/things` must be read as a leak: it is');
+  });
+
+  it('reads each way the check can end short as one that did not finish', () => {
+    const cases: Array<[ReturnType<typeof readOthers>, RegExp]> = [
+      [readOthers({ status: 1, stdout: '', stderr: 'boom', error: undefined, signal: null }), /did not run to its end \(exit 1: boom\)/],
+      [readOthers({ status: 0, stdout: 'not json', stderr: '', error: undefined, signal: null }), /wrote no JSON/],
+      [readOthers(said({ asked: 'x' })), /no asked and not-asked lists/],
+      [readOthers(said({ asked: [{ operation: 'GET /a', via: 'path', status: 0, carries: false }], notAsked: [] })), /1 ask had no answer/],
+    ];
+    for (const [r, why] of cases) {
+      expect(r.stopped).toMatch(why);
+      expect(withOthers(othersOk(), r).code).toBe(1);
+      expect(withOthers(r).code).toBe(1);
+    }
+    expect(withOthers(othersOk(), apiOk([], MIN_ASKS - 1)).markdown).toContain(`fewer than the ${MIN_ASKS}`);
+    expect(report({ image: SCHEMATHESIS, proof: proof(), scan: reading(reportJson()) }).code).toBe(1);
+  });
+
+  it('asks every secured operation it can fill, by the path when it holds an id and by the header always, and names what it could not fill', () => {
+    const doc = {
+      security: [{ bearerAuth: [] }],
+      paths: {
+        '/api/tenants/{tenantId}/members/{memberId}': { get: {}, delete: {} },
+        '/api/connections/{id}': { put: {} },
+        '/api/access-requests/{id}': { post: {} },
+        '/api/migrations/{mappingId}/domains/{domain}/stop': {
+          post: { parameters: [{ name: 'domain', in: 'path', schema: { enum: ['email', 'calendar'] } }] },
+        },
+        '/api/me': { get: {} },
+        '/health': { get: { security: [] } },
+        '/api/grant/{link}': { get: {} },
+      },
+    };
+    const ids = { tenantId: 't', mappingId: 'm', memberId: 'u', connectionId: 'c' };
+    const { asks, notAsked } = asksFor(doc, ids);
+    expect(asks.map((a) => `${a.via} ${a.method} ${a.url}${a.body === null ? '' : ' {}'}`)).toEqual([
+      'path GET /api/tenants/t/members/u',
+      'header GET /api/tenants/t/members/u',
+      'path DELETE /api/tenants/t/members/u',
+      'header DELETE /api/tenants/t/members/u',
+      'path PUT /api/connections/c {}',
+      'header PUT /api/connections/c {}',
+      'path POST /api/migrations/m/domains/email/stop {}',
+      'header POST /api/migrations/m/domains/email/stop {}',
+      'header GET /api/me',
+    ]);
+    expect(notAsked).toEqual([
+      { operation: 'POST /api/access-requests/{id}', why: 'no id of the first organisation for {id}' },
+      { operation: 'GET /api/grant/{link}', why: 'no id of the first organisation for {link}' },
+    ]);
+    expect(TENANT_HEADER).toBe('x-ownpace-tenant');
+    expect(read('apps/api/src/middleware/auth.ts')).toContain(`export const TENANT_HEADER = '${TENANT_HEADER}';`);
+  });
+
+  it('asks the real description at least MIN_ASKS times, and the fixture’s doors both ways', () => {
+    const { asks } = asksFor(parseYaml(read(API_DESCRIPTION)), { tenantId: 't', mappingId: 'm', memberId: 'u', connectionId: 'c', personId: 'p' });
+    expect(asks.length).toBeGreaterThanOrEqual(MIN_ASKS);
+    const fx = asksFor(parseYaml(read(OTHERS.description)), OTHERS.ids).asks.map((a) => `${a.via} ${a.operation}`);
+    expect(fx).toEqual([...OTHERS.leaks, ...OTHERS.refuses].flatMap((op) => [`path ${op}`, `header ${op}`]));
+    expect(withVerdict(readOthers(said(OTHERS_READ())) as never, 'leak')).toEqual(OTHERS.leaks);
   });
 });
