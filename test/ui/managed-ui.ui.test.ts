@@ -2647,6 +2647,40 @@ describe('the door of a code, walked one step at a time (0177 T1, T6)', () => {
       });
     }
   }
+
+  // Three answers of one size, whatever wraps (0177 §10). With a runner's
+  // wider fonts, *No, I do not want this* took two lines at 320 pixels and
+  // stood taller than the other two. The answers are narrowed here until it
+  // must wrap, so the test holds the case on any font.
+  it('keeps the three answers one size when one of them wraps', async () => {
+    const said = DOOR_WORDS.en;
+    const l = await open(`/code#${DOOR_CODE}`, { signedIn: false, locale: 'en', narrow: true });
+    const page = l.page;
+    const step = async (name: string) =>
+      page.getByRole('heading', { level: 1, name, exact: true }).waitFor({ timeout: 15_000 });
+    await step(said.step1);
+    await page.getByRole('button', { name: said.next, exact: true }).click();
+    await step(said.step2);
+    const group = page.getByRole('group', { name: /^Did the person you got the code from tell you about this themselves/ });
+    // Through the element's own style, which the page's policy allows, as it does no style tag.
+    await group.evaluate((el) => {
+      (el as HTMLElement).style.maxWidth = '180px';
+    });
+    const sizes = await group
+      .getByRole('button')
+      .evaluateAll((buttons) =>
+        buttons.map((b) => {
+          const box = b.getBoundingClientRect();
+          return `${Math.round(box.width)} by ${Math.round(box.height)}`;
+        }),
+      );
+    expect(sizes, 'the three answers').toHaveLength(3);
+    // The longest answer takes two lines here, so the case named is the case measured.
+    expect(Math.max(...sizes.map((s) => Number(s.split(' by ')[1]))), 'an answer that wraps').toBeGreaterThan(60);
+    expect(new Set(sizes).size, `the three answers' sizes: ${sizes.join(', ')}`).toBe(1);
+    expectClean(l, 'the door with an answer that wraps');
+    await page.close();
+  });
 });
 
 /**
