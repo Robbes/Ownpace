@@ -4,8 +4,8 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
-**2026-11-27, alpha.22: two of alpha.21's follow-ups, in one draft pull request**
-(`claude/ownpace-public-readiness-y7orc6-a22-a21-follow-ups`), in review.
+**2026-11-27, alpha.22: two of alpha.21's follow-ups, in one pull request, #2215**
+(`claude/ownpace-public-readiness-y7orc6-a22-a21-follow-ups`).
 
 - **Two answers of one size, whatever wraps (T9, §13).** The four groups of answers on a
   person's pages that stacked (`space-y-3`) are a grid whose rows are one height
@@ -17,7 +17,8 @@
   failed on the stack first (heights 84 and 60, 80 and 60, 84 and 60, 60 and 112).
 - **D19 and Google's list.** The operator's *Gifts* says that the Google address of each
   member and of each person they help, family or acquaintance, takes a place on Google's list
-  (0177 §20.6), as §18's reading of D19 says.
+  (0177 §20.6), as §18's reading of D19 says. The owner read the sentence on the pull request
+  (*"2215: ok"*, 2026-11-27).
 
 **2026-11-26, the owner's answer for #2197, D19's words:** *"Q2: a, and I approve, note layer
 review needed."* (*layer* read as *lawyer*), and *"Dutch read 1: #2197, yes as advised."*. The

@@ -4,8 +4,8 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
-**2026-11-27, alpha.22: three of alpha.21's follow-ups, in one draft pull request**
-(`claude/ownpace-public-readiness-y7orc6-a22-a21-follow-ups`), in review.
+**2026-11-27, alpha.22: three of alpha.21's follow-ups, in one pull request, #2215**
+(`claude/ownpace-public-readiness-y7orc6-a22-a21-follow-ups`).
 
 - **The giver's refusals in both languages.** What #2206 left for after alpha.21: `POST
   /api/gifts`, `GET /api/gifts/mine` and `POST /api/gifts/:id/revoke` now answer each refusal
@@ -14,11 +14,12 @@
   one no longer unused (409), and a sign-in with no organisation (400). The sentences live in
   `gift-store.ts` beside D18's; the first two are the page's own (`give.atLimit`, `give.full`).
   The operator's revoke keeps its English. Five cases in `gifts.unit.test.ts` and one in
-  `an-alpha-with-two-ceilings.unit.test.ts`, each failing first. The Dutch is *drafted (here)*,
-  for the owner's read on the pull request.
+  `an-alpha-with-two-ceilings.unit.test.ts`, each failing first. The Dutch was drafted here, and
+  the owner read it on the pull request (*"2215: ok"*, 2026-11-27): the four new Dutch rows, the
+  fifth refusal kept, and the new English that says *recommendation* and *withdraw*.
 - **Google's list on *Gifts* (§20.5, §20.6).** Since 0176's D19 a member may help
   acquaintances, so the sentence names each person they help, family or acquaintance (§20.6's
-  row). Drafted, for the owner's read.
+  row). The owner read it on the pull request (*"2215: ok"*, 2026-11-27).
 - **The door's three answers** were made one size by #2210; a person's pages now do the same
   for their two (0176's Status).
 
