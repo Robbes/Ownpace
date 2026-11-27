@@ -271,6 +271,7 @@ reading a file drops off its entry by itself.
 - [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
+- [the-release-an-upgrade-starts-from](../scripts/the-release-an-upgrade-starts-from.unit.test.ts) — THE RELEASE AN UPGRADE STARTS FROM (workplan 0179 T5; the maintainer's D2 (a) of 2026-11-27): the upgrade gate must name it the same way every night, or a green night proves an upgrade from nobody knows what.
 
 ### `CONTRIBUTING.md`
 
@@ -3504,6 +3505,10 @@ reading a file drops off its entry by itself.
 ### `scripts/pasteable-hints.unit.test.ts`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
+### `scripts/previous-release.mjs`
+
+- [the-release-an-upgrade-starts-from](../scripts/the-release-an-upgrade-starts-from.unit.test.ts) — THE RELEASE AN UPGRADE STARTS FROM (workplan 0179 T5; the maintainer's D2 (a) of 2026-11-27): the upgrade gate must name it the same way every night, or a green night proves an upgrade from nobody knows what.
 
 ### `scripts/redact-evidence.unit.test.ts`
 
@@ -7807,6 +7812,15 @@ THE NAME THE RELAY WOULD NOT ACCEPT.
 Reads:
 
 - `deploy/compose/setup-zitadel.sh`
+
+### [the-release-an-upgrade-starts-from](../scripts/the-release-an-upgrade-starts-from.unit.test.ts)
+
+THE RELEASE AN UPGRADE STARTS FROM (workplan 0179 T5; the maintainer's D2 (a) of 2026-11-27): the upgrade gate must name it the same way every night, or a green night proves an upgrade from nobody knows what.
+
+Reads:
+
+- `CHANGELOG.md`
+- `scripts/previous-release.mjs`
 
 ### [the-role-that-was-not-there](../scripts/the-role-that-was-not-there.unit.test.ts)
 

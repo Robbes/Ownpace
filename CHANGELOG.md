@@ -6,6 +6,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The upgrade gate: the previous release's appliance, with data, upgraded in place**
+  (workplan 0179 T5; the maintainer's D2 (a) of 2026-11-27). The last steps of E2E (self-hosted),
+  on the Postgres night and a Postgres dispatch only. `scripts/previous-release.mjs` names the
+  release to upgrade from: the newest in `CHANGELOG.md` whose tag is published and is not this
+  commit, so the night after a release, on the tagged commit, it is the release before. The step
+  pulls it by digest, only after both `cosign verify` calls a release check makes hold, and
+  `test/e2e/selfhost-upgrade.e2e.test.ts` starts it in a compose project of its own
+  (`deploy/selfhost/compose.upgrade.yml`), lets it copy the seeded sources, starts this build on
+  the same volumes, and checks the migrations, the ledger's counts before and after, and a pass
+  after the upgrade. No product code changes.
 - **One Soverin card for personal and Suite mailboxes, first half** (workplan 0175 T1, T2's
   personal half, T3, T7, T8; the maintainer's decisions D1, D6 and D7 (a)). The Test now finds
   which kind of Soverin mailbox it was given and says it before *Carries:*: *Soverin

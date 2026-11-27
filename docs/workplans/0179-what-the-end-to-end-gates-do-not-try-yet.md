@@ -4,6 +4,25 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
+**2026-11-27, T2 to T4 merged, and T5 built.** #2217 merged as `dc1ac95a`, after its second
+managed E2E, run 45987424991 on `79ddb717`, passed: `SMOKE PASS`, T2's spent-gift check read
+`1/1/1`, and the section's take-back at its start removed the gift run 45976766670 had left. T3 and
+T4 passed as before. **T5, the upgrade gate (D2 (a)), is built on
+`claude/ownpace-public-readiness-y7orc6-a22-e2e-upgrade-gate` and waits for its first self-hosted
+Postgres E2E.** A last step group of `e2e.yml`, on the Postgres night and a Postgres dispatch only:
+`scripts/previous-release.mjs` names the release (the newest `CHANGELOG.md` release whose tag is
+published and is not this commit; today `0.2.0-alpha.21`), the step reads its index digest and
+verifies it with both `cosign verify` calls `release-verify.mjs` makes, and
+`test/e2e/selfhost-upgrade.e2e.test.ts` starts that appliance by digest in a project of its own,
+lets it copy the seeded sources, starts this build on the same volumes, and checks the migrations,
+the ledger's counts before and after, and a pass after the upgrade. Proved off the stack: 9 cases
+for the release's resolution, 10 for the gate's arithmetic. Not yet measured: its run time, which
+the step prints. **A correction to §2 and Table B (G5):** they said only the schema upgrade was
+tested. There is also `scripts/upgrade-drill.sh` (workplan 0025 T5), run by hand before a release
+(`docs/release.md`, its checklist): the released image on PGlite, swapped in place to the
+checkout's build, healthy after a restart. It copies no data and runs no pass, so G5 stood, but the
+plan should have named it.
+
 **2026-11-27, the first managed E2E of T2 to T4, and its fix.** E2E (managed) 45976766670 ran
 the branch at `5a3bf08a`. On the real stack T3 and T4 passed whole: Start on the waiting migration
 answered `awaiting_grant` with `startsWhenGranted`, the grant started it and its pass completed
@@ -44,10 +63,10 @@ lines and §4.2 were read again there.
 |---|---|---|---|
 | T0 The read and this plan | builder | ✅ Written | This file. |
 | T1 §2.3 written down | builder | ✅ Done | In this plan's pull request: `docs/testing.md`, `docs/managed-bring-up.md`, the pull request template. |
-| T2 The recommendation door, on the managed smoke | builder | 🔧 Fixed after its first run, managed E2E to run again | Run 45976766670: one check failed (the giver's subject); fixed. |
-| T3 A grant that copies, and *Stop copying*, on the managed smoke | builder | ✅ Passed on the real stack | Run 45976766670; in the same pull request as T2, not merged yet. |
-| T4 The voice chosen for a person, on the managed smoke | builder | ✅ Passed on the real stack | Run 45976766670; inside T3's section. |
-| T5 The appliance upgraded from the previous release | — | ⏭ Next | D2 (a): a step on the Postgres night. |
+| T2 The recommendation door, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Run 45987424991 passed, after 45976766670's one failure was fixed. |
+| T3 A grant that copies, and *Stop copying*, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Runs 45976766670 and 45987424991 passed. |
+| T4 The voice chosen for a person, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Inside T3's section; both runs passed. |
+| T5 The appliance upgraded from the previous release | builder | 🔧 Built, self-hosted Postgres E2E to run | D2 (a): the last steps of `e2e.yml`, Postgres only; `selfhost-upgrade.e2e.test.ts`. |
 | T6 The owner's appliance flows | — | 🕓 After alpha.22 | |
 | T7 A real browser against the real managed API | — | 🕓 After alpha.22 | D4 (b). |
 | T8 Soverin | — | 🕓 Later | D3 (a): stand-ins first, a real account later. |
@@ -137,7 +156,7 @@ Sizes: S is under a day, M one to three days, L more. Run time is per run, on th
 | T2 | Managed: the recommendation door, end to end (G1 in Table B) | M | about 30 s | alpha.21's newest door has no HTTP-level test at all, and it creates an organisation. |
 | T3 | Managed: a person's grant that then copies, and their *Stop copying* (G2, G3) | M | 1 to 2 min | The smoke proves a password is stored, not that a migration then runs, nor that a stop holds it. |
 | T4 | Managed: the *je* or *u* chosen for a person, on the server's own pages (G4) | S | seconds | One field on the link the smoke already makes. |
-| T5 | Self-hosted: the appliance upgraded from the previous release with its data (G5) | M | 3 to 5 min | Every self-hoster does it; only the schema upgrade is tested (`ci.yml:938-941`). |
+| T5 | Self-hosted: the appliance upgraded from the previous release with its data (G5) | M | 3 to 5 min | Every self-hoster does it; CI tests only the schema upgrade (`ci.yml:938-941`), and `scripts/upgrade-drill.sh` runs by hand, with no data. |
 | T6 | Self-hosted: the owner's appliance flows (G6 to G9) | M | 1 to 3 min | Real routes with no E2E caller. |
 | T7 | A real browser against the real managed API, on a person's link (G10) | L | 2 to 4 min | Where the fixtures and the API can drift apart. |
 | T8 | Soverin, personal and Suite (0175, alpha.22) (G11) | M, or L with an account | — | Only with a decision on D3. |
@@ -260,7 +279,7 @@ time stated in the pull request, and a line in `docs/testing.md`.
 | G2 | A person grants on their link, and their migration then copies | A family member grants and nothing ever moves; nobody is told | The smoke's 0174 section keeps both migrations drafts: "a grant starts nothing … and no pass writes into a demo account" (`smoke-managed.sh:6937-6939`) | M |
 | G3 | A person presses *Stop copying* on their progress page, or removes a destination's password | The copy goes on after the person said stop | No call to `/api/view/:link/withdraw` (`apps/api/src/routes/view.ts:254-255`) in the smoke (searched `withdraw`) | S |
 | G4 | A member chooses *je*, *u* or English for a person; the person's pages and the server's own pages speak that way | A person is spoken to in the wrong register or language | The smoke makes links with `purpose` and `expiryDays` only (`smoke-managed.sh:6787-6788`, `:7096`); no `voice` anywhere in it | S |
-| G5 | A self-hoster upgrades the appliance from the previous release, keeping their data | Every appliance stops, or loses its ledger, at the upgrade | `e2e.yml` starts from fresh volumes (`:268-271`); only the schema upgrade is tested (`ci.yml:938-941`) | M |
+| G5 | A self-hoster upgrades the appliance from the previous release, keeping their data | Every appliance stops, or loses its ledger, at the upgrade | `e2e.yml` starts from fresh volumes (`:268-271`); only the schema upgrade is tested in CI (`ci.yml:938-941`); `scripts/upgrade-drill.sh` runs by hand before a release, on PGlite, with no data and no pass (correction of 2026-11-27) | M |
 | G6 | An owner adds a person and a migration on the appliance's screens | A new self-hoster cannot start | `/people` and `/people/:id/migrations` (`apps/selfhost/src/index.ts:1923-1935`) have no caller in `test/e2e/` (searched) | M |
 | G7 | An owner ends or keeps one data type, or stops and resumes it | A data type keeps copying after its cutover, or will not stop | `/mappings/:id/domains/:d/(end\|keep)` and `(stop\|resume)` (`index.ts:3755`, `:3668`) have no E2E caller | M |
 | G8 | An owner answers the sharing queue on the appliance | Shares are not recreated, or recreated twice | `/mappings/:id/sharing/…` (`index.ts:2591-2815`) has no E2E caller on the appliance; the managed smoke tries the managed one (`smoke-managed.sh:6425-6531`) | M |
