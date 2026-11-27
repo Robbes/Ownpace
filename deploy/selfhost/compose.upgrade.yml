@@ -1,0 +1,30 @@
+# Overrides for the upgrade gate (workplan 0179 T5) — `test/e2e/selfhost-upgrade.e2e.test.ts`,
+# run by `.github/workflows/e2e.yml` on the Postgres night, after every other gate.
+#
+# The gate starts the PREVIOUS release's appliance, by digest, on a database of
+# its own, lets it copy the seeded sources, and then starts THIS build's image
+# on the same volumes. It runs beside the appliance the other gates drove, on
+# the same runner, so it needs what `-p ownpace-upgrade-gate` does not give:
+#
+# 1. CONTAINER NAMES OF ITS OWN. The base file pins `ownpace-selfhost-db` and
+#    `ownpace-selfhost-app`, and `container_name` is not namespaced by the
+#    project (compose.drill.yml found it on 2026-08-04).
+#
+# 2. A CONFIG DIRECTORY OF ITS OWN, FOR BOTH IMAGES. The appliance's config is
+#    baked into its image: the released one carries only the example, and the
+#    build the other gates made carries every mapping they wrote into
+#    deploy/selfhost/config/. So `CONFIG_DIR` points at a directory the gate
+#    makes, holding its one mapping, and both images read that and nothing
+#    else. Writable, because the launcher writes and removes a probe file there
+#    before it starts (compose.drill.yml, item 2): the gate makes it 0777, in a
+#    temporary directory of its own, and removes it after.
+
+services:
+  postgres:
+    container_name: ownpace-upgrade-gate-db
+  app:
+    container_name: ownpace-upgrade-gate-app
+    environment:
+      CONFIG_DIR: /data/upgrade-config
+    volumes:
+      - ${UPGRADE_CONFIG_DIR:?the upgrade gate sets this}:/data/upgrade-config
