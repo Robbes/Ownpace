@@ -4,6 +4,16 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
+**2026-11-27, T5's first E2E, and its fix.** E2E (self-hosted, Postgres) 45992857614 ran #2220 at
+`41275b5e`: two of the gate's four tests passed (the migrations, the ledger kept), and two failed,
+both on files. The released appliance PUT every root-level file into the gate's target folder,
+`upgrade-gate`, which did not exist, and Nextcloud answered 404 to all 28; the pass after the
+upgrade then copied them. The writer makes a destination folder only on the way to a subfolder, so
+a root-level file under a folder not yet there is written before the folder: a product gap, in
+alpha.21 and on `main`, which the maintainer decides on separately. The gate now makes its folder
+(MKCOL, 201 or 405) before the released appliance's first pass and takes it back at the end; its
+unit test failed for the missing step first. Waiting for the E2E again.
+
 **2026-11-27, T2 to T4 merged, and T5 built.** #2217 merged as `dc1ac95a`, after its second
 managed E2E, run 45987424991 on `79ddb717`, passed: `SMOKE PASS`, T2's spent-gift check read
 `1/1/1`, and the section's take-back at its start removed the gift run 45976766670 had left. T3 and

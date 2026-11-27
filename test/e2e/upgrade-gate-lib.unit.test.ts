@@ -16,11 +16,15 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   UPGRADE_MAPPING_ID,
   UPGRADE_PREFIX,
+  folderMade,
+  folderTakenBack,
   ledgerCounts,
   migrationsCrossed,
+  prefixFolderPath,
   upgradeMapping,
 } from './upgrade-gate-lib.ts';
 
@@ -88,5 +92,37 @@ describe('the migrations an upgrade crossed', () => {
 
   it('refuses an upgrade that lost a migration the released database had', () => {
     expect(() => migrationsCrossed(['0001_a.sql', '0002_b.sql'], ['0001_a.sql', '0003_c.sql'], built)).toThrow(/0002_b\.sql/);
+  });
+});
+
+describe("the gate's folder on the target, made before the released appliance writes", () => {
+  // E2E (self-hosted) 45992857614: the released appliance PUT every root-level
+  // file into /upgrade-gate, which did not exist, and Nextcloud answered 404 to
+  // all 28. The writer makes the prefix only on the way to a subfolder, so the
+  // gate, which measures an upgrade and not that, makes the folder itself.
+  it("is the prefix under the target user's own files", () => {
+    expect(prefixFolderPath('e2e-target')).toBe(`/remote.php/dav/files/e2e-target/${UPGRADE_PREFIX}/`);
+  });
+
+  it('is made by a MKCOL that answers 201, or 405 when it is there already', () => {
+    expect(folderMade(201)).toBe('made');
+    expect(folderMade(405)).toBe('there');
+    expect(() => folderMade(401)).toThrow(/MKCOL .* answered 401/);
+    expect(() => folderMade(409)).toThrow(/answered 409/);
+  });
+
+  it('is taken back at the end, with what the gate wrote in it: 204, or 404 when it is gone', () => {
+    expect(folderTakenBack(204)).toBe(true);
+    expect(folderTakenBack(404)).toBe(true);
+    expect(() => folderTakenBack(423)).toThrow(/DELETE .* answered 423/);
+  });
+
+  it('is made before the released appliance is green-lit, and taken back when the gate ends', () => {
+    const gate = readFileSync('test/e2e/selfhost-upgrade.e2e.test.ts', 'utf8');
+    const made = gate.indexOf('await makeTheFolder(');
+    const started = gate.indexOf('await startMapping(');
+    expect(made, 'the gate never makes its folder on the target').toBeGreaterThan(0);
+    expect(made).toBeLessThan(started);
+    expect(gate.indexOf('await takeTheFolderBack(')).toBeGreaterThan(gate.indexOf('afterAll('));
   });
 });

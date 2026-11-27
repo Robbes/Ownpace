@@ -66,3 +66,29 @@ export function migrationsCrossed(
   if (missing.length > 0) throw new Error(`the upgraded database never applied ${missing.join(', ')}`);
   return { crossed: after.filter((v) => !before.includes(v)) };
 }
+
+/**
+ * The gate's folder on the target, as a path under the target user's files.
+ *
+ * Made by the gate before the released appliance's first pass (E2E (self-hosted)
+ * 45992857614): the WebDAV writer makes the prefix only on the way to a
+ * subfolder, so a file at the root of the source, written before any subfolder,
+ * is PUT into a collection that is not there, and Nextcloud answers 404. The
+ * gate measures an upgrade, and the release it upgrades from keeps that gap.
+ */
+export function prefixFolderPath(targetUser: string): string {
+  return `/remote.php/dav/files/${encodeURIComponent(targetUser)}/${UPGRADE_PREFIX}/`;
+}
+
+/** A MKCOL's answer: 201 made it, 405 found it there already; anything else is refused. */
+export function folderMade(status: number): 'made' | 'there' {
+  if (status === 201) return 'made';
+  if (status === 405) return 'there';
+  throw new Error(`MKCOL of the gate's folder on the target answered ${status}, so its files have nowhere to go`);
+}
+
+/** A DELETE's answer at teardown: 204 took it back, 404 found it gone; anything else is refused. */
+export function folderTakenBack(status: number): true {
+  if (status === 204 || status === 404) return true;
+  throw new Error(`DELETE of the gate's folder on the target answered ${status}, so what it wrote there stays`);
+}

@@ -40,11 +40,22 @@ import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { BASE_URL, startMapping, statusAfterAPass, type DomainStatus } from './apply-deletion-lib.ts';
+import {
+  BASE_URL,
+  DAV_TARGET_USER,
+  NEXTCLOUD_URL,
+  TARGET_DAV_PASSWORD,
+  startMapping,
+  statusAfterAPass,
+  type DomainStatus,
+} from './apply-deletion-lib.ts';
 import {
   UPGRADE_MAPPING_ID,
+  folderMade,
+  folderTakenBack,
   ledgerCounts,
   migrationsCrossed,
+  prefixFolderPath,
   upgradeMapping,
   type MappingFile,
 } from './upgrade-gate-lib.ts';
@@ -103,6 +114,23 @@ async function passEveryDomain(): Promise<Record<string, DomainStatus | null>> {
   return read;
 }
 
+/** The target user's own credentials, for the gate's folder on the demo Nextcloud. */
+const asTarget = (): Record<string, string> => ({
+  Authorization: `Basic ${Buffer.from(`${DAV_TARGET_USER}:${TARGET_DAV_PASSWORD}`).toString('base64')}`,
+});
+
+/** The gate's folder on the target, before the released appliance writes (upgrade-gate-lib.ts says why). */
+async function makeTheFolder(): Promise<void> {
+  const res = await fetch(`${NEXTCLOUD_URL}${prefixFolderPath(DAV_TARGET_USER)}`, { method: 'MKCOL', headers: asTarget() });
+  console.log(`[upgrade] the gate's folder on the target: ${folderMade(res.status)}`);
+}
+
+/** The folder, and everything the gate wrote in it, taken back. */
+async function takeTheFolderBack(): Promise<void> {
+  const res = await fetch(`${NEXTCLOUD_URL}${prefixFolderPath(DAV_TARGET_USER)}`, { method: 'DELETE', headers: asTarget() });
+  folderTakenBack(res.status);
+}
+
 const down = (): void => {
   try {
     compose(TO_IMAGE, 'down', '-v', '--remove-orphans');
@@ -133,6 +161,7 @@ describe('the upgrade gate: the previous release, with data, upgraded in place t
     compose(FROM_IMAGE, 'pull', 'app');
     compose(FROM_IMAGE, 'up', '-d', '--no-build', '--wait');
     await waitHealthy(`the released appliance (${FROM_IMAGE})`);
+    await makeTheFolder();
     await startMapping(UPGRADE_MAPPING_ID);
     releasedPass = await passEveryDomain();
     ledgerBefore = readLedger(FROM_IMAGE);
@@ -143,7 +172,7 @@ describe('the upgrade gate: the previous release, with data, upgraded in place t
     await waitHealthy(`the upgraded appliance (${TO_IMAGE})`);
   }, 900_000);
 
-  afterAll(() => {
+  afterAll(async () => {
     // The appliance's own log, before its project goes: a red night's evidence.
     try {
       console.log(compose(TO_IMAGE, 'logs', 'app', '--no-color', '--tail', '150'));
@@ -152,6 +181,7 @@ describe('the upgrade gate: the previous release, with data, upgraded in place t
     }
     down();
     rmSync(configDir, { recursive: true, force: true });
+    await takeTheFolderBack();
   }, 120_000);
 
   it('the released appliance copied the seeded sources, every data type, before the upgrade', () => {
