@@ -6,8 +6,9 @@
 
 **A plan for the maintainer. Nothing is built.** No product code, no test and no workflow
 changes with this plan; the maintainer decides what is built, from §3. Every claim about the
-code cites a file and a line as read on `main` at `4283d37`. Open: the maintainer's answers to
-D1 to D4 (§3.2).
+code cites a file and a line as read on `main` at `4283d37`; after `main` was merged in at
+`e083778` (#2212, #2214), the archive gates' lines and §4.2 were read again there. Open: the
+maintainer's answers to D1 to D4 (§3.2).
 
 | Task | Owner | State | Note |
 |---|---|---|---|
@@ -144,16 +145,17 @@ minute added to a gate is a minute on every one of them.
 
 ### 4.2 Flakiness risks
 
-- **A status read across the schedule's minute (found 2026-11-27).** The fixtures schedule a pass
-  every minute; the archive gates' *a second import writes nothing* asks for one pass and reads
-  the status once (`test/e2e/selfhost-archive-zip-import.e2e.test.ts:186-190` on `main`), so a
-  scheduled pass that starts between the two reads `in_progress`. A fix is open on its own branch
-  (`statusAfterAPass`, asking again while a pass runs), not yet on `main`. **Every new appliance
-  gate in T5 and T6 must read status the same way**, or it inherits the same race.
-- **A voice check (found 2026-11-27).** Named to this plan as the second flake of that day; this
-  read did not find its run or a fix on `main` or on an open branch, so it carries no file and
-  line here (see the pull request's *Anything you are unsure about*). T4 adds a voice check;
-  it should wait until that one is understood.
+- **A status read across the schedule's minute (found and fixed 2026-11-27).** The fixtures
+  schedule a pass every minute, so a gate that asks for one pass and reads the status once can
+  read `in_progress` from a scheduled pass that started in between. Fixed on `main` by #2212
+  (`f284fd80`): `statusAfterAPass` (`test/e2e/apply-deletion-lib.ts:313`) asks again while a pass
+  runs, and the three archive gates read through it (`selfhost-archive-zip-import.e2e.test.ts:191`,
+  `selfhost-archive-in-target-import.e2e.test.ts:247`, `selfhost-archive-import.e2e.test.ts:163`).
+  **Every new appliance gate in T5 and T6 reads status through it**, or it brings the race back.
+- **The voice check of the same day was a unit test, not an E2E gate**
+  (`apps/api/src/routes/a-page-in-the-voice-chosen-for-them.unit.test.ts`: a random link token
+  holding `-Uw` read as a word), fixed on `main` by #2191 (`11e1df10`). It is no risk to the
+  gates, and T4 need not wait on it.
 - **The long-lived stack.** A managed check that leaves rows or files behind changes the next
   run's starting point. Each managed addition takes back what it added, as the balance section
   does, and is written to pass on a stack where a previous run of it failed halfway.
@@ -195,7 +197,7 @@ time stated in the pull request, and a line in `docs/testing.md`.
 | Deleting by hand, checked on the real target; a second press refused | apply-deletion | self-hosted | both | `test/e2e/selfhost-apply-deletion-mail.e2e.test.ts:85`, `-file…:78`, `-calendar…:78` |
 | Backup and restore of the appliance | drill | self-hosted | both | `test/e2e/selfhost-backup-restore.e2e.test.ts:258`, `:373` |
 | Finish refused over an open decision, then accepted, idempotent | finish | self-hosted | both | `test/e2e/selfhost-finish.e2e.test.ts:94`, `:112`, `:158` |
-| A Takeout imported (folder, zip, in the target) and a second import writes nothing | archive | self-hosted | both | `test/e2e/selfhost-archive-import.e2e.test.ts:113`, `-zip-import…:134`, `-in-target-import…:175` |
+| A Takeout imported (folder, zip, in the target) and a second import writes nothing | archive | self-hosted | both | `test/e2e/selfhost-archive-import.e2e.test.ts:114`, `-zip-import…:135`, `-in-target-import…:176` |
 | Stack healthy; app through the pooler, migrations direct | managed workflow | managed | Postgres | `.github/workflows/e2e-managed.yml:645-730` |
 | Identity provider's database dumped and restored | managed workflow | managed | Postgres | `e2e-managed.yml:744-747` |
 | Signing in; an invitation answered three ways; an access request and its mail | smoke | managed | Postgres | `deploy/compose/smoke-managed.sh:1293`, `:3747`, `:3891` |
