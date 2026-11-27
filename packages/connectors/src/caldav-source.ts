@@ -22,7 +22,7 @@ import type {
   SyncCursor,
   RawCalendarEvent,
 } from '@openmig/shared';
-import { CALENDAR_COMPONENTS, COMPONENT_ITEM_TYPES, collectionCarries, componentOfIcalendar, davRefusalParts, RemoteRefusal, withoutTrailing } from '@openmig/shared';
+import { CALENDAR_COMPONENTS, COMPONENT_ITEM_TYPES, collectionCarries, componentOfIcalendar, davRefusalParts, RemoteRefusal, withoutTrailing, davElement, firstMatchOf, textsOf, withoutElements, firstPlainTextOf, firstTextOf } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
 import {
   caldavComponentFilter,
@@ -122,25 +122,29 @@ function refusedForTheMoment(response: HttpResponse): boolean {
   return response.status >= 500 || asksToSlowDown(response.status, response.body);
 }
 
+/** The elements a `<response>` is read by, as the patterns before them named them: `<p:name…>`. */
+const WORD_PREFIX = /^[A-Za-z][\w-]*:/;
+const PROPSTAT = davElement('propstat', WORD_PREFIX);
+const STATUS = davElement('status', WORD_PREFIX);
+const RESOURCETYPE = davElement('resourcetype', WORD_PREFIX);
+
 /** A `<response>`'s own status, with its propstats taken out: about the resource, not a property. */
 function responseLevelStatus(responseXml: string): number | undefined {
-  const own = responseXml.replace(
-    /<[A-Za-z][\w-]*:propstat[^>]*>[\s\S]*?<\/[A-Za-z][\w-]*:propstat>/gi,
-    '',
-  );
-  const text = own.match(/<[A-Za-z][\w-]*:status[^>]*>([^<]*)<\/[A-Za-z][\w-]*:status>/i)?.[1];
+  // A tag at a time (`davElement`), as `<p:propstat[^>]*>…` and `<p:status[^>]*>…` read it.
+  const own = withoutElements(responseXml, PROPSTAT.opens, PROPSTAT.closes);
+  const text = firstPlainTextOf(own, STATUS);
   const code = text?.match(/\b(\d{3})\b/)?.[1];
   return code === undefined ? undefined : Number(code);
 }
 
 /** Whether a `<response>`'s resourcetype names a collection (RFC 4918 §15.9): not a calendar object. */
 function isCollectionResource(responseXml: string): boolean {
-  const type =
-    responseXml.match(
-      /<[A-Za-z][\w-]*:resourcetype[^>]*>([\s\S]*?)<\/[A-Za-z][\w-]*:resourcetype>/i,
-    )?.[1] ?? '';
+  const type = firstTextOf(responseXml, RESOURCETYPE) ?? '';
   return /<(?:[A-Za-z][\w-]*:)?collection\b/i.test(type);
 }
+
+/** The prefix a reply's elements are read by, as the patterns before them named it: `<p:name…>`, `p` letters. */
+const LETTERS_PREFIX = /^[A-Za-z]+:/;
 
 /**
  * CalDAV source connector implementation.
@@ -1202,11 +1206,9 @@ export class CalDAVSource implements CalendarSource {
     const folders: CalendarFolder[] = [];
 
     // Extract all response elements - namespace-agnostic regex
-    const responseRegex = /<[A-Za-z]+:response[^>]*>([\s\S]*?)<\/[A-Za-z]+:response>/gi;
-    let match: RegExpExecArray | null;
-
-    while ((match = responseRegex.exec(body)) !== null) {
-      const responseXml = match[1];
+    // Each response, a tag at a time (`davElement`): a pattern `<p:response[^>]*>…`
+    // read a body that opens an element and never closes it in time quadratic in it.
+    for (const responseXml of textsOf(body, davElement('response', LETTERS_PREFIX))) {
       if (!responseXml) continue;
 
       // Extract href - namespace-agnostic
@@ -1222,19 +1224,19 @@ export class CalDAVSource implements CalendarSource {
       if (!isCalendarCollection) continue;
 
       // Extract display name - namespace-agnostic
-      const displayNameMatch = responseXml.match(/<[A-Za-z]+:displayname[^>]*>([^<]*)<\/[A-Za-z]+:displayname>/i);
+      const displayNameMatch = firstMatchOf(responseXml, davElement('displayname', LETTERS_PREFIX), 'text');
       const displayName = displayNameMatch && displayNameMatch[1] ? displayNameMatch[1].trim() : undefined;
 
       // Extract description - namespace-agnostic
-      const descriptionMatch = responseXml.match(/<[A-Za-z]+:calendar-description[^>]*>([^<]*)<\/[A-Za-z]+:calendar-description>/i);
+      const descriptionMatch = firstMatchOf(responseXml, davElement('calendar-description', LETTERS_PREFIX), 'text');
       const description = descriptionMatch && descriptionMatch[1] ? descriptionMatch[1].trim() : undefined;
 
       // Extract timezone - namespace-agnostic
-      const timezoneMatch = responseXml.match(/<[A-Za-z]+:calendar-timezone[^>]*>([^<]*)<\/[A-Za-z]+:calendar-timezone>/i);
+      const timezoneMatch = firstMatchOf(responseXml, davElement('calendar-timezone', LETTERS_PREFIX), 'text');
       const timezone = timezoneMatch && timezoneMatch[1] ? timezoneMatch[1].trim() : undefined;
 
       // Extract color - namespace-agnostic
-      const colorMatch = responseXml.match(/<[A-Za-z]+:color[^>]*>([^<]*)<\/[A-Za-z]+:color>/i);
+      const colorMatch = firstMatchOf(responseXml, davElement('color', LETTERS_PREFIX), 'text');
       const color = colorMatch && colorMatch[1] ? colorMatch[1].trim() : undefined;
 
       // WHAT THIS COLLECTION SAYS IT HOLDS (RFC 4791 §5.2.3).
@@ -1318,11 +1320,9 @@ export class CalDAVSource implements CalendarSource {
     }
 
     // Extract all calendar objects - namespace-agnostic
-    const responseRegex = /<[A-Za-z]+:response[^>]*>([\s\S]*?)<\/[A-Za-z]+:response>/gi;
-    let match: RegExpExecArray | null;
-
-    while ((match = responseRegex.exec(body)) !== null) {
-      const responseXml = match[1];
+    // Each response, a tag at a time (`davElement`): a pattern `<p:response[^>]*>…`
+    // read a body that opens an element and never closes it in time quadratic in it.
+    for (const responseXml of textsOf(body, davElement('response', LETTERS_PREFIX))) {
       if (!responseXml) continue;
 
       // Extract href - namespace-agnostic
@@ -1332,7 +1332,7 @@ export class CalDAVSource implements CalendarSource {
       const href = hrefMatch[1].trim();
 
       // Extract calendar data - namespace-agnostic
-      const calendarDataMatch = responseXml.match(/<[A-Za-z]+:calendar-data[^>]*>([\s\S]*?)<\/[A-Za-z]+:calendar-data>/i);
+      const calendarDataMatch = firstMatchOf(responseXml, davElement('calendar-data', LETTERS_PREFIX), 'element');
       if (!calendarDataMatch || !calendarDataMatch[1]) {
         // NOT NOTHING (workplan 0164 T2). A member listed without its data
         // used to be passed over here, which is how Google's whole list read
@@ -1357,7 +1357,7 @@ export class CalDAVSource implements CalendarSource {
       // This object's OWN etag, scoped to its <response> — not the
       // collection-level scrape above, which takes whichever getetag appears
       // first in the whole body and would hand every object the same value.
-      const etagMatch = responseXml.match(/<[A-Za-z]+:getetag[^>]*>([^<]+)<\/[A-Za-z]+:getetag>/i);
+      const etagMatch = firstMatchOf(responseXml, davElement('getetag', LETTERS_PREFIX), 'non-empty text');
       const etag = etagMatch?.[1]?.trim();
 
       objects.push({

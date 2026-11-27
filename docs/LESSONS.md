@@ -3057,6 +3057,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/remote-refusal.ts`
 
 - [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+- [a-tag-read-by-a-pattern-that-backtracks](../scripts/a-tag-read-by-a-pattern-that-backtracks.unit.test.ts) — A TAG READ BY A PATTERN THAT BACKTRACKS.
 
 ### `packages/shared/src/remote-refusal.unit.test.ts`
 
@@ -3081,6 +3082,10 @@ reading a file drops off its entry by itself.
 - [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 - [a-domain-the-readme-forgot](../scripts/a-domain-the-readme-forgot.unit.test.ts) — DOCUMENTATION IS A FAN-OUT SITE, AND PROSE HAS NO TYPE CHECKER.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+
+### `packages/shared/src/xml-elements.ts`
+
+- [a-tag-read-by-a-pattern-that-backtracks](../scripts/a-tag-read-by-a-pattern-that-backtracks.unit.test.ts) — A TAG READ BY A PATTERN THAT BACKTRACKS.
 
 ### `packages/testing/fixtures/stalwart/Dockerfile`
 
@@ -6296,6 +6301,15 @@ Reads:
 - `scripts/fixtures/sbom/bom.json`
 - `scripts/release-cut-tag.mjs`
 - `scripts/release-dispatch.mjs`
+
+### [a-tag-read-by-a-pattern-that-backtracks](../scripts/a-tag-read-by-a-pattern-that-backtracks.unit.test.ts)
+
+A TAG READ BY A PATTERN THAT BACKTRACKS.
+
+Reads:
+
+- `packages/shared/src/remote-refusal.ts`
+- `packages/shared/src/xml-elements.ts`
 
 ### [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts)
 
