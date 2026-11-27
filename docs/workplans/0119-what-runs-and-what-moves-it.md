@@ -2,7 +2,25 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-25 (update this block at the end of every session)
+## Status — 2026-11-27 (update this block at the end of every session)
+
+**2026-11-27: what alpha.21 moves, which live takes with its deploy.** The fold for
+`v0.2.0-alpha.21` (0146's entry of the same day) carries what `main` merged after alpha.20's C,
+`70582df2`: 45 pull requests (0146's entry lists them). What alpha.21 moves:
+
+- the api, worker and appliance images' runtime, `gcr.io/distroless/nodejs26-debian13:nonroot`,
+  from `ffa8a754…` to `a84242e7…`, for Debian's `libzstd1` 1.5.7+dfsg-1+deb13u1, the fix for
+  CVE-2026-124851; Node stays 26.13.1 (#2172, 0006 §U);
+- both Postgres builds' libxml2, 2.13.9-r3 to 2.13.9-r5, as Alpine's mirror no longer serves -r3
+  (#2184, 0166 T3); both builds become `localhost/postgres:18.7-alpine-188a4909a850`, so the
+  database containers are made again from it, and each database restarts once;
+- in CI only: CodeQL, by `github/codeql-action` v4.39.4 (`1bd86f2f`, the commit every copy of the
+  action is held to) and the bundle it ships, 2.27.5 (#2194, #2202); and Schemathesis 4.34.0, its
+  image held to one digest, run nightly against the API on a GitHub-hosted runner (#2192, #2193).
+
+No npm package moves: `pnpm-lock.yaml` is as alpha.20 left it. Not moved: the Zitadel, pg-boss,
+nginx, Node, PgBouncer, Gatus, Mailpit, Stalwart and Nextcloud pins. The managed chain gains
+migrations 0064 to 0068; the shared chain gains none.
 
 **2026-11-25: what alpha.20 moves, which live takes with its deploy, planned for 2026-11-26.** The
 fold for `v0.2.0-alpha.20` (0146's entry of the same day) carries what `main` merged after

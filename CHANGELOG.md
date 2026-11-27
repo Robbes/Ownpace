@@ -4,30 +4,52 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.21] - 2026-11-27
+
+A person's grant link now asks for each account of theirs that a migration reads from or writes to:
+a sign-in where the provider offers one (Google, Microsoft, Dropbox, and Cirrux Drive), and
+everywhere else the person's own password, tried with the server the page names before it is stored.
+A person's own pages ask one thing at a time, in their own words: who sent the link, with a number
+to check, and one question first; then what to have ready and what the provider will show, and only
+then its button. They speak Dutch with *u* or with *je*, or English, as the member chose for that
+person, and so does the server's own Dutch on their link. *Everything on one page* says every step
+at once and prints, and a stack can name the country it runs in (`OWNPACE_COUNTRY`). A gift is now a
+recommendation: its code lets its person in at once, at a door of its own, `/code`, that asks one
+thing at a time, and the operator's screens show the Alpha's two ceilings, 50 and 50. Deleting by
+hand needs no switch any more. A removed destination password no longer reads as a withdrawn source,
+an account saved for a person is no longer called broken, and a provider's error page is no longer
+printed on the screen. A door that names an organisation or a migration that is not the caller's
+refuses it, and an id that is no UUID, or a text with a NUL byte, gets an answer instead of a server
+error. A DAV reply is read a tag at a time, and a run of characters at the end of a text in one
+pass. CodeQL reads the code on `main`, and Schemathesis tries the running API nightly, with a second
+organisation's identity at every door, both report only; four repository guards fail a pull request
+for what no scanner here held. The api, worker and appliance images take Debian's `libzstd1` fix for
+CVE-2026-124851, and both Postgres builds take libxml2 2.13.9-r5, under a new image name that each
+machine builds at its next `up`. The privacy policy and the terms change in place, still 1.0.
+Managed migrations 0064 to 0068 are added, and none to the shared chain: one way, so a deploy to
+alpha.21 is undone only from the copy taken before it. Live runs alpha.20 since 2026-11-26; before
+it takes alpha.21, `OWNPACE_COUNTRY` is set in its `.env`, or its home page names no country.
+
 ### Added
 
-- **Gift invitations: a place in the Alpha given as a present** (workplan 0172; the owner's
-  decisions of 2026-11-24, G1 and G3). A person in the Alpha opens **Give Ownpace**, makes their
-  one gift, and gets a card with a code to print or save as a PDF, in English or Dutch: their
-  name, an optional first name and message (both kept in the browser only), the code, where it is
-  used, a few words on Ownpace, and the date it is valid until, two years on. The recipient types
-  the code at the request-access door (**I have a gift code**, or the card's address `/redeem`),
-  which makes an access request marked *Gift from* the giver in the access queue; the operator
-  approves it like any other, and approval gives the recipient an organisation of their own. A
-  gift lets nobody in by itself. The code is shown once and kept only as a fingerprint; every bad
+- **Recommendations: a place in the Alpha, given by someone in it** (workplan 0172; the owner's
+  decisions of 2026-11-24, G1 and G3; made a recommendation with a door of its own by 0177 step A,
+  under *Changed*). A person in the Alpha makes their one recommendation and gets a card with a code
+  to print or save as a PDF, in English or Dutch: their name, an optional first name and message
+  (both kept in the browser only), the code, where it is used, a few words on Ownpace, and the date
+  it is valid until, two years on. The code is shown once and kept only as a fingerprint; every bad
   code (unknown, used, revoked, expired) gets the same refusal, behind a rate limit; the giver can
-  revoke an unused gift, which gives it back to them, and a request the operator declines gives
-  the gift back too, so the giver can make a new one (the owner's answers of 2026-11-25). Nothing
-  about the recipient is asked for or stored with the gift. The
-  operator's new **Gifts** screen (English) shows every gift and whose it is, how many requests
-  have been granted and are waiting, and sets the number of gifts for everyone or for one person
-  without a deploy; there is no cap on admissions, and the screen says so. The site has a gift
-  page in alpha builds, `gift.html` and `nl/cadeau.html`. Managed migration 0065 adds `gift`,
-  `gift_rule` and `gift_allowance`; gifts are erased with the giver's organisation, and so is the
-  operator's number for each of its people, unless that person is also in another organisation.
-  The privacy policy says what is kept of a gift (§4.4, *Gifts*), why and on what basis (§5), and
-  for how long (§9), and that a declined request gives the gift back, so the giver can tell; in
-  place under 1.0, as the owner read it.
+  withdraw an unused one, which gives it back to them, so they can make a new one (the owner's
+  answers of 2026-11-25). The giver is asked nothing about the person it is for, and nothing about
+  them is stored with it. The operator's new **Gifts** screen (English) shows every recommendation
+  and whose it is, and sets the number each person may make, for everyone or for one person, without
+  a deploy. The site has a page about a recommendation in alpha builds, `gift.html` and
+  `nl/cadeau.html`. Managed migration 0065 adds `gift`, `gift_rule` and `gift_allowance`; they are
+  erased with the giver's organisation, and so is the operator's number for each of its people,
+  unless that person is also in another organisation. The privacy policy says what is kept of a gift
+  (§4.4, *Gifts*), why and on what basis (§5), and for how long (§9), in place under 1.0, as the
+  owner read it; its words for a recommendation that lets its person in at once follow once the
+  lawyer has read them (0177, Q1).
 - **A person's own pages, step B: who sends the link, a link made after telling them, and *je* or
   *u* per person** (alpha.21; workplan 0176 step B, T3, T6, T7, T8; managed migrations 0067 and
   0068). A person's link page and progress page say who sent the link: the name the member gave,
@@ -131,29 +153,40 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   not say it extracted. A dispatch with `proof` reads a known-bad fixture as well, uploads nothing,
   and is red unless both of the fixture's queries report there. The pin watch holds every copy of
   `github/codeql-action` to one commit, and names the CodeQL bundle it ships.
+- **Four guards, and Schemathesis with a second identity against the running API** (workplan
+  0178 T1 to T4, T7 and T10; the owner's decisions D2 to D4 and D7 of 2026-11-26). Four
+  repository guards fail a pull request for what no scanner here held: HTML set as HTML
+  (`a-page-given-html-as-html`), query text built from a value (`sql-a-value-is-put-into`), a door
+  that is public in the code but not in the API's description, or the other way round
+  (`a-door-public-in-one-place-only`), and a credential or a mail address handed to the logger
+  (`a-secret-handed-to-the-logger`). Each lists the places that are fine, with the reason. Two
+  operations that were public on purpose, `POST /api/gifts/redeem` and `GET /api/scope-manifest`,
+  are now described so. `schemathesis.yml` tries the running API from its description, nightly on
+  `main` and on dispatch, on a GitHub-hosted runner, and blocks nothing yet; a known-bad fixture
+  runs first and must have both of its faults flagged. In the same run, signed in as a second
+  organisation's owner, it asks every secured operation that takes an id for the first
+  organisation's ids: each must refuse, report only, with its own known-bad proof.
 
 ### Changed
 
 - **A DAV reply is read a tag at a time** (workplan 0178 T6). The CalDAV, CardDAV and WebDAV
   readers, the archive store, the trash bin, the removals a sync report lists, the quota reply and a
   calendar's supported components pulled elements out of a server's reply with patterns of the
-  shape `<p:name[^>]*>…</p:name>`, whose time could grow much faster than the reply. They read it
-  now with `davElement` and the readers beside it in
-  `@openmig/shared` (`textsOf`, `firstTextOf`, `firstPlainTextOf`, `firstTextBeforeTag`), which find
-  what the patterns found on random replies made of whole tags, in time that grows with the reply.
+  shape `<p:name[^>]*>…</p:name>`. They read it now, in one pass, with `davElement` and the readers
+  beside it in `@openmig/shared` (`textsOf`, `firstTextOf`, `firstPlainTextOf`,
+  `firstTextBeforeTag`), which find what the patterns found on random replies made of whole tags.
   A Graph task's HTML body has its tags taken out the same way.
   `scripts/a-tag-read-by-a-pattern-that-backtracks.unit.test.ts` keeps the shipped code to them.
 
 - **A run of characters at the end of a text is read in one pass** (workplan 0178 T6). Paths,
-  hrefs, addresses, keys and messages were trimmed with patterns such as `/\/+$/`, whose time
-  grows with the square of a long run inside the text. They are read now by `withoutTrailing`,
-  `withoutLeading` and `withoutEither` in `@openmig/shared`, which answer the same on random texts,
-  in time that grows with the text. The same holds for the Graph mailbox address check and for
-  reading a calendar's supported components. `scripts/a-run-at-the-end-read-by-backtracking.unit.test.ts`
-  keeps the shipped code to them.
+  hrefs, addresses, keys and messages that were trimmed with patterns such as `/\/+$/` are read
+  now by `withoutTrailing`, `withoutLeading` and `withoutEither` in `@openmig/shared`, which give
+  the same answers on random texts. So are the Graph mailbox address check, the reading of a
+  calendar's supported components, and what comes before an XML error document's root.
+  `scripts/a-run-at-the-end-read-by-backtracking.unit.test.ts` keeps the shipped code to them.
 
 - **A gift is now a recommendation, and its code has a door of its own** (alpha.21; workplan
-  0177 step A, with the owner's D1 to D18). This changes the gift invitations above (0172). The
+  0177 step A, with the owner's D1 to D18). It is what 0172's gift, above, became. The
   free thing is a *recommendation* on every screen a person reads, and no sentence says what it
   is not. Its code lets its person in at once (D6), at a door of its own, `/code`; the card's
   old address `/redeem` and the request form's *I have a code* lead there too. The door asks one
@@ -302,6 +335,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A door that names an organisation or a migration refuses one that is not the caller's.**
+  `/api/tenants/{tenantId}` and every door under it, the members' doors included, acted on the
+  caller's own organisation whatever the path named: a member of two organisations, signed in to
+  the first, who renamed the second by its path renamed the first. Another organisation's id now
+  answers 403 (`Access denied to this tenant`), and `GET /api/migrations/{mappingId}/runs`
+  answers 404 for a migration that is not the caller's, as the migration's own door does, where
+  it gave an empty list.
+- **An id that is no UUID answers *not found*, and a text with a NUL byte answers 400, not a
+  server error.** An id in an API path that is no UUID answered 500; it now answers 404, as a row
+  that is not there does, before any handler runs and before the database is asked, and a guard
+  holds every route that takes an id to that. A string with a NUL byte (U+0000), in a body or in
+  the query, answers 400 before any handler, and nothing of it is echoed.
 - **Both Postgres builds take libxml2 2.13.9-r5, as Alpine's mirror no longer serves 2.13.9-r3**
   (workplan 0166 T3, the owner's D3: an exact `apk add`). From 2026-11-26 a build of the managed
   stack's database image or the appliance's, on a machine without it, stopped at that step: Alpine

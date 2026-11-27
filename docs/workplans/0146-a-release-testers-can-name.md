@@ -2,7 +2,71 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-25 (update this block at the end of every session)
+## Status — 2026-11-27 (update this block at the end of every session)
+
+**2026-11-27: the fold for `v0.2.0-alpha.21` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.21`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-27, under a summary; [Unreleased] stays, empty. alpha.21 carries what
+`main` merged after alpha.20's C, `70582df2`, the commit its tag names: 45 pull requests, merged
+from 2026-11-25 at 14:52 UTC to 2026-11-27 at 02:48 UTC. None came from Dependabot. Four entries'
+words change, so that the section says what alpha.21 ships as one: the gift invitations' (0172) now
+describe what stays of them under 0177's recommendation, which lets its person in at once, and
+0177's own entry says what they became; the two entries for reading in one pass (#2205, #2207) say
+what the code reads now, and #2203's change, which had no entry, joins #2205's. Three entries are
+new: #2199's and #2200's, which had none, under Fixed, and one for 0178's four guards, Schemathesis
+and its second identity (#2191, #2192, #2193), under Added.
+
+- workplan 0174, grant links for every account a person can grant: T1 to T6 on one branch
+  (#2167), the words around them, with the privacy text and the terms in place under 1.0 (T7,
+  #2163), the proofs and the managed smoke (T8, #2169), and a sign-in account saved for a person,
+  with a provider's error said plainly (§8.2, #2170);
+- workplan 0172, gift invitations (#2141), with the owner's words for a gift and a withdrawn
+  permission (#2171), and 0177, which makes them recommendations: the plan (#2179), the owner's
+  answers to D17 and D18 (#2186), step A (#2198), its door's three answers kept one size when one
+  wraps (#2210), and its words, read by the owner (#2206);
+- workplan 0176, a person's own pages: the plan (#2176), the owner's answers to D16 to D18
+  (#2182) and to D19 (#2195), step A (#2180), the one page and where the service runs (#2189),
+  step B's main line (#2196), and D19's words in the tester guide and the glossary (#2197); and
+  the pages a family member sees, a removed destination password among them (#2175);
+- deleting by hand without a switch (0173, #2158);
+- workplan 0178, what reads the code and what tries the running app: the plan (#2187), two
+  hardening changes (#2190), CodeQL, report only (T5, #2194), and after its first runs (#2202),
+  reading in one pass (T6: #2203, #2205, #2207), four guards (T1 to T4, #2191), Schemathesis
+  against the API, nightly, report only (T7, #2192), and a second identity at every door (T10,
+  #2193);
+- a door that names an organisation or a migration refuses one that is not the caller's
+  (#2200), and an id that is no UUID, or a text with a NUL byte, is answered without a server
+  error (#2199);
+- from an outside, read-only check: SBOM-1 read again against alpha.20's lists (0006 §T,
+  #2168), a fault in reading a password link's MX hosts logged (#2174), a test's failing reset
+  failing its case (ERR-1, #2177), and the deletion and relocation jobs on one run (CODE-3,
+  #2178);
+- the images: Debian's `libzstd1` fix for CVE-2026-124851 (0006 §U, IMG-5, #2172), and
+  libxml2 2.13.9-r5 in both Postgres builds (0166, #2184);
+- the managed smoke: only its own organisations' jobs (#2181), a job's organisation read from
+  its payload (#2201); and the app screen's pictures, which answer the address changes (0152 T3,
+  #2204);
+- the records: alpha.20's release (#2165), 0174's T7 to T9 and 0172's two privacy lines (#2173),
+  and live on alpha.20, with Trigger.dev's leftovers removed (0132, 0006 U and V, #2185);
+- a plan for alpha.22: Soverin, personal and Suite, on one card (0175, #2166).
+
+- **C and the freeze.** C is this fold's squash. From C until the tag only the nights' waiver
+  (#2208) merges to `main`, and only with the owner's words: what is still open goes into alpha.22.
+- **The nights.** Waived for alpha.21 by the owner on 2026-11-27, as for alpha.18 to alpha.20: *"I
+  waive all nights and waiting for 21"*. The waiver (#2208) carries the words, and merges after C.
+  In the nights' place: E2E (managed) and E2E (self-hosted) on Postgres and on PGlite, dispatched on
+  `main` at C, one at a time, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** C's checks, its push runs and its Windows smoke, the image scans, and the
+  three E2E lanes at C, one at a time; the waiver, merged; then the Release run, which the owner
+  starts from their own account, with `commit` set to C and `waive_nights` set to the reason in
+  their own words, and the approval in the `release` environment.
+- **Live's deploy** goes from alpha.20, which live runs since 2026-11-26 at 09:16:22 UTC. It is
+  **one-way** by the deploy's own rule: between alpha.20's C and this one, managed migrations 0064
+  to 0068 are added, and no ledger migration; the identity provider's pin is as it was. Both
+  Postgres builds take a new image, `localhost/postgres:18.7-alpine-188a4909a850` (#2184), so live's
+  database containers are made again from it in the hold. And `OWNPACE_COUNTRY` is set in live's
+  `.env` before the deploy, with the web image and the site built after it (#2189): without it,
+  live's home page names no country.
 
 **2026-11-25, afternoon: `v0.2.0-alpha.20` is released, its nights waived (T2, T4).** Read from
 GitHub on 2026-11-25. Times are UTC.
