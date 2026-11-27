@@ -304,12 +304,14 @@ jobs:
               });
             }
             (async () => {
-              const [jmap, imaps, selfhost, nextcloud] = await Promise.all([freePort(), freePort(), freePort(), freePort()]);
+              const [jmap, imaps, selfhost, nextcloud, upgrade] = await Promise.all([freePort(), freePort(), freePort(), freePort(), freePort()]);
               const lines = [
                 `STALWART_JMAP_PORT=${jmap}`,
                 `STALWART_IMAPS_PORT=${imaps}`,
                 `SELFHOST_PORT=${selfhost}`,
                 `DEV_NEXTCLOUD_PORT=${nextcloud}`,
+                // The upgrade gate's appliance (0179 T5), beside the one above.
+                `SELFHOST_UPGRADE_PORT=${upgrade}`,
               ];
               fs.appendFileSync(process.env.GITHUB_ENV, lines.join("\n") + "\n");
               console.log("Picked free ports:\n" + lines.join("\n"));
@@ -825,6 +827,88 @@ jobs:
       - name: Run Archive In-Target Gate (0116 T4 — the relay's route, read by byte range)
         run: pnpm test:e2e test/e2e/selfhost-archive-in-target-import.e2e.test.ts
 
+      # THE UPGRADE GATE (workplan 0179 T5; the maintainer's D2 (a) of
+      # 2026-11-27). The previous release's appliance, with data, upgraded in
+      # place to the build the gates above ran: its own compose project beside
+      # theirs (deploy/selfhost/compose.upgrade.yml), on the Postgres night and
+      # a Postgres dispatch only, and LAST, because its calendars and address
+      # books merge into the target accounts the gates above read.
+      #
+      # WHICH RELEASE, the same way every night: scripts/previous-release.mjs,
+      # the newest CHANGELOG.md release whose tag is published and is not this
+      # commit. Between releases that is the last one; on the tagged commit
+      # itself, the night after a release, it is the one before, so a build is
+      # never upgraded onto itself. Held by
+      # scripts/the-release-an-upgrade-starts-from.unit.test.ts.
+      #
+      # BY DIGEST, AND ONLY ONCE ITS SIGNATURE HOLDS. The tag is read once, for
+      # its index digest; from then on everything names the digest. Both
+      # `cosign verify` calls scripts/release-verify.mjs makes of a release:
+      # the exact identity of the tag's images.yml run, then the regexp the
+      # docs give operators (ADR-0040, either of the repository's names). The
+      # same cosign as images.yml, which signs what this checks.
+      - name: Install cosign (the upgrade gate's signature check)
+        if: env.SELFHOST_COMPOSE_OVERRIDE == ''
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: 'v3.1.4' # images.yml's, which signs what this checks
+
+      - name: The release the upgrade starts from, by digest and signature (0179 T5)
+        if: env.SELFHOST_COMPOSE_OVERRIDE == ''
+        run: |
+          set -euo pipefail
+          release="$(node scripts/previous-release.mjs)"
+          version="$(jq -r .version <<<"$release")"
+          image="$(jq -r .image <<<"$release")"
+          repo="${image%:*}"
+          path="${repo#ghcr.io/}"
+          echo "upgrading from ${version} ($(jq -r '.tag + " at " + .commit' <<<"$release"))"
+          skipped="$(jq -r '[.skipped[] | .version + ": " + .why] | join("; ")' <<<"$release")"
+          [ -z "$skipped" ] || echo "passed over: ${skipped}"
+          # GHCR's anonymous pull token, for the one read of the tag's digest.
+          token="$(curl -fsS "https://ghcr.io/token?scope=repository:${path}:pull" | jq -r .token)"
+          echo "::add-mask::${token}"
+          headers="$(curl -fsSI -H "Authorization: Bearer ${token}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://ghcr.io/v2/${path}/manifests/${version}")"
+          digest=""
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            if [[ ${line,,} =~ ^docker-content-digest:\ (sha256:[0-9a-f]{64})$ ]]; then
+              digest="${BASH_REMATCH[1]}"
+            fi
+          done <<<"$headers"
+          [ -n "$digest" ] || { echo "::error::${image} answered no index digest, so there is nothing to verify or pull"; exit 1; }
+          ref="${repo}@${digest}"
+          if [ "$repo" = "ghcr.io/robbes/ownpace-selfhost" ]; then
+            cosign verify "$ref" \
+              --certificate-identity "https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/tags/v${version}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+          fi
+          cosign verify "$ref" \
+            --certificate-identity-regexp '^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+          echo "${ref}: signed by the repository's images.yml for ${version}"
+          {
+            echo "UPGRADE_FROM_IMAGE=${ref}"
+            echo "UPGRADE_FROM_VERSION=${version}"
+          } >> "$GITHUB_ENV"
+
+      # The gate itself, on a port of its own: compose publishes the upgrade
+      # project's appliance on SELFHOST_PORT, and the helpers it shares with the
+      # gates above read the same name. UPGRADE_TO_IMAGE is the image the
+      # "Build + start" step built from this checkout.
+      - name: Run Upgrade Gate (0179 T5 — the previous release, with data, upgraded in place)
+        if: env.SELFHOST_COMPOSE_OVERRIDE == ''
+        env:
+          UPGRADE_TO_IMAGE: ghcr.io/robbes/ownpace-selfhost:edge
+        run: |
+          set -euo pipefail
+          started="$(date +%s)"
+          SELFHOST_PORT="$SELFHOST_UPGRADE_PORT" pnpm test:e2e test/e2e/selfhost-upgrade.e2e.test.ts
+          echo "the upgrade gate took $(( $(date +%s) - started ))s"
+
       - name: Appliance + Stalwart + Nextcloud diagnostics
         if: always()
         run: |
@@ -914,6 +998,10 @@ jobs:
         if: always()
         run: |
           docker compose $SELFHOST_COMPOSE_FILES down -v --remove-orphans || true
+          # The upgrade gate's own project (0179 T5), which its test takes down
+          # itself; again here for a run that stopped inside it.
+          UPGRADE_CONFIG_DIR=/nonexistent docker compose -p ownpace-upgrade-gate -f deploy/selfhost/compose.yml \
+            -f deploy/selfhost/compose.dev.yml -f deploy/selfhost/compose.upgrade.yml down -v --remove-orphans || true
           docker rm -f ownpace-dev-stalwart || true
           docker volume rm ownpace-dev-stalwart-data || true
           docker compose -f deploy/compose/dev.yml -f deploy/compose/dev.ci.yml down --remove-orphans || true
