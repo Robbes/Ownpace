@@ -178,12 +178,14 @@ describe('Real run-history endpoints', () => {
     expect(res.status).toBe(404);
   });
 
-  it('is RLS-scoped: tenant B sees none of tenant A runs', async () => {
+  it('is RLS-scoped: tenant B sees none of tenant A runs, and is told the migration is not found', async () => {
+    // Not an empty list: a migration that is not the caller's is not found,
+    // as at its own door (workplan 0178 T10's reading).
     const res = await request
       .get(`/api/migrations/${MAPPING}/runs`)
       .set('Authorization', `Bearer ${token(TENANT_B)}`);
-    expect(res.status).toBe(200);
-    expect(res.body.runs).toHaveLength(0);
+    expect(res.status).toBe(404);
+    expect(res.body.runs).toBeUndefined();
   });
 
   it('401s without a token', async () => {

@@ -25,6 +25,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 import { openFolderTree, type ArchiveTree } from './archive-tree.ts';
 import { openFileSource, type RandomAccessSource } from './zip-archive.ts';
+import { withoutTrailing } from '@openmig/shared';
 
 /** What a store found at a path. `size` is the file's, in bytes. */
 export type StoreEntry = { readonly kind: 'folder' } | { readonly kind: 'file'; readonly size: number } | { readonly kind: 'absent' };
@@ -48,14 +49,14 @@ export interface ArchiveStore {
 
 /** Folder and name of a `/`-separated store path. */
 export function splitStorePath(path: string): { readonly folder: string; readonly name: string } {
-  const trimmed = path.replace(/\/+$/, '');
+  const trimmed = withoutTrailing(path, '/');
   const at = trimmed.lastIndexOf('/');
   return at < 0 ? { folder: '', name: trimmed } : { folder: trimmed.slice(0, at), name: trimmed.slice(at + 1) };
 }
 
 /** `folder` and `name` joined in the store's spelling. */
 export function joinStorePath(folder: string, name: string): string {
-  return folder === '' ? name : `${folder.replace(/\/+$/, '')}/${name}`;
+  return folder === '' ? name : `${withoutTrailing(folder, '/')}/${name}`;
 }
 
 /**

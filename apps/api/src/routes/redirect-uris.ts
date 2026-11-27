@@ -38,10 +38,11 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { redirectUris } from '@openmig/shared';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 router.get('/', (_req: Request, res: Response) => {
   // Read per request, not at import: an operator who fixes API_URL and

@@ -77,7 +77,7 @@ const sealed = (creds: Record<string, string>) => JSON.stringify(SecretStore.enc
 
 /** One saved account, as the route reads it. */
 const account = (over: Record<string, unknown>) => ({
-  id: 'conn-1',
+  id: '6f0c0178-0000-4000-8000-00000000c001',
   tenantId: 'a-tenant',
   role: 'source',
   kind: 'google',
@@ -88,7 +88,7 @@ const account = (over: Record<string, unknown>) => ({
   ...over,
 });
 
-const folders = () => request(app).get('/api/connections/conn-1/folders');
+const folders = () => request(app).get('/api/connections/6f0c0178-0000-4000-8000-00000000c001/folders');
 
 const ENV = { id: process.env.GOOGLE_OAUTH_CLIENT_ID, secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET };
 

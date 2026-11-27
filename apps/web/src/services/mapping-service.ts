@@ -69,7 +69,17 @@ export const MemberSchema = z.object({
   origin: z.enum(['invited', 'requested']).optional(),
   invitedAt: z.string().nullish(),
   joinedAt: z.string().nullish(),
+  /**
+   * What the member says of themselves to the people they send a person's
+   * link to (workplan 0176 §7, T3): their name and their own number. Absent
+   * from a server before alpha.21's step B, and read as none.
+   */
+  displayName: z.string().nullish(),
+  phone: z.string().nullish(),
 });
+
+/** What `PUT /members/me` answers: the name and number stored now. */
+const SenderOfMyselfSchema = z.object({ displayName: z.string().nullable(), phone: z.string().nullable() });
 
 /**
  * What became of an invitation's mail (workplan 0156 T3), as the API says it:
@@ -675,6 +685,16 @@ export const memberApi = {
 
   remove: async (tenantId: string, memberId: string) => {
     await apiClient.delete(`/tenants/${tenantId}/members/${memberId}`);
+  },
+
+  /**
+   * Your own name and number, for the people you send a person's link to
+   * (workplan 0176 T3): yours only. A value left out is left; an empty one
+   * clears it. Answers what is stored now.
+   */
+  setMine: async (tenantId: string, body: { displayName?: string | null; phone?: string | null }) => {
+    const response = await apiClient.put(`/tenants/${tenantId}/members/me`, body);
+    return SenderOfMyselfSchema.parse(response.data);
   },
 };
 

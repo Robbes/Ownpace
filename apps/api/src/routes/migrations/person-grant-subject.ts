@@ -74,8 +74,10 @@ import {
   DISCOVERY_DOMAINS,
   GRANTED_TARGET_FACES,
   secretFieldKeys,
+  senderOnAPage,
   twoClientsAt,
   type Bilingual,
+  type SenderOnAPage,
   type DiscoveryDomain,
   type WizardTargetType,
 } from '@openmig/shared';
@@ -305,9 +307,10 @@ interface Group {
  * is not asked of them, so the organisation holds what opens it. The same
  * reading the destination's card is made from, so a destination is either a
  * card for the person or this, never both. A destination `targetGrantAsk`
- * cannot read says nothing: no line is better than a wrong one.
+ * cannot read says nothing: no line is better than a wrong one. The progress
+ * page says it by the same rule (`person-progress.ts`, workplan 0176 T6).
  */
-function isTheOrganisationsDestination(
+export function isTheOrganisationsDestination(
   rows: GrantRows,
   includedDomains: Parameters<typeof targetGrantAsk>[0]['includedDomains'],
   grantedByThem: ReadonlySet<string>,
@@ -593,6 +596,61 @@ export async function readPersonGrantSubject(
   });
 
   return { organisation, organisationPhone, accounts };
+}
+
+/**
+ * WHO SENT A PERSON'S LINK, AS THEIR PAGE NAMES THEM (workplan 0176 §7, T3 and
+ * T6; D11).
+ *
+ * The member who made the link: their sign-in address (`askedBy`, as before),
+ * and the sender as the page may show them, the name they gave and their own
+ * number, through the writer's own verdicts (`senderOnAPage`). Nothing of how
+ * the person knows them: the owner, 2026-11-26, reversing D7 (*"Does the
+ * relationship matter and need to be registered? I would like not to..."*).
+ *
+ * A progress link the ending handed over after a sign-in was made by nobody
+ * (`created_by` is `granted-by-link`). It speaks for the grant link the person
+ * signed in through (`made_from`, managed migration 0067), so the page names
+ * that link's member. A progress link a member made names that member.
+ *
+ * Both null when no member stands behind the link any more (removed, or a
+ * page made before 0067 from a grant): the page then names the organisation,
+ * as it did.
+ */
+export async function readPersonLinkSender(
+  db: PgDatabase,
+  tenantId: string,
+  linkId: string,
+): Promise<{ readonly askedBy: string | null; readonly sender: SenderOnAPage | null }> {
+  const none = { askedBy: null, sender: null } as const;
+  const [link] = await db
+    .select({ createdBy: personLink.createdBy, madeFrom: personLink.madeFrom })
+    .from(personLink)
+    .where(and(eq(personLink.id, linkId), eq(personLink.tenantId, tenantId)));
+  if (!link) return none;
+
+  // The link that speaks: the grant link a page was made from, or this one.
+  let speaker: string = link.createdBy;
+  if (link.madeFrom !== null) {
+    const [from] = await db
+      .select({ createdBy: personLink.createdBy })
+      .from(personLink)
+      .where(and(eq(personLink.id, link.madeFrom), eq(personLink.tenantId, tenantId)));
+    if (!from) return none;
+    speaker = from.createdBy;
+  }
+
+  const [member] = await db
+    .select({ email: tenantMember.email, name: tenantMember.displayName, phone: tenantMember.phone })
+    .from(tenantMember)
+    .where(and(eq(tenantMember.tenantId, tenantId), eq(tenantMember.userId, speaker)));
+  if (!member) return none;
+
+  const email = member.email.trim();
+  return {
+    askedBy: email === '' ? null : email,
+    sender: senderOnAPage({ name: member.name, phone: member.phone }),
+  };
 }
 
 /**

@@ -40,7 +40,7 @@ import type {
   TokenProvider,
   TrashListing,
 } from '@openmig/shared';
-import { DROPBOX_PAPER_POLICIES, fileVersion, log, markNeedsDecision, withFailureCategory } from '@openmig/shared';
+import { DROPBOX_PAPER_POLICIES, fileVersion, log, markNeedsDecision, withFailureCategory, withoutTrailing } from '@openmig/shared';
 import { fetchWithRateLimitRetry } from './http-rate-limit.ts';
 import type {
   DropboxEntry,
@@ -304,7 +304,7 @@ export class DropboxFileSource implements FileSource {
     // subfolder that does not exist, and every listing 409s with
     // path/not_found while a connection test rooted at '' sails past it.
     // The alias therefore means the whole account, exactly like ''.
-    const raw = (config.rootPath ?? '').trim().replace(/\/+$/, '');
+    const raw = withoutTrailing((config.rootPath ?? '').trim(), '/');
     const rootIsTheAccountItself = raw === '' || raw === '/' || /^\/?dropbox$/i.test(raw);
     this.rootPath = rootIsTheAccountItself ? '' : raw.startsWith('/') ? raw : `/${raw}`;
     // Refusing is the default (D1): of the two ways to be wrong, only "your

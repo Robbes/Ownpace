@@ -45,6 +45,8 @@ import {
   type Person,
   type PersonDeleted,
   type PersonRow,
+  type PersonVoice,
+  isPersonVoice,
 } from '@openmig/shared';
 import { person, personMigration, tenantMember } from './schema-managed.ts';
 
@@ -112,11 +114,12 @@ const personColumns = {
   email: person.email,
   createdAt: person.createdAt,
   userId: person.userId,
+  voice: person.voice,
 };
 
 /** The row as the answer carries it: `user_id` becomes `you`, and goes no further. */
 function personRow(
-  row: { id: string; displayName: string; email: string | null; createdAt: Date; userId: string | null },
+  row: { id: string; displayName: string; email: string | null; createdAt: Date; userId: string | null; voice: string | null },
   asking: Asking,
 ): PersonRow {
   return {
@@ -125,7 +128,38 @@ function personRow(
     email: row.email,
     createdAt: row.createdAt.toISOString(),
     you: asking !== undefined && row.userId === asking,
+    // Read through the list, as the migration's CHECK holds it (0176 T7).
+    voice: isPersonVoice(row.voice) ? row.voice : null,
   };
+}
+
+/**
+ * How a person's own pages speak to them, set where a member makes their link
+ * (workplan 0176 T7, D8 (a)), in the caller's tenant transaction: one of
+ * `PERSON_VOICES`, or null for unset. False when the organisation has no such
+ * person.
+ */
+export async function setPersonVoice(
+  db: PgDatabase,
+  tenantId: string,
+  personId: string,
+  voice: PersonVoice | null,
+): Promise<boolean> {
+  const set = await db
+    .update(person)
+    .set({ voice })
+    .where(and(eq(person.id, personId), eq(person.tenantId, tenantId)))
+    .returning({ id: person.id });
+  return set.length > 0;
+}
+
+/** How a person's own pages speak to them, or null when unset or the person is gone (0176 T7). */
+export async function readPersonVoice(db: PgDatabase, tenantId: string, personId: string): Promise<PersonVoice | null> {
+  const [row] = await db
+    .select({ voice: person.voice })
+    .from(person)
+    .where(and(eq(person.id, personId), eq(person.tenantId, tenantId)));
+  return isPersonVoice(row?.voice) ? row.voice : null;
 }
 
 /**

@@ -33,16 +33,30 @@
  */
 
 import type { RefusalLocale } from './credential-refusals.ts';
+import type { Register } from './voice.ts';
 
-/** One sentence, in both languages. */
+/**
+ * One sentence, in both languages, and for a person's own pages its Dutch
+ * with *je* (workplan 0176 T7, §11): a person whose pages say *je* reads the
+ * server's sentences with *je* too. Only a sentence a person's link can meet
+ * needs one, and only where its Dutch says *u* or *uw*; without one, the
+ * formal half is said, which `every-server-u-has-its-je.unit.test.ts` keeps
+ * from happening on a person's link.
+ */
 export interface Bilingual {
   readonly en: string;
   readonly nl: string;
+  readonly nlJe?: string;
 }
 
-/** The half a reader asked for. */
-export function inLocale(text: Bilingual, locale: RefusalLocale): string {
-  return locale === 'nl' ? text.nl : text.en;
+/** The Dutch a reader in this register reads: the *je* twin where there is one. */
+function dutchFor(text: Bilingual, register: Register | undefined): string {
+  return register === 'informal' && text.nlJe !== undefined ? text.nlJe : text.nl;
+}
+
+/** The half a reader asked for, in their register on a person's own pages (0176 T7). */
+export function inLocale(text: Bilingual, locale: RefusalLocale, register?: Register): string {
+  return locale === 'nl' ? dutchFor(text, register) : text.en;
 }
 
 /**
@@ -54,15 +68,20 @@ export function localeOf(raw: unknown): RefusalLocale {
   return raw === 'nl' ? 'nl' : 'en';
 }
 
-/** A pair as a JSON answer carries it: `reason` as before, and `reasonNl` beside it. */
-export function reasonPair(text: Bilingual): { readonly reason: string; readonly reasonNl: string } {
-  return { reason: text.en, reasonNl: text.nl };
+/**
+ * A pair as a JSON answer carries it: `reason` as before, and `reasonNl`
+ * beside it, in the register of the person whose link it answers, when the
+ * route knows it (0176 T7).
+ */
+export function reasonPair(text: Bilingual, register?: Register): { readonly reason: string; readonly reasonNl: string } {
+  return { reason: text.en, reasonNl: dutchFor(text, register) };
 }
 
 /** Said at the end of every sentence whose remedy is somebody else's. */
 const TELL = {
   en: 'please tell the person who sent you the link.',
   nl: 'laat het de persoon weten die u de link stuurde.',
+  nlJe: 'laat het de persoon weten die je de link stuurde.',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -206,6 +225,7 @@ export const EXCHANGE_FOR_THE_LINK_HOLDER = {
   unreachable: {
     en: 'Google could not be reached just now, so your permission did not arrive.',
     nl: 'Google was zojuist niet bereikbaar, dus uw toestemming is niet aangekomen.',
+    nlJe: 'Google was zojuist niet bereikbaar, dus je toestemming is niet aangekomen.',
   },
   refused: {
     en:
@@ -238,6 +258,9 @@ export const EXCHANGE_FOR_THE_LINK_HOLDER = {
     nl:
       'Google wilde geen blijvende toegang tot dit account geven. Meestal staat de beheerder ' +
       'van het account dat niet toe. Laat het de persoon weten die u de link stuurde.',
+    nlJe:
+      'Google wilde geen blijvende toegang tot dit account geven. Meestal staat de beheerder ' +
+      'van het account dat niet toe. Laat het de persoon weten die je de link stuurde.',
   },
 } as const satisfies Readonly<Record<string, Bilingual>>;
 
@@ -252,6 +275,7 @@ export function stoppedAtGoogle(said: string): Bilingual {
   return {
     en: `Google stopped before permission was given, and said "${said}". Please tell the person who sent you the link.`,
     nl: `Google stopte voordat er toestemming was gegeven, en meldde "${said}". Laat het de persoon weten die u de link stuurde.`,
+    nlJe: `Google stopte voordat er toestemming was gegeven, en meldde "${said}". Laat het de persoon weten die je de link stuurde.`,
   };
 }
 
@@ -259,6 +283,7 @@ export function stoppedAtGoogle(said: string): Bilingual {
 export const NOTHING_CAME_BACK: Bilingual = {
   en: 'Google sent nothing back, so your permission did not arrive.',
   nl: 'Google stuurde niets terug, dus uw toestemming is niet aangekomen.',
+  nlJe: 'Google stuurde niets terug, dus je toestemming is niet aangekomen.',
 };
 
 /** Our own fault while storing: the claim rolled back with it. */
@@ -271,6 +296,10 @@ export const NOT_KEPT: Bilingual = {
     'Uw toestemming is gegeven, maar bij ons ging er iets mis met het opslaan, dus die is niet ' +
     'bewaard. Er is nog niets verbonden. Laat het de persoon weten die u de link stuurde; dit ' +
     'moeten wij oplossen, niet u.',
+  nlJe:
+    'Je toestemming is gegeven, maar bij ons ging er iets mis met het opslaan, dus die is niet ' +
+    'bewaard. Er is nog niets verbonden. Laat het de persoon weten die je de link stuurde; dit ' +
+    'moeten wij oplossen, niet jij.',
 };
 
 /**
@@ -308,6 +337,9 @@ export function unconfirmedAccount(named: string): Bilingual {
     nl:
       `Google heeft niet bevestigd met welk account u bent ingelogd, dus dat kon niet worden ` +
       `vergeleken met ${named}. Open uw link opnieuw en log in als ${named}.`,
+    nlJe:
+      `Google heeft niet bevestigd met welk account je bent ingelogd, dus dat kon niet worden ` +
+      `vergeleken met ${named}. Open je link opnieuw en log in als ${named}.`,
   };
 }
 
@@ -362,6 +394,9 @@ export function unconfirmedAccountAt(provider: string, named: string): Bilingual
     nl:
       `${name} heeft niet bevestigd met welk account u bent ingelogd, dus dat kon niet worden ` +
       `vergeleken met ${named}. Er is niets opgeslagen. Open uw link opnieuw en log in als ${named}.`,
+    nlJe:
+      `${name} heeft niet bevestigd met welk account je bent ingelogd, dus dat kon niet worden ` +
+      `vergeleken met ${named}. Er is niets opgeslagen. Open je link opnieuw en log in als ${named}.`,
   };
 }
 
@@ -380,6 +415,9 @@ export function anotherAccountAt(provider: string, signedInAs: string, named: st
     nl:
       `U meldde zich aan als ${signedInAs}; deze link is voor ${named}. Er is niets opgeslagen. ` +
       `Meld u in deze browser af bij ${name} en gebruik de link opnieuw.`,
+    nlJe:
+      `Je meldde je aan als ${signedInAs}; deze link is voor ${named}. Er is niets opgeslagen. ` +
+      `Meld je in deze browser af bij ${name} en gebruik de link opnieuw.`,
   };
 }
 
@@ -392,6 +430,7 @@ export function stoppedAtProvider(provider: string, said: string): Bilingual {
   return {
     en: `${name} stopped before permission was given, and said "${said}". Please tell the person who sent you the link.`,
     nl: `${name} stopte voordat er toestemming was gegeven, en meldde "${said}". Laat het de persoon weten die u de link stuurde.`,
+    nlJe: `${name} stopte voordat er toestemming was gegeven, en meldde "${said}". Laat het de persoon weten die je de link stuurde.`,
   };
 }
 
@@ -401,6 +440,7 @@ export function nothingCameBackFrom(provider: string): Bilingual {
   return {
     en: `${name} sent nothing back, so your permission did not arrive.`,
     nl: `${name} stuurde niets terug, dus uw toestemming is niet aangekomen.`,
+    nlJe: `${name} stuurde niets terug, dus je toestemming is niet aangekomen.`,
   };
 }
 
@@ -418,6 +458,9 @@ export function exchangeRefusedAt(provider: string): Bilingual {
     nl:
       `${name} accepteerde de aanmelding niet toen die terugkwam, dus uw toestemming is niet ` +
       `aangekomen. Open uw link opnieuw; gebeurt het weer, ${TELL.nl}`,
+    nlJe:
+      `${name} accepteerde de aanmelding niet toen die terugkwam, dus je toestemming is niet ` +
+      `aangekomen. Open je link opnieuw; gebeurt het weer, ${TELL.nlJe}`,
   };
 }
 
@@ -437,6 +480,9 @@ export function twoClientsAt(provider: string): Bilingual {
     nl:
       `Het kopiëren uit dit account is ingesteld met twee verschillende ${name}-applicaties, dus ` +
       'één aanmelding kan ze niet allebei bedienen. Vraag degene die u deze link stuurde om het met één in te stellen.',
+    nlJe:
+      `Het kopiëren uit dit account is ingesteld met twee verschillende ${name}-applicaties, dus ` +
+      'één aanmelding kan ze niet allebei bedienen. Vraag degene die je deze link stuurde om het met één in te stellen.',
   };
 }
 
@@ -455,6 +501,7 @@ export function twoClientsAt(provider: string): Bilingual {
 export const PERSON_PAGE_GONE: Bilingual = {
   en: `This page no longer exists, so there is nothing to show. Nothing you can do from here will fix that; ${TELL.en}`,
   nl: `Deze pagina bestaat niet meer, dus er valt niets te tonen. U kunt dat vanaf hier niet oplossen; ${TELL.nl}`,
+  nlJe: `Deze pagina bestaat niet meer, dus er valt niets te tonen. Je kunt dat vanaf hier niet oplossen; ${TELL.nlJe}`,
 };
 
 /** `notReady`, for an account on a person's link: the account, not a migration. */
@@ -462,6 +509,7 @@ export function accountNotReady(what: Bilingual): Bilingual {
   return {
     en: `This account is not ready to be connected — ${what.en}. Nothing you can do from here will fix that; ${TELL.en}`,
     nl: `Dit account is nog niet klaar om te verbinden: ${what.nl}. U kunt dat vanaf hier niet oplossen; ${TELL.nl}`,
+    nlJe: `Dit account is nog niet klaar om te verbinden: ${what.nlJe ?? what.nl}. Je kunt dat vanaf hier niet oplossen; ${TELL.nlJe}`,
   };
 }
 
@@ -478,6 +526,9 @@ export function cannotSignInYetOnAPersonsLink(provider: string, detail: string):
     nl:
       `Deze link kan nog geen ${name}-aanmelding gebruiken, door de manier waarop de server ` +
       `bereikbaar is. Stuur dit door naar de persoon die u de link stuurde: ${detail}`,
+    nlJe:
+      `Deze link kan nog geen ${name}-aanmelding gebruiken, door de manier waarop de server ` +
+      `bereikbaar is. Stuur dit door naar de persoon die je de link stuurde: ${detail}`,
   };
 }
 
@@ -491,6 +542,9 @@ export const EXCHANGE_FOR_A_PERSONS_LINK = {
     nl:
       'Google heeft de app geweigerd waarmee deze link werkt, dus uw toestemming is niet ' +
       `aangekomen. U kunt dat vanaf hier niet oplossen; ${TELL.nl}`,
+    nlJe:
+      'Google heeft de app geweigerd waarmee deze link werkt, dus je toestemming is niet ' +
+      `aangekomen. Je kunt dat vanaf hier niet oplossen; ${TELL.nlJe}`,
   },
   scope_missing: {
     en:
@@ -498,6 +552,9 @@ export const EXCHANGE_FOR_A_PERSONS_LINK = {
       'again and leave every one of them ticked.',
     nl:
       'Bij Google zijn enkele toestemmingen die deze link vraagt niet aangevinkt. Open uw link ' +
+      'opnieuw en laat ze allemaal aangevinkt.',
+    nlJe:
+      'Bij Google zijn enkele toestemmingen die deze link vraagt niet aangevinkt. Open je link ' +
       'opnieuw en laat ze allemaal aangevinkt.',
   },
 } as const satisfies Readonly<Record<keyof typeof EXCHANGE_FOR_THE_LINK_HOLDER, Bilingual>>;
@@ -510,6 +567,9 @@ export const NO_NAMED_ACCOUNT_ON_A_PERSONS_LINK: Bilingual = {
   nl:
     'Deze link noemt niet langer welk Google-account wordt gelezen, dus uw toestemming kon niet ' +
     'met dat account worden vergeleken. Laat het de persoon weten die u de link stuurde.',
+  nlJe:
+    'Deze link noemt niet langer welk Google-account wordt gelezen, dus je toestemming kon niet ' +
+    'met dat account worden vergeleken. Laat het de persoon weten die je de link stuurde.',
 };
 
 /** `noNamedAccountAt`, on a person's link. */
@@ -522,6 +582,9 @@ export function noNamedAccountOnAPersonsLinkAt(provider: string): Bilingual {
     nl:
       `Deze link noemt niet langer welk ${name}-account wordt gelezen, dus uw toestemming kon niet ` +
       'met dat account worden vergeleken. Laat het de persoon weten die u de link stuurde.',
+    nlJe:
+      `Deze link noemt niet langer welk ${name}-account wordt gelezen, dus je toestemming kon niet ` +
+      'met dat account worden vergeleken. Laat het de persoon weten die je de link stuurde.',
   };
 }
 
@@ -538,6 +601,9 @@ export function anotherAccountOnAPersonsLink(provider: string, signedInAs: strin
       `again and choose ${named} at Google.`,
     nl:
       `U bent bij Google ingelogd als ${signedInAs}, maar deze link is voor ${named}. Open uw link ` +
+      `opnieuw en kies ${named} bij Google.`,
+    nlJe:
+      `Je bent bij Google ingelogd als ${signedInAs}, maar deze link is voor ${named}. Open je link ` +
       `opnieuw en kies ${named} bij Google.`,
   };
 }

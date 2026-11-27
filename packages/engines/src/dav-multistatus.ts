@@ -17,7 +17,7 @@
  * package.
  */
 
-import { elementsIn, namesElement, type XmlElement } from '@openmig/shared';
+import { elementsIn, namesElement, type XmlElement, withoutTrailing } from '@openmig/shared';
 
 /** One <response> element of a 207 Multi-Status body. */
 export interface MultiStatusResponse {
@@ -108,8 +108,8 @@ export function hrefRelativeTo(href: string, baseUrl: string): string | undefine
     ? new URL(decoded).pathname
     : decoded;
 
-  const basePath = new URL(baseUrl).pathname.replace(/\/+$/, '');
-  const normalizedHref = hrefPath.replace(/\/+$/, '');
+  const basePath = withoutTrailing(new URL(baseUrl).pathname, '/');
+  const normalizedHref = withoutTrailing(hrefPath, '/');
 
   if (basePath === '' || basePath === '/') {
     return normalizedHref.replace(/^\/+/, '');

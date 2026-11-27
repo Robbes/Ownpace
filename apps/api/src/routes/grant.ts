@@ -27,6 +27,13 @@
  * anything about other mappings, or anything about the organisation beyond its
  * name.
  *
+ * Since workplan 0176 step B (T3) a person's link also says **who that member
+ * is to them**: `sender`, the name the member gave as the people they send a
+ * link to know them, how the person knows them (a fixed list, D7), and their
+ * own number (D11), each the member's own to give and each held to a shape
+ * (`@openmig/shared`'s `sender.ts`). `askedBy` stays the address beside it, so
+ * a page a release behind still reads it.
+ *
  * ## From is a condition, not a label
  *
  * Since T8 (b) (the owner, 2026-09-23: *"bind to the account the page already
@@ -78,6 +85,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../an-id-that-is-no-uuid.ts';
 import type { RequestHandler, Response } from 'express';
 import {
   CIRRUX_DRIVE_SCOPES,
@@ -90,17 +98,22 @@ import {
   cannotSignInYetOnAPersonsLink,
   dropboxDeploymentClient,
   googleDeploymentClient,
+  languageOf,
   localeOf,
   microsoftDeploymentClient,
   microsoftTenant,
   notReady as notReadyBecause,
   reasonPair,
+  registerOf,
   type Bilingual,
   type DiscoveryDomain,
+  type Register,
+  withoutTrailing,
 } from '@openmig/shared';
-import { readLinkAddressChanges } from '@openmig/managed';
+import { readLinkAddressChanges, readPersonVoice } from '@openmig/managed';
 import { authenticateGrantLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
+import { registerOfPerson } from '../person-register.ts';
 import { answerAddressChangeThroughLink } from './link-address-changes.ts';
 import { passwordLimit, passwordLimiter, passwordThroughLink } from './grant-password.ts';
 import { serverAgainstAddress } from './grant-server-domain.ts';
@@ -127,7 +140,7 @@ import {
 } from './migrations/grant-subject.ts';
 import {
   readPersonGrantSubject,
-  readPersonLinkAskedBy,
+  readPersonLinkSender,
   type PersonGrantSubject,
 } from './migrations/person-grant-subject.ts';
 import { sameNamedAccount } from './migrations/signed-in-account.ts';
@@ -138,7 +151,7 @@ import {
   type GrantProviderId,
 } from './grant-providers.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
 function pool() {
@@ -165,19 +178,24 @@ const linkAuth: RequestHandler = (req, res, next) =>
 /**
  * When none of a person's migrations can be granted through their link (0153
  * T5 (b)): each migration's own reason was the owner's to hear when issuing.
- * This reader can act on none of them, so it says whom to tell.
+ * This reader can act on none of them, so it says whom to tell. A person's
+ * page says no form of *migreren* (workplan 0176 D1), and English follows its
+ * Dutch; with *je* for a person whose pages say *je* (T7, §11).
  */
-const NOTHING_TO_GRANT: Bilingual = {
+export const NOTHING_TO_GRANT: Bilingual = {
   en:
-    'None of the migrations this link is for can be connected through it yet. Nothing you can do ' +
-    'from here will fix that; please tell the person who sent you the link.',
+    'Nothing on this link can be connected yet. Nothing you can do from here will fix that; ' +
+    'please tell the person who sent you the link.',
   nl:
-    'Geen van de migraties waarvoor deze link is, kan er al mee worden verbonden. U kunt dat vanaf ' +
-    'hier niet oplossen; laat het de persoon weten die u de link stuurde.',
+    'Op deze link staat nog niets wat kan worden verbonden. U kunt dat vanaf hier niet oplossen; ' +
+    'laat het de persoon weten die u de link stuurde.',
+  nlJe:
+    'Op deze link staat nog niets wat kan worden verbonden. Je kunt dat vanaf hier niet oplossen; ' +
+    'laat het de persoon weten die je de link stuurde.',
 };
 
 /** When the button named an account this person's link does not ask for. */
-const NOT_THIS_ACCOUNT: Bilingual = {
+export const NOT_THIS_ACCOUNT: Bilingual = {
   en: 'This link does not ask for that account. Open the link again and choose an account it lists.',
   nl: 'Deze link vraagt niet om dat account. Open de link opnieuw en kies een account dat erop staat.',
 };
@@ -193,7 +211,7 @@ function asksAgainFor(link: PersonLink, account: PersonGrantSubject['accounts'][
 }
 
 /** When the account the button named is already connected, and not asked for again. */
-const ALREADY_GRANTED: Bilingual = {
+export const ALREADY_GRANTED: Bilingual = {
   en: 'This account is already connected. Nothing more is needed for it.',
   nl: 'Dit account is al verbonden. Er is niets meer voor nodig.',
 };
@@ -286,12 +304,12 @@ export function linkClient(
 
 /** The address a provider must redirect to: the SAME one the owner registered for it. */
 function callbackFor(req: MappingLinkRequest, provider: GrantProviderId): string {
-  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const base = withoutTrailing(process.env.API_URL ?? `${req.protocol}://${req.get('host')}`, '/');
   return `${base}/api/migrations/${provider}/callback`;
 }
 
 /** When the button named a provider this link does not ask for. */
-const NOT_THIS_PROVIDER: Bilingual = {
+export const NOT_THIS_PROVIDER: Bilingual = {
   en: 'This link asks for another kind of account. Open the link again and use the button it shows.',
   nl: 'Deze link vraagt om een ander soort account. Open de link opnieuw en gebruik de knop die erop staat.',
 };
@@ -371,10 +389,16 @@ function readPersonSubject(link: PersonLink): Promise<PersonGrantSubject | null>
  */
 async function answerForAPerson(res: Response, link: PersonLink): Promise<void> {
   if (await refusedAsClosed(res, link.tenantId, pool())) return;
+  // How the person's pages speak to them (0176 T7): the page is told, and the
+  // server says its own Dutch in that register.
+  const voice = await withTenantDb(link.tenantId, pool(), (db) => readPersonVoice(db, link.tenantId, link.personId));
+  const register = registerOf(voice);
   const subject = await readPersonSubject(link);
-  if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT) });
-  const { askedBy, checkedCompany, addressChanges } = await withTenantDb(link.tenantId, pool(), async (db) => ({
-    askedBy: await readPersonLinkAskedBy(db, link.tenantId, link.linkId),
+  if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT, register) });
+  const { sent, checkedCompany, addressChanges } = await withTenantDb(link.tenantId, pool(), async (db) => ({
+    // Who sent it (workplan 0176 §7, T3): the member's address, as before,
+    // and the name and own number the page shows of them.
+    sent: await readPersonLinkSender(db, link.tenantId, link.linkId),
     checkedCompany: await readCheckedCompany(db, link.tenantId),
     // Their own rows of the address changes, to confirm or send back here
     // (0168 §4.4, D6): the rows linked to this person, and nobody else's.
@@ -389,7 +413,10 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
     kind: 'person',
     organisation: subject.organisation,
     checkedCompany,
-    askedBy,
+    askedBy: sent.askedBy,
+    // The name the member gave, how the person knows them, and their own
+    // number; the page shows the organisation's where they gave none (D11).
+    sender: sent.sender,
     organisationPhone: subject.organisationPhone,
     accounts: subject.accounts.map((a, i) => ({
       // The card's name on the page and in the password route (workplan 0174
@@ -417,7 +444,7 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
         ? a.ask.way === 'sign-in'
           ? { domains: a.ask.domains, scope: a.ask.scope, readOnlyAtProvider: a.ask.readOnlyAtProvider, notReady: null }
           : { domains: a.ask.domains, scope: null, readOnlyAtProvider: false, notReady: null }
-        : { domains: [], scope: null, readOnlyAtProvider: false, notReady: reasonPair(a.ask.reason) }),
+        : { domains: [], scope: null, readOnlyAtProvider: false, notReady: reasonPair(a.ask.reason, register) }),
       // For a source, where each goes; for a destination, where each comes from.
       // And whether the organisation can open the copy too (change 3 of the owner's decisions of 2026-11-26).
       migrations: a.migrations.map((m) => ({
@@ -430,6 +457,11 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
     })),
     expiresAt: link.expiresAt.toISOString(),
     addressChanges,
+    // The language and register the member chose for the person (0176 T7):
+    // the page reads its informal layer for `informal`, and takes `language`
+    // until the reader picks another. Null language is the browser's.
+    language: languageOf(voice),
+    register,
   });
 }
 
@@ -440,7 +472,7 @@ async function answerForAPerson(res: Response, link: PersonLink): Promise<void> 
  * the deployment names no web address; the ending then offers no button.
  */
 function grantPageBack(req: PersonLinkRequest): { backUrl?: string } {
-  const base = process.env.WEB_URL?.replace(/\/+$/, '');
+  const base = process.env.WEB_URL === undefined ? undefined : withoutTrailing(process.env.WEB_URL, '/');
   const token = req.params.link;
   return base && typeof token === 'string' && token !== '' ? { backUrl: `${base}/grant/${encodeURIComponent(token)}` } : {};
 }
@@ -459,12 +491,15 @@ async function authorizeForAPerson(
 ): Promise<void> {
   if (await refusedAsClosed(res, link.tenantId, pool())) return;
   const asked = (req.body as { account?: unknown } | undefined)?.account;
+  // The person's register (0176 T7): every refusal below says it, and the
+  // pending consent keeps it, so the ending after the sign-in says it too.
+  const register = await registerOfPerson(pool(), link.tenantId, link.personId);
   const subject = await readPersonSubject(link);
-  if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT) });
+  if (!subject) return void res.status(409).json({ error: 'not_ready', ...reasonPair(NOTHING_TO_GRANT, register) });
   // A destination's sign-in (Cirrux Drive, workplan 0174 §4.4, T5): its own
   // beginning, the card named by its ref.
   if ((GRANT_PROVIDERS[provider]?.targetKinds.size ?? 0) > 0) {
-    return void (await authorizeTargetForAPerson(req, res, link, provider, subject));
+    return void (await authorizeTargetForAPerson(req, res, link, provider, subject, register));
   }
   // The account the button named, at the provider the button named: the same
   // address at Google and at Microsoft is two accounts (workplan 0171).
@@ -478,16 +513,16 @@ async function authorizeForAPerson(
             sameNamedAccount(provider, a.account, asked),
         )
       : undefined;
-  if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
+  if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT, register) });
   if (account.granted && !asksAgainFor(link, account)) {
-    return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED) });
+    return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED, register) });
   }
   if (!account.ask.ok) {
-    return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason) });
+    return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason, register) });
   }
   // A sign-in source, found above; the type learns it here.
   if (account.ask.way !== 'sign-in') {
-    return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
+    return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT, register) });
   }
 
   // WHOSE client, as decided, the values read only now.
@@ -496,16 +531,21 @@ async function authorizeForAPerson(
     return void res.status(409).json({
       error: 'not_ready',
       // A person's link says the account, never a migration (workplan 0176 D1, §21.3).
-      ...reasonPair(accountNotReady(forTheLinkHolder(provider).client_not_configured)),
+      ...reasonPair(accountNotReady(forTheLinkHolder(provider).client_not_configured), register),
     });
   }
 
   const redirectUri = callbackFor(req, provider);
   const ipRefusal = rawIpCallbackRefusal(redirectUri);
-  if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, ipRefusal)) });
+  if (ipRefusal) {
+    return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, ipRefusal), register) });
+  }
   const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
   if (unreachable) {
-    return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, unreachable)) });
+    return void res.status(409).json({
+      error: 'unreachable_callback',
+      ...reasonPair(cannotSignInYetOnAPersonsLink(provider, unreachable), register),
+    });
   }
 
   const locale = localeOf((req.body as { locale?: unknown } | undefined)?.locale);
@@ -524,11 +564,12 @@ async function authorizeForAPerson(
       account: account.account,
       mappingIds: account.migrations.map((m) => m.mappingId),
       ...grantPageBack(req),
+      register,
     },
     locale,
   });
   const begin = GRANT_PROVIDERS[provider]?.consentUrl;
-  if (!begin) return void res.status(409).json({ error: 'not_this_provider', ...reasonPair(NOT_THIS_PROVIDER) });
+  if (!begin) return void res.status(409).json({ error: 'not_this_provider', ...reasonPair(NOT_THIS_PROVIDER, register) });
   res.json({
     url: begin({
       account: account.account,
@@ -557,32 +598,38 @@ async function authorizeTargetForAPerson(
   link: PersonLink,
   provider: GrantProviderId,
   subject: PersonGrantSubject,
+  register: Register,
 ): Promise<void> {
   const ref = (req.body as { ref?: unknown } | undefined)?.ref;
   const account =
     typeof ref === 'string'
       ? subject.accounts.find((a) => a.ref === ref && a.role === 'target' && a.way === 'sign-in' && a.provider === provider)
       : undefined;
-  if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT) });
+  if (!account) return void res.status(409).json({ error: 'not_this_account', ...reasonPair(NOT_THIS_ACCOUNT, register) });
   if (account.granted && !asksAgainFor(link, account)) {
-    return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED) });
+    return void res.status(409).json({ error: 'already_granted', ...reasonPair(ALREADY_GRANTED, register) });
   }
-  if (!account.ask.ok) return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason) });
+  if (!account.ask.ok) return void res.status(409).json({ error: 'not_ready', ...reasonPair(account.ask.reason, register) });
   const client = provider === 'cirrux' ? cirruxDeploymentClient() : null;
   const begin = GRANT_PROVIDERS[provider]?.consentUrl;
   const connectionId = account.ask.way === 'sign-in' ? account.ask.connectionId : undefined;
   if (!client || !begin || !connectionId) {
     return void res.status(409).json({
       error: 'not_ready',
-      ...reasonPair(accountNotReady(FOR_THE_LINK_HOLDER.client_not_configured)),
+      ...reasonPair(accountNotReady(FOR_THE_LINK_HOLDER.client_not_configured), register),
     });
   }
   const redirectUri = callbackFor(req, provider);
   const ipRefusal = rawIpCallbackRefusal(redirectUri);
-  if (ipRefusal) return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, ipRefusal)) });
+  if (ipRefusal) {
+    return void res.status(409).json({ error: 'raw_ip_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, ipRefusal), register) });
+  }
   const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
   if (unreachable) {
-    return void res.status(409).json({ error: 'unreachable_callback', ...reasonPair(cannotSignInYetOnAPersonsLink(provider, unreachable)) });
+    return void res.status(409).json({
+      error: 'unreachable_callback',
+      ...reasonPair(cannotSignInYetOnAPersonsLink(provider, unreachable), register),
+    });
   }
   const locale = localeOf((req.body as { locale?: unknown } | undefined)?.locale);
   const { verifier, challenge } = pkcePair();
@@ -601,6 +648,7 @@ async function authorizeTargetForAPerson(
       personId: link.personId,
       account: account.account,
       mappingIds: account.migrations.map((m) => m.mappingId),
+      register,
     },
   });
   res.json({

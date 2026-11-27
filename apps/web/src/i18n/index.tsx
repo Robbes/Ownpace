@@ -9,7 +9,9 @@
  */
 
 import React from 'react';
+import type { Register } from '@openmig/shared';
 import { STRINGS, type Locale, type StringKey } from './strings.ts';
+import { NL_JE } from './informal.ts';
 import { OPERATOR_STRINGS, type OperatorKey } from './operator-strings.ts';
 import {
   formatRelativeToNow,
@@ -21,7 +23,7 @@ import {
   formatCurrency,
   formatList,
 } from './datetime.ts';
-import { publishLocale } from './active-locale.ts';
+import { publishLocale, publishRegister } from './active-locale.ts';
 import { fill, type TemplateVars } from './fill.ts';
 
 const STORAGE_KEY = 'ownpace.locale';
@@ -41,7 +43,8 @@ const STORAGE_KEY = 'ownpace.locale';
  */
 const LEGACY_STORAGE_KEY = 'openmig.locale';
 
-export function detectLocale(): Locale {
+/** The language a reader picked with the switch, kept in this browser; null when they never did. */
+function pickedLocale(): Locale | null {
   try {
     const stored =
       window.localStorage.getItem(STORAGE_KEY) ??
@@ -50,7 +53,11 @@ export function detectLocale(): Locale {
   } catch {
     // Storage unavailable (private mode, embedded) — fall through to detection.
   }
-  return navigator.language?.toLowerCase().startsWith('nl') ? 'nl' : 'en';
+  return null;
+}
+
+export function detectLocale(): Locale {
+  return pickedLocale() ?? (navigator.language?.toLowerCase().startsWith('nl') ? 'nl' : 'en');
 }
 
 interface LocaleContextValue {
@@ -61,8 +68,17 @@ interface LocaleContextValue {
 
 const LocaleContext = React.createContext<LocaleContextValue | null>(null);
 
+/**
+ * A language offered for the screen, which it takes unless the reader picked
+ * one with the switch (`InTheirVoice`). Null outside a provider.
+ */
+const OfferLocaleContext = React.createContext<((locale: Locale) => void) | null>(null);
+
 export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [locale, setLocaleState] = React.useState<Locale>(detectLocale);
+  // Whether the reader picked a language with the switch in this visit, for
+  // a browser that keeps nothing (private mode): their pick wins there too.
+  const picked = React.useRef(false);
 
   // For the words chosen outside React (`active-locale.ts`). During render,
   // not in an effect: a parent renders before its children, and a child that
@@ -85,12 +101,21 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [locale]);
 
   const setLocale = React.useCallback((next: Locale) => {
+    picked.current = true;
     setLocaleState(next);
     try {
       window.localStorage.setItem(STORAGE_KEY, next);
     } catch {
       // Not persisting is acceptable; the session keeps the chosen locale.
     }
+  }, []);
+
+  // Taken, never kept: an offer is the page's, and the next page of this
+  // browser, the member's own screens among them, starts from the reader's
+  // pick or the browser's language again.
+  const offer = React.useCallback((next: Locale) => {
+    if (picked.current || pickedLocale() !== null) return;
+    setLocaleState(next);
   }, []);
 
   const t = React.useCallback(
@@ -100,7 +125,11 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const value = React.useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
 
-  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+  return (
+    <OfferLocaleContext.Provider value={offer}>
+      <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
+    </OfferLocaleContext.Provider>
+  );
 };
 
 /**
@@ -153,6 +182,53 @@ export const EnglishOnly: React.FC<{ children: React.ReactNode }> = ({ children 
       </div>
     </LocaleContext.Provider>
   );
+};
+
+/** A person's Dutch with *je*: the informal layer's twin, else the Dutch, which needs none. */
+const informalT = (key: StringKey, vars?: TemplateVars): string => fill(NL_JE[key] ?? STRINGS.nl[key], vars);
+
+/**
+ * A PERSON'S OWN PAGE, IN THE VOICE CHOSEN FOR THEM (workplan 0176 §11, T7;
+ * D8 (a); the owner, 2026-11-26: *"Yes"*).
+ *
+ * The member chooses, per person, how that person's link page and progress
+ * page speak to them: Dutch with *u*, Dutch with *je*, or English. The
+ * page's answer says it as a `language` and a `register`, and everything
+ * drawn under this reads by them:
+ *
+ *  - **The register.** In Dutch with *je*, `t` reads the informal layer
+ *    first (`informal.ts`), then the Dutch, which needs no twin where it
+ *    says no *u*; `tActive` does too, for the words a page chooses outside
+ *    React (`active-locale.ts`). English has one *you*: nothing changes.
+ *  - **The language.** The page opens in the language chosen for the
+ *    person, until the reader picks another with the switch, which then
+ *    wins, as it always has (§11). A pick made before, in this browser, is
+ *    the reader's own and wins too. The offer is never kept: the member's
+ *    own screens in the same browser are in the member's language.
+ *
+ * Absent, as from a server before step B, the page is as it was: the
+ * browser's language, with *u*. The member's own screens never mount this.
+ */
+export const InTheirVoice: React.FC<{
+  readonly language?: Locale | null;
+  readonly register?: Register;
+  readonly children: React.ReactNode;
+}> = ({ language, register, children }) => {
+  const outer = useLocale();
+  const offer = React.useContext(OfferLocaleContext);
+  React.useEffect(() => {
+    if (language) offer?.(language);
+  }, [language, offer]);
+  const informal = register === 'informal' && outer.locale === 'nl';
+  // During render, as `LocaleProvider` publishes its locale: a part that
+  // words a failure as it renders must already see the register it is in.
+  publishRegister(informal ? 'informal' : 'formal');
+  React.useEffect(() => {
+    publishRegister(informal ? 'informal' : 'formal');
+    return () => publishRegister('formal');
+  }, [informal]);
+  const value = React.useMemo<LocaleContextValue>(() => (informal ? { ...outer, t: informalT } : outer), [informal, outer]);
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 };
 
 const operatorT = (key: OperatorScreenKey, vars?: TemplateVars): string =>

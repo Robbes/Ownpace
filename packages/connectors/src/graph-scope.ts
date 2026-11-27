@@ -52,7 +52,26 @@ export type GraphMailboxScope =
  * stays forbidden: `a@b.nl#frag` is a fragment stuck onto a domain, not an
  * address anybody has.
  */
-const LOOKS_LIKE_UPN = /^[^\s/?@]+@[^\s/?#@]+\.[^\s/?#@]+$/;
+export function looksLikeUpn(address: string): boolean {
+  // What `/^[^\s/?@]+@[^\s/?#@]+\.[^\s/?#@]+$/` answered, read in one pass:
+  // that pattern backtracks over every dot after the `@`, quadratic in them.
+  // One `@`, a local part with none of whitespace, `/`, `?`; a domain with none
+  // of whitespace, `/`, `?`, `#`, and a dot with something on both sides.
+  const at = address.indexOf('@');
+  if (at < 1 || address.indexOf('@', at + 1) !== -1) return false;
+  for (let i = 0; i < at; i++) {
+    const c = address[i]!;
+    if (c === '/' || c === '?' || /\s/.test(c)) return false;
+  }
+  const domain = address.slice(at + 1);
+  let innerDot = false;
+  for (let i = 0; i < domain.length; i++) {
+    const c = domain[i]!;
+    if (c === '/' || c === '?' || c === '#' || /\s/.test(c)) return false;
+    if (c === '.' && i > 0 && i < domain.length - 1) innerDot = true;
+  }
+  return innerDot;
+}
 
 /**
  * Resolve the scope from an optional configured mailbox address.
@@ -71,7 +90,7 @@ export function resolveMailboxScope(mailbox?: string): GraphMailboxScope {
         'would address the tenant user collection instead of a mailbox.',
     );
   }
-  if (!LOOKS_LIKE_UPN.test(address)) {
+  if (!looksLikeUpn(address)) {
     throw new Error(
       `Graph mailbox address ${JSON.stringify(address)} is not a usable user ` +
         'principal name. It must look like name@domain.tld and carry no spaces, ' +

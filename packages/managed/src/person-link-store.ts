@@ -91,6 +91,11 @@ export type PersonLinkSummary = MappingLinkSummary;
  * nothing stores it, and re-issue is the remedy for a lost one. `asksAgain`
  * is for a grant link made while every account of theirs is connected: the
  * migrations it asks to connect again.
+ *
+ * `madeFrom` is for a progress link the ending hands over after a sign-in:
+ * the grant link it was signed in through, whose member its page names
+ * (workplan 0176 T6; managed migration 0067), which the migration holds to a
+ * progress link of the same organisation.
  */
 export async function issuePersonLink(
   db: PgDatabase,
@@ -101,6 +106,7 @@ export async function issuePersonLink(
     createdBy: string;
     expiresAt: Date;
     asksAgain?: readonly string[] | null;
+    madeFrom?: string | null;
   },
 ): Promise<{ id: string; token: string; expiresAt: Date }> {
   const id = randomUUID();
@@ -114,6 +120,7 @@ export async function issuePersonLink(
     createdBy: input.createdBy,
     expiresAt: input.expiresAt,
     asksAgain: input.purpose === 'grant' && input.asksAgain ? [...input.asksAgain] : null,
+    madeFrom: input.purpose === 'view' ? (input.madeFrom ?? null) : null,
   });
   return { id, token: `p.${id}.${secret}`, expiresAt: input.expiresAt };
 }

@@ -11,6 +11,8 @@ export * from './google-native-coverage.ts';
 export * from './dropbox-native-policy.ts';
 export * from './fingerprint-scheme.ts';
 export * from './hash.ts';
+// A run of characters at either end of a text, read in one pass.
+export * from './runs-at-the-ends.ts';
 // The JMAP parent-chain -> WebDAV path reconstruction (0031 T3). Beside hash.ts
 // deliberately: it exists only to produce something fileNaturalKeyHash can key.
 export * from './jmap-file-path.ts';
@@ -62,6 +64,8 @@ export * from './notifications.ts';
 // the sign-in page.
 export * from './registration-link.ts';
 export * from './tenant-contact.ts';
+export * from './sender.ts';
+export * from './voice.ts';
 export * from './share-announcement.ts';
 // The privacy policy's address for that mail, from LEGAL_SITE_URL (0139 T4).
 export * from './privacy-policy-link.ts';

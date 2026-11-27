@@ -16,23 +16,13 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
 import { closedOrganisation } from '../../closed-organisation.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import {
-  EXCHANGE_FOR_A_PERSONS_LINK,
-  EXCHANGE_FOR_THE_LINK_HOLDER,
-  NOTHING_CAME_BACK,
-  NOT_KEPT,
-  inLocale,
-  localeOf,
-  log,
-  resolveGoogleClient,
-  stoppedAtGoogle,
-  type Bilingual,
-} from '@openmig/shared';
+import { EXCHANGE_FOR_A_PERSONS_LINK, EXCHANGE_FOR_THE_LINK_HOLDER, NOTHING_CAME_BACK, NOT_KEPT, inLocale, localeOf, log, resolveGoogleClient, stoppedAtGoogle, type Bilingual, withoutTrailing } from '@openmig/shared';
 import {
   CONSENT_NOT_AWAITED,
   EXCHANGE_FOR_THE_OWNER,
@@ -65,7 +55,7 @@ import { moreToConnect } from './link-ending.ts';
 // account, and the scope string built from the ticks and nothing else.
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /**
  * Two shapes, and the older one is untouched (workplan 0106 T3b).
@@ -116,7 +106,7 @@ const AuthorizeSchema = z.intersection(
  *  with the exact string in hand, which is why the response also returns
  *  it: the wizard shows the value the customer has to register. */
 function callbackUri(req: Request): string {
-  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const base = withoutTrailing(process.env.API_URL ?? `${req.protocol}://${req.get('host')}`, '/');
   return `${base}/api/migrations/google/callback`;
 }
 
@@ -288,16 +278,19 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   const personLink = pending.personLink;
   const anyLink = link ?? personLink;
   const locale = localeOf(pending.locale);
+  // How a person's pages speak to them (workplan 0176 T7), kept with their
+  // link's consent: the ending and its refusals say their Dutch in it.
+  const register = personLink?.register;
   // `linkAfter` is what is true of a grant link after this refusal, when it
   // is not used up (see `grantResultPage`); the owner's ending has no link.
   // `reason` is a pair where we wrote both halves, which since 2026-10-14
   // includes a code exchange's refusal to the owner (`EXCHANGE_FOR_THE_OWNER`).
   const refuse = (status: number, reason: Bilingual | string, linkAfter?: 'works' | 'unused') => {
-    const said = typeof reason === 'string' ? reason : inLocale(reason, locale);
+    const said = typeof reason === 'string' ? reason : inLocale(reason, locale, register);
     page(
       status,
       anyLink
-        ? grantResultPage({ ok: false, reason: said, ...(linkAfter ? { link: linkAfter } : {}) }, locale)
+        ? grantResultPage({ ok: false, reason: said, ...(linkAfter ? { link: linkAfter } : {}) }, locale, register)
         : consentResultPage({ outcome: { ok: false, reason: said }, locale }),
     );
   };
@@ -390,6 +383,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       grantResultPage(
         { ok: true, provider: 'google', permission, ...(personProgressUrl ? { progressUrl: personProgressUrl } : {}), ...(more ? { more } : {}) },
         locale,
+        register,
       ),
     );
   }

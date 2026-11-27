@@ -33,6 +33,7 @@
  */
 
 import { Router } from 'express';
+import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
@@ -41,18 +42,7 @@ import { PgLedger } from '@openmig/ledger';
 import { readOrganisationClosure, rotationRefusal } from '@openmig/managed';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import {
-  CIRRUX_DRIVE_SCOPES,
-  cirruxDeploymentClient,
-  cirruxDriveDisconnectRevocation,
-  inLocale,
-  localeOf,
-  log,
-  organisationClosedRefusal,
-  type Bilingual,
-  type RevocationOutcome,
-  type TenantId,
-} from '@openmig/shared';
+import { CIRRUX_DRIVE_SCOPES, cirruxDeploymentClient, cirruxDriveDisconnectRevocation, inLocale, localeOf, log, organisationClosedRefusal, type Bilingual, type RevocationOutcome, type TenantId, withoutTrailing } from '@openmig/shared';
 import { forgetCirruxAccess } from '@openmig/connectors';
 import { qualifyCirruxDrive } from '@openmig/orchestration/account-qualification';
 import {
@@ -90,7 +80,7 @@ import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
 import { serverFault } from '../../server-fault.ts';
 import { requalifyStoredConnection } from '../qualify-and-remember.ts';
 
-const router = Router();
+const router = idsThatAreNoUuid(Router());
 
 /** The sentence for a deployment with no Cirrux client: the Drive face's own. */
 export const NO_CIRRUX_CLIENT =
@@ -114,7 +104,7 @@ export interface CirruxDriveDisconnected {
 
 /** Built from `API_URL`, the way `redirectUris` lists it, so the two cannot differ. */
 function callbackUri(req: Request): string {
-  const base = (process.env.API_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const base = withoutTrailing(process.env.API_URL ?? `${req.protocol}://${req.get('host')}`, '/');
   return `${base}/api/migrations/cirrux/callback`;
 }
 
@@ -203,10 +193,15 @@ router.get('/cirrux/callback', async (req: Request, res: Response) => {
   // A person's grant link began it (workplan 0174 §4.4, T5): their own
   // destination's Drive, bound by the workspace, in the link's own ending.
   if (pending.personLink) {
+    // How the person's pages speak to them (workplan 0176 T7): their ending says it.
+    const register = pending.personLink.register;
     const iss = typeof req.query.iss === 'string' ? req.query.iss : undefined;
     if (!issuerIsCirrux(iss)) {
       log.warn(`[api] a grant link's Cirrux callback named another issuer (${String(iss).slice(0, 120)}); nothing was exchanged`);
-      return page(400, grantResultPage({ ok: false, reason: inLocale(CIRRUX_CONSENT_FOR_THE_OWNER.wrongIssuer, locale), link: 'unused' }, locale));
+      return page(
+        400,
+        grantResultPage({ ok: false, reason: inLocale(CIRRUX_CONSENT_FOR_THE_OWNER.wrongIssuer, locale, register), link: 'unused' }, locale, register),
+      );
     }
     const finish = GRANT_PROVIDERS.cirrux?.finish;
     const decided = await decideCirruxLinkEnding(
@@ -238,8 +233,8 @@ router.get('/cirrux/callback', async (req: Request, res: Response) => {
       },
     );
     if (!decided.ok) {
-      const reason = typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale);
-      return page(decided.status, grantResultPage({ ok: false, reason, ...(decided.link ? { link: decided.link } : {}) }, locale));
+      const reason = typeof decided.reason === 'string' ? decided.reason : inLocale(decided.reason, locale, register);
+      return page(decided.status, grantResultPage({ ok: false, reason, ...(decided.link ? { link: decided.link } : {}) }, locale, register));
     }
     return page(
       200,
@@ -251,6 +246,7 @@ router.get('/cirrux/callback', async (req: Request, res: Response) => {
           ...(decided.workspace === undefined ? {} : { workspace: decided.workspace }),
         },
         locale,
+        ...(register ? { register } : {}),
       }),
     );
   }
