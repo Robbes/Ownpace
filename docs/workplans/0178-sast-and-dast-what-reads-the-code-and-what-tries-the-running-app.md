@@ -23,8 +23,8 @@ mandatory, not to switch the limit off without it, and not to key by anything bu
   whether this stack's budget is per caller or shared. The billing webhooks stay under it: Mollie
   retries until it gets a 200 and the handler is idempotent (`routes/billing/webhooks.ts`), so a
   429 there is applied later, once. The appliance is its own server and does not run this API.
-- **Measured for the default:** `smoke-managed.sh` calls the API from 125 lines, in order, and
-  polls every 2 s, so about 160 in its heaviest minute; the managed UI smoke has no API. The
+- **Measured for the default:** `smoke-managed.sh` calls the API from 142 lines, in order, and
+  polls every 2 s, so about 175 in its heaviest minute; the managed UI smoke has no API. The
   Schemathesis job sends about ten thousand a minute from one address, so it starts the API with
   the limit raised through the same variable (`SCAN_API_REQUESTS_PER_MINUTE`).
 - **Held by** `apps/api/src/one-limit-for-the-whole-api.unit.test.ts` (the mount before every

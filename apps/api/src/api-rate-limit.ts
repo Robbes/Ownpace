@@ -57,9 +57,9 @@ export interface ApiRateLimitConfig {
  * A minute, and 1,200 requests in it from one address.
  *
  * **Measured against the heaviest caller on a stack whose budget is shared.**
- * `deploy/compose/smoke-managed.sh` calls the API from 125 lines, one after
- * another, and polls every 2 s. That is about 160 in a minute even if the
- * whole run fell into one, so this leaves more than seven times that. A person
+ * `deploy/compose/smoke-managed.sh` calls the API from 142 lines, one after
+ * another, and polls every 2 s. That is about 175 in a minute even if the
+ * whole run fell into one, so this leaves more than six times that. A person
  * clicking through the app makes a few dozen a minute. The managed UI smoke
  * (`test/ui`) has no API at all.
  *

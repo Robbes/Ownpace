@@ -183,11 +183,11 @@ describe('API_MAX_REQUESTS_PER_MINUTE', () => {
   });
 
   it('defaults to a minute and a number with a wide margin over the smokes\' heaviest minute', () => {
-    // smoke-managed.sh calls the API from 125 lines, one after another, and
-    // polls every 2 s: about 160 in a minute if it all fell in one. A shared
+    // smoke-managed.sh calls the API from 142 lines, one after another, and
+    // polls every 2 s: about 175 in a minute if it all fell in one. A shared
     // budget on a stack without TRUST_PROXY must never bite there.
     expect(DEFAULT_API_RATE_LIMIT.windowMs).toBe(60_000);
-    expect(DEFAULT_API_RATE_LIMIT.max).toBeGreaterThanOrEqual(160 * 5);
+    expect(DEFAULT_API_RATE_LIMIT.max).toBeGreaterThanOrEqual(175 * 5);
   });
 
   it('is what the real app reads', { timeout: 60_000 }, async () => {
