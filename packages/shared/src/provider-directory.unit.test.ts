@@ -72,6 +72,22 @@ describe('who has a row', () => {
     expect(providerDirectoryEntry('target', 'soverin')?.sources[0]?.url).toContain('soverin');
   });
 
+  it("the Soverin target cites the help desk's articles 26 and 38, which its old addresses only redirect to (workplan 0175 T1)", () => {
+    // soverin.com/help/calendar-setup answers 301 and soverin.com/help/setup
+    // 302 to these two articles (0175 §3.1). The values are the ones they give.
+    const urls = providerDirectoryEntry('target', 'soverin')?.sources.map((s) => s.url) ?? [];
+    expect(urls).toEqual([
+      'https://soverin.zammad.com/help/en-gb/15-calendar-contacts/26-calendar-and-contacts-app-setup',
+      'https://soverin.zammad.com/help/en-gb/12-email-apps-and-imap/38-imap-and-smtp-settings',
+    ]);
+    expect(providerDefaultsFor('target', 'soverin')).toEqual({
+      host: 'caldav.soverin.net',
+      port: '443',
+      mailHost: 'imap.soverin.net',
+      mailPort: '993',
+    });
+  });
+
   it('the Cirrux target: the servers its setup page publishes, read from cirrux.co (workplan 0160)', () => {
     // Exactly the values https://cirrux.co/help/setup gives under Manual
     // Configuration: api.cirrux.co for Calendar, Contacts and Reminders, and

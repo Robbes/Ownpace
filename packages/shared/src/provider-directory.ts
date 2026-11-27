@@ -50,6 +50,16 @@ export const PROVIDER_DIRECTORY: ReadonlyArray<ProviderDirectoryEntry> = [
     // (no path, so the DAV base URL box stays empty), and mail over IMAP on
     // a second host. The account address is the username on both, and the
     // account password signs in — nothing here pre-fills either.
+    //
+    // Read first on 2026-09-03 at soverin.com/help/calendar-setup and
+    // soverin.com/help/setup, which now answer 301 and 302 to the help desk's
+    // articles 26 and 38 (workplan 0175 §3.1). Article 26: "Server:
+    // https://caldav.soverin.net", "Port: 443", "Calendar and contacts are
+    // offered by the same server." Article 38: "imap.soverin.net", "Port: 993
+    // (or 143 for STARTTLS)". The values are unchanged. These are the servers
+    // of a PERSONAL mailbox; a mailbox with a Soverin Suite licence keeps this
+    // IMAP and has its calendars and contacts on Suite's Nextcloud, which the
+    // Test finds (0175 §5.2) and this row does not name.
     values: {
       host: 'caldav.soverin.net',
       port: '443',
@@ -57,8 +67,14 @@ export const PROVIDER_DIRECTORY: ReadonlyArray<ProviderDirectoryEntry> = [
       mailPort: '993',
     },
     sources: [
-      { url: 'https://soverin.com/help/calendar-setup', seen: '2026-09-03' },
-      { url: 'https://soverin.com/help/setup', seen: '2026-09-03' },
+      {
+        url: 'https://soverin.zammad.com/help/en-gb/15-calendar-contacts/26-calendar-and-contacts-app-setup',
+        seen: '2026-11-27',
+      },
+      {
+        url: 'https://soverin.zammad.com/help/en-gb/12-email-apps-and-imap/38-imap-and-smtp-settings',
+        seen: '2026-11-27',
+      },
     ],
   },
   {

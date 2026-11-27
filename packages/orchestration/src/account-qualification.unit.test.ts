@@ -185,9 +185,10 @@ describe('each face is asked where that face lives (owner 2026-09-03: "Files ✓
       // answer is known (0106 T3a) and constrains the tick, exactly as the
       // domain step already refuses `file` for a soverin connection.
       expect(q?.domains.file.answer).toBe('no');
+      // The personal server answered and listed its collections, so this is a
+      // personal mailbox, and its file face says why (workplan 0175 §6).
       expect(q?.domains.file.detail).toBe(
-        'A Soverin account carries email, calendar, contact and task; a file store is not a ' +
-          'face of this connection.',
+        'A personal Soverin mailbox has no file storage; a Soverin Suite licence adds it.',
       );
       // Nothing was counted, because nothing was read: a count beside a no
       // would be the old sentence wearing a new answer.
@@ -201,6 +202,56 @@ describe('each face is asked where that face lives (owner 2026-09-03: "Files ✓
       expect(q?.domains.contact.answer).toBe('yes');
       expect(q?.domains.task.answer).toBe('yes');
       expect(q?.domains.task.unit).toBe('taskList');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a soverin Test records which kind answered: personal, with the root and the principal the server gave (0175 T2)', async () => {
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    try {
+      const q = await qualifyAccount('soverin', DAV_CONFIG, CREDS);
+      expect(q?.soverin).toMatchObject({
+        kind: 'personal',
+        davRoot: DAV_CONFIG.url,
+        principal: '/dav/principals/probe/',
+      });
+      expect(Date.parse(q?.soverin?.measuredAt ?? '')).not.toBeNaN();
+      expect(q?.soverin?.reason).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a soverin Test the personal server refuses is unknown, with the refusal verbatim, and its file face stays the plain no', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('unauthorized', { status: 401, statusText: 'Unauthorized' })),
+    );
+    try {
+      const q = await qualifyAccount('soverin', DAV_CONFIG, CREDS);
+      expect(q?.soverin?.kind).toBe('unknown');
+      expect(q?.soverin?.reason).toBe("Soverin's personal server refused this mailbox's login: 401 Unauthorized");
+      expect(q?.soverin?.davRoot).toBeUndefined();
+      // Nothing says this is a personal mailbox, so nothing says a Suite licence would add files to it.
+      expect(q?.domains.file.detail).toBe(
+        'A Soverin account carries email, calendar, contact and task; a file store is not a ' +
+          'face of this connection.',
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('only a soverin Test records a kind of Soverin mailbox', async () => {
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    try {
+      for (const kind of ['caldav', 'nextcloud', 'cirrux', 'infomaniak']) {
+        const q = await qualifyAccount(kind, { ...DAV_CONFIG, mailHost: 'imap.example.net' }, CREDS, {
+          imapListable: () => ({ listFolders: async () => [] }),
+        });
+        expect(q && 'soverin' in q, kind).toBe(false);
+      }
     } finally {
       vi.unstubAllGlobals();
     }

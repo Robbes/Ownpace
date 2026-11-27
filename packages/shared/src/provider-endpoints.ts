@@ -77,11 +77,12 @@ export interface ProviderEndpoints {
  * `PROVIDER_DIRECTORY`, and a row the owner connected with their own password
  * keeps what they typed: for them the table is no fallback (`doorAsks`).
  *
- * **Soverin is not here.** Its help pages (soverin.com/help, and the help desk
- * the search engines list for it) could not be read from the builder's
- * checkout on 2026-11-25, so its servers are not cited, and 0174 §14 question
- * 2 says a provider whose page cannot be read stays generic: its host shown on
- * the page for the person to judge, as for any IMAP or DAV account.
+ * Soverin's (workplan 0175 T1, 2026-11-27) for the same second reason: the
+ * personal mailbox's servers, read on its help desk's articles 26 and 38,
+ * which soverin.com/help/calendar-setup and soverin.com/help/setup redirect
+ * to. A mailbox with a Soverin Suite licence has its calendars and contacts
+ * on Suite's Nextcloud instead; that host is added after the maintainer's
+ * live test (0175 T0, D5), never before it is measured.
  */
 export const PROVIDER_ENDPOINTS: Readonly<Record<string, ProviderEndpoints>> = {
   apple: {
@@ -120,6 +121,28 @@ export const PROVIDER_ENDPOINTS: Readonly<Record<string, ProviderEndpoints>> = {
     sources: [
       { url: 'https://cirrux.co/help/setup', seen: '2026-11-25' },
       { url: 'https://cirrux.co/help/calendar', seen: '2026-11-25' },
+    ],
+  },
+  soverin: {
+    // A PERSONAL mailbox's servers. Article 26: "Server:
+    // https://caldav.soverin.net", "Port: 443", "Requires SSL: yes", and
+    // "Calendar and contacts are offered by the same server." Article 38:
+    // incoming mail "imap.soverin.net", "Port: 993 (or 143 for STARTTLS)",
+    // "Use SSL: Yes"; 993 is the one a pass uses. Its SMTP is not used: this
+    // product writes mail over IMAP.
+    calendar: { host: 'caldav.soverin.net' },
+    contact: { host: 'caldav.soverin.net' },
+    email: { host: 'imap.soverin.net', port: 993 },
+    doorAsks: true,
+    sources: [
+      {
+        url: 'https://soverin.zammad.com/help/en-gb/15-calendar-contacts/26-calendar-and-contacts-app-setup',
+        seen: '2026-11-27',
+      },
+      {
+        url: 'https://soverin.zammad.com/help/en-gb/12-email-apps-and-imap/38-imap-and-smtp-settings',
+        seen: '2026-11-27',
+      },
     ],
   },
   infomaniak: {
@@ -199,7 +222,7 @@ function hostOfUrl(value: unknown): string | null {
 
 /**
  * Does this kind's password go only to its provider's published server
- * (workplan 0174 §5.8, D3 (a))? Apple, Cirrux and Infomaniak.
+ * (workplan 0174 §5.8, D3 (a))? Apple, Cirrux, Infomaniak and Soverin.
  */
 export function pinsItsServer(kind: string | null | undefined): boolean {
   return !!kind && Object.prototype.hasOwnProperty.call(PROVIDER_ENDPOINTS, kind);

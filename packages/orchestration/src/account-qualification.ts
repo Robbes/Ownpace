@@ -63,7 +63,15 @@ import {
   whatHappened,
   withoutABody,
 } from '@openmig/shared';
-import type { DiscoveryDomain, PlainFailure, ProbeUnit, WhatHappened, WhatHappenedAnswer } from '@openmig/shared';
+import type {
+  DiscoveryDomain,
+  PlainFailure,
+  ProbeUnit,
+  SoverinRecord,
+  WhatHappened,
+  WhatHappenedAnswer,
+} from '@openmig/shared';
+import { askPrincipal, decideSoverinKind } from './soverin-kind.ts';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds, davUrlIsTyped, fileEndpointFromCreds } from './dav-endpoint.ts';
 import { measureTargetScheduling } from './target-scheduling.ts';
@@ -266,6 +274,12 @@ export interface AccountQualification {
    * stored before was read with no token and says nothing about the account.
    */
   readonly throughPersonsSignIn?: true;
+  /**
+   * Which kind of Soverin mailbox answered (workplan 0175 §5.4): `personal`,
+   * or `unknown` with the words of what failed. Only on a `soverin` Test;
+   * `suite` waits for the maintainer's live test (T0).
+   */
+  readonly soverin?: SoverinRecord;
 }
 
 /** The kinds this measuring half covers — the Basic-auth account families.
@@ -456,6 +470,19 @@ function reasonedNo(kind: string, face: DiscoveryDomain): QualifiedDomain | unde
   }
   return undefined;
 }
+
+/**
+ * A PERSONAL SOVERIN MAILBOX'S FILE FACE (workplan 0175 §6): a reasoned no,
+ * never a probe. Probing `caldav.soverin.net` as WebDAV is how *"Files ✓ 5
+ * folders"* once reached a screen. Said only once the Test found a personal
+ * mailbox; a mailbox whose kind is not known keeps `notAFaceOf`'s sentence,
+ * because nothing says a Suite licence is what it lacks.
+ */
+const PERSONAL_SOVERIN_FILES: QualifiedDomain = {
+  answer: 'no',
+  reason: 'structural',
+  detail: 'A personal Soverin mailbox has no file storage; a Soverin Suite licence adds it.',
+};
 
 /**
  * WHY A STORED MAIL FACE WAS NOT MEASURED, naming each field the row lacks.
@@ -664,7 +691,15 @@ export async function qualifyAccount(
     accountServes(kind, face)
       ? askListable(build, unit, typedDav)
       : Promise.resolve(reasonedNo(kind, face) ?? notAFaceOf(kind, word));
-  const [calendar, task, contact, file, mailMeasured] = await Promise.all([
+  // WHICH KIND OF SOVERIN MAILBOX (workplan 0175 §5.2): B, the principal at
+  // the DAV root the faces below are measured at, asked beside them. The
+  // collections it holds are the calendar and contact faces' own counts, so
+  // the kind is decided on the same answers the card shows.
+  const principalAsked =
+    kind === 'soverin'
+      ? askPrincipal(calendarEndpoint.url, calendarEndpoint.username, calendarEndpoint.password)
+      : undefined;
+  const [calendar, task, contact, measuredFile, mailMeasured] = await Promise.all([
     davFace(
       'calendar',
       'a calendar',
@@ -741,6 +776,10 @@ export async function qualifyAccount(
         )
       : Promise.resolve(undefined),
   ]);
+  const soverin = principalAsked
+    ? soverinKindFrom(calendarEndpoint.url, await principalAsked, calendar, contact)
+    : undefined;
+  const file = soverin?.kind === 'personal' && measuredFile.answer === 'no' ? PERSONAL_SOVERIN_FILES : measuredFile;
   // The scheduling verdict rides the calendar face it belongs to (0105 T0) —
   // measured only when that face answered, because a verdict about a
   // calendar nobody reached would be a sentence about nothing.
@@ -768,7 +807,26 @@ export async function qualifyAccount(
       task,
     },
     ...(scheduling ? { scheduling } : {}),
+    ...(soverin ? { soverin } : {}),
   };
+}
+
+/**
+ * §5.2's rule on the Test's own answers: B's principal, and the calendars and
+ * address books the calendar and contact faces counted. A face that did not
+ * answer gives its words as the listing's.
+ */
+function soverinKindFrom(
+  davRoot: string,
+  b: Awaited<ReturnType<typeof askPrincipal>>,
+  calendar: QualifiedDomain,
+  contact: QualifiedDomain,
+): SoverinRecord {
+  const measuredAt = new Date().toISOString();
+  const unanswered = [calendar, contact].find((face) => face.answer !== 'yes');
+  return unanswered
+    ? decideSoverinKind({ davRoot, b, listing: unanswered.detail, measuredAt })
+    : decideSoverinKind({ davRoot, b, collections: (calendar.count ?? 0) + (contact.count ?? 0), measuredAt });
 }
 
 /**

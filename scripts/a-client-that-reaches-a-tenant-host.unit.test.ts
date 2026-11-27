@@ -130,6 +130,8 @@ const TENANT_CLIENTS = [
   'packages/orchestration/src/probe-connection.ts',
   'packages/orchestration/src/target-scheduling.ts',
   'packages/orchestration/src/account-qualification.ts',
+  // Which kind of Soverin mailbox answered (workplan 0175 §5.2): the principal at the row's DAV root.
+  'packages/orchestration/src/soverin-kind.ts',
   'apps/api/src/routes/permissions.ts',
   'apps/api/src/routes/migrations/operating-routes.ts',
 ];
