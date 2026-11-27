@@ -5,7 +5,7 @@
 ## Status — 2026-11-27 (update this block at the end of every session)
 
 **2026-11-27, alpha.22's half built (D7 (a)): T1, T2's personal half with `unknown`, T3, T7, T8.**
-On branch `claude/ownpace-public-readiness-y7orc6-a22-soverin-card`, one draft pull request.
+Merged as #2216 (`6b850fa2`) on 2026-11-27, after the owner's read (*"2216: ok"*).
 - **T1.** Articles 26 and 38 read again on 2026-11-27 (both HTTP 200; `imap.soverin.net`, port
   993; `https://caldav.soverin.net`, port 443, *"same server"*). `PROVIDER_DIRECTORY`'s row cites
   them; `PROVIDER_ENDPOINTS.soverin` pins `caldav.soverin.net` and `imap.soverin.net:993` with
@@ -30,7 +30,10 @@ On branch `claude/ownpace-public-readiness-y7orc6-a22-soverin-card`, one draft p
   §9.2's line), `docs/feature-matrix.md`, `CHANGELOG.md` `[Unreleased]`. **The Dutch warning
   differs from §11's:** *verhuist* and *verhuizing* are retired words
   (`scripts/a-word-the-owner-retired.unit.test.ts`), so it reads *… naar Soverin migreert* and
-  *… volgt die verplaatsing niet*; for the maintainer to read.
+  *… volgt die verplaatsing niet*. The owner read it on the pull request (*"2216: ok"*,
+  2026-11-27), and with it the two behaviours of this half: a Suite mailbox whose personal server
+  still lists collections reads as personal until T0 measures it (§15's first risk), and a Soverin
+  password, one typed on a grant link included, goes only to Soverin's own published servers.
 - **T8.** Unit, on recorded answers: every row of §5.2's table (rows 1 and 5 decided, rows 2–4
   held at `unknown`), `davLoginOf` per kind and record, the reasoned no, and a row with no kind
   measured once by its next pass. **Integration on the dev Nextcloud is not written**: with C
