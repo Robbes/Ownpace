@@ -30,6 +30,12 @@
  *    part, whose id follows (`familielid-link`), and the guide's two older
  *    sentences on the list of test users too. The legal texts are not step
  *    A's, and keep their word until their own next version (`GLOSSARY.md`).
+ * 5. **The guide names acquaintances once** (0176 D19; the owner,
+ *    2026-11-26: *"familie en kennissen, with a focus on family"*): one
+ *    sentence in a family member's part, with the glossary's phrase
+ *    *familie en kennissen* / *family and acquaintances*, and the word
+ *    nowhere else in the guide. Family comes first: *familielid* stays the
+ *    part's word (point 4).
  *
  * The guides wrap their lines, so whitespace is made single before
  * comparing; each guide's header comment quotes the sentences too, so
@@ -121,6 +127,30 @@ describe('the Dutch guide says familielid, never gezinslid (the owner, 2026-11-2
 
   it('and nowhere in the guide gezinslid', () => {
     expect(text.toLowerCase()).not.toContain('gezinslid');
+  });
+});
+
+describe('the guide names acquaintances once, in a family member’s part (0176 D19; point 5)', () => {
+  const D19: Readonly<Record<Locale, { readonly heading: string; readonly sentence: string; readonly word: RegExp }>> = {
+    en: {
+      heading: '### When a family member gets a link {#family-link}',
+      sentence: 'This is how it works for family and acquaintances you help.',
+      word: /\bacquaintances?\b/gi,
+    },
+    nl: {
+      heading: '### Als een familielid een link krijgt {#familielid-link}',
+      sentence: 'Zo werkt het voor familie en kennissen die u helpt.',
+      word: /\bkennis(sen)?\b/gi,
+    },
+  };
+
+  it.each(['en', 'nl'] as const)('%s: the part says it, and the guide names acquaintances nowhere else', (locale) => {
+    const text = prose(read(GUIDE[locale]));
+    const start = text.indexOf(D19[locale].heading);
+    expect(start, 'the part, under its heading').toBeGreaterThanOrEqual(0);
+    const part = text.slice(start, text.indexOf(' ### ', start + 1));
+    expect(part).toContain(D19[locale].sentence);
+    expect(text.match(D19[locale].word) ?? [], 'acquaintances, named once').toHaveLength(1);
   });
 });
 
