@@ -7261,6 +7261,439 @@ else
   fail_at "the own-password section could not take back what it added"
 fi
 
+# ---------- a recommendation's code, at its own door (workplan 0177; 0179 T2) ----------
+#
+# alpha.21's newest door (0177 D6): a code lets its person in at once, in one
+# transaction — the request granted by nobody, an organisation, its owner's
+# invitation, and the code spent — or none of it. Held until now by unit tests
+# on PGlite (`gift-under-rls.unit.test.ts`) and by the fixture UI smoke; never
+# over HTTP against a real stack, through PgBouncer, behind the real rate limit
+# (workplan 0179, G1). So, on the demo stack:
+#
+#  1. the demo organisation B's owner makes one recommendation (`POST /api/gifts`),
+#     and is answered its code once;
+#  2. the door checks it (`POST /api/gifts/check`) and refuses a code nobody made,
+#     with the one refusal every bad code gets (410);
+#  3. the door lets an address in with it (`POST /api/gifts/redeem`, 201), and the
+#     database holds the three writes together: the request granted, an
+#     organisation with an owner's invitation, and the gift spent on that request;
+#  4. the same code, checked or used again, is refused (410), and no second
+#     request is made.
+#
+# The code is never printed and never on a command line: it reaches curl as a
+# body on stdin. What it adds it takes back, by SQL as the operator's grant above
+# does and in the same order — the gift, the request (it points at the tenant
+# ON DELETE RESTRICT), the tenant — and an earlier run's leftovers first: an
+# unused gift left behind would hold the demo owner at their limit of one, and a
+# request left granted would count against the Alpha's ceiling of 50.
+note "a recommendation's code at its own door (0177; 0179 T2)"
+GIFT_EMAIL_LIKE='smoke-gift-%@smoke.local'
+GIFT_EMAIL="smoke-gift-$(date -u +%Y%m%d%H%M%S)-$$@smoke.local"
+GIFT_CODE=""
+GIFT_TENANT=""
+
+# gift_door <check|redeem> — "<code> <body>", the request body on stdin.
+gift_door() {
+  local out
+  out="$(curl -sS -X POST -H 'Content-Type: application/json' --data-binary @- -w '\n%{http_code}' \
+    "$API/api/gifts/$1")"
+  printf '%s %s\n' "${out##*$'\n'}" "${out%$'\n'*}"
+}
+
+# gift_take_back — what this gate's runs made, by the address and the demo giver.
+gift_take_back() {
+  local tenants t left
+  tenants="$(q "SELECT tenant_id FROM access_request WHERE email LIKE '${GIFT_EMAIL_LIKE}' AND tenant_id IS NOT NULL")" || return 1
+  q "DELETE FROM gift WHERE tenant_id = '${APPLY_TENANT}' AND giver_user_id = '${APPLY_SUB}'" >/dev/null || return 1
+  q "DELETE FROM access_request WHERE email LIKE '${GIFT_EMAIL_LIKE}'" >/dev/null || return 1
+  for t in $tenants; do
+    q "DELETE FROM tenant WHERE id = '${t}'" >/dev/null || return 1
+  done
+  left="$(q "SELECT (SELECT count(*) FROM gift WHERE tenant_id = '${APPLY_TENANT}' AND giver_user_id = '${APPLY_SUB}')
+    + (SELECT count(*) FROM access_request WHERE email LIKE '${GIFT_EMAIL_LIKE}')")" || return 1
+  [ "$left" = "0" ] || { echo "after the take-back, ${left} gift or request row(s) of this gate remain"; return 1; }
+  return 0
+}
+
+if ! gift_take_back; then
+  fail_at "an earlier run's recommendation rows could not be taken back"
+fi
+
+# 1. THE OWNER MAKES ONE, AND IS ANSWERED ITS CODE ONCE.
+read -r code body <<<"$(http POST "$API/api/gifts" "$APPLY_TOKEN" '{"locale":"en"}')"
+if [ "$code" = "201" ] && [ -n "$(jq -r '.code // empty' <<<"$body")" ]; then
+  GIFT_CODE="$(jq -r '.code' <<<"$body")"
+  echo "the demo owner made a recommendation, and was answered its code once"
+else
+  echo "making a recommendation answered $code: $(jq -c 'del(.code)' <<<"$body" 2>/dev/null || echo "${body:0:200}")"
+  fail_at "the demo owner could not make a recommendation"
+fi
+
+if [ -n "$GIFT_CODE" ]; then
+  # 2. THE DOOR CHECKS IT, AND REFUSES ONE NOBODY MADE.
+  read -r code body <<<"$(GIFT_TYPED="$GIFT_CODE" jq -nc '{code:$ENV.GIFT_TYPED}' | gift_door check)"
+  if [ "$code" = "200" ] && [ "$(jq -r '.ok' <<<"$body")" = "true" ]; then
+    echo "the door's check says the code can be used"
+  else
+    echo "the check answered $code: ${body:0:200}"
+    fail_at "the door's check did not accept a code just made"
+  fi
+  read -r code body <<<"$(jq -nc '{code:"ZZZZ-ZZZZ-ZZZZ-ZZZZ"}' | gift_door check)"
+  if [ "$code" = "410" ] && [ "$(jq -r '.error' <<<"$body")" = "gift_refused" ]; then
+    echo "a code nobody made is refused with the one refusal (410)"
+  else
+    echo "a code nobody made answered $code: ${body:0:200}"
+    fail_at "the door did not refuse a code nobody made"
+  fi
+
+  # 3. THE DOOR LETS AN ADDRESS IN WITH IT, AND THE THREE WRITES LAND TOGETHER.
+  read -r code body <<<"$(GIFT_TYPED="$GIFT_CODE" jq -nc --arg e "$GIFT_EMAIL" \
+    '{code:$ENV.GIFT_TYPED, email:$e, name:"Smoke gift", google:false, locale:"en"}' | gift_door redeem)"
+  if [ "$code" = "201" ] && [ "$(jq -r '.letIn' <<<"$body")" = "true" ]; then
+    echo "the door let the address in (201)"
+  else
+    echo "using the code answered $code: ${body:0:200}"
+    fail_at "the door did not let the code's person in"
+  fi
+  request="$(q "SELECT id || ' ' || state || ' ' || coalesce(tenant_id::text, '-') FROM access_request WHERE email = '${GIFT_EMAIL}'")"
+  read -r req_id req_state GIFT_TENANT <<<"${request:-- - -}"
+  if [ "$req_state" = "granted" ] && [ "$GIFT_TENANT" != "-" ]; then
+    made="$(q "SELECT (SELECT count(*) FROM tenant WHERE id = '${GIFT_TENANT}')
+      ||'/'|| (SELECT count(*) FROM tenant_member WHERE tenant_id = '${GIFT_TENANT}'
+                 AND role = 'owner' AND status = 'invited' AND email = '${GIFT_EMAIL}')
+      ||'/'|| (SELECT count(*) FROM gift WHERE tenant_id = '${APPLY_TENANT}' AND giver_user_id = '${APPLY_SUB}'
+                 AND redeemed_at IS NOT NULL AND redeemed_request_id = '${req_id}')")"
+    if [ "$made" = "1/1/1" ]; then
+      echo "the three writes landed together: organisation/owner-invitation/spent-gift = ${made}"
+    else
+      echo "organisation/owner-invitation/spent-gift = ${made:-?}, expected 1/1/1"
+      fail_at "a code let its person in without the organisation, the invitation and the spent gift together"
+    fi
+  else
+    echo "the address's request: '${request:-<none>}' (expected granted, with an organisation)"
+    fail_at "a code's person was not let in as a granted request"
+  fi
+
+  # 4. THE SAME CODE AGAIN: REFUSED, AND NO SECOND REQUEST.
+  read -r code body <<<"$(GIFT_TYPED="$GIFT_CODE" jq -nc --arg e "$GIFT_EMAIL" \
+    '{code:$ENV.GIFT_TYPED, email:$e, google:false, locale:"en"}' | gift_door redeem)"
+  read -r ccode _ <<<"$(GIFT_TYPED="$GIFT_CODE" jq -nc '{code:$ENV.GIFT_TYPED}' | gift_door check)"
+  requests="$(q "SELECT count(*) FROM access_request WHERE email = '${GIFT_EMAIL}'")"
+  if [ "$code" = "410" ] && [ "$ccode" = "410" ] && [ "$requests" = "1" ]; then
+    echo "the spent code is refused at the check and at the door, and no second request was made"
+  else
+    echo "the spent code: used again ${code}, checked ${ccode}, requests for the address ${requests:-?} (expected 410, 410, 1)"
+    fail_at "a spent code was not refused, or made a second request"
+  fi
+fi
+
+if gift_take_back; then
+  echo "the recommendation, its request and its organisation are taken back"
+else
+  fail_at "the recommendation section could not take back what it added"
+fi
+
+# ---------- a person's grant that starts their migration, and their stop (workplan 0179 T3, T4) ----------
+#
+# The section above proves a person's password is tried and stored. Its two
+# migrations stay drafts, on purpose, so it never shows what the person's grant
+# is FOR: their migration starting by itself and copying (ADR-0035's amendment,
+# `start-when-granted.ts`), nor the stop they can take on their progress page
+# (0174 §4.3, *Stop copying* for a destination). Workplan 0179 G2, G3 and G4:
+#
+#  1. a person, a `nextcloud` destination saved for them without a password, and
+#     two migrations of theirs from the demo CalDAV source: the FIRST into the
+#     demo Nextcloud with the owner's own credentials, the SECOND into the
+#     person's destination;
+#  2. the owner starts the first, so the person's move was started; Start on the
+#     second answers 409 `awaiting_grant`, saying it starts by itself;
+#  3. the person types their destination's password on their grant link;
+#  4. the second migration starts by itself, and its first pass completes;
+#  5. their progress link, made in *je* (T4): the page says Dutch, informal; they
+#     stop copying to their destination, the migration is held, and the owner's
+#     Start says why; a second stop is refused in the *je* twin of its sentence.
+#
+# WHAT A PASS HERE COPIES, AND WHY IT IS TAKEN BACK BY THE LEDGER. Both
+# migrations read the same demo calendar the apply mapping already copied into
+# the same account, so most of what they meet is adopted (the CalDAV writer
+# finds the UID there and writes nothing). Anything they did write is in their
+# own ledger as `copied` or `updated`, with its target id, and the take-back
+# removes exactly those copies from the target before it deletes the migrations,
+# whatever happened above: what a run adds, the run takes back. A copy it cannot
+# place or remove keeps the migrations, so the record of it is not lost.
+note "a person's grant that starts their migration, and their stop (0179 T3, T4)"
+GC_NAME="Smoke run: a grant that copies"
+GC_PREFIX="gate: grant that copies"
+GC_NC_URL="http://nextcloud/remote.php/dav"
+GC_PERSON=""
+GC_TARGET=""
+GC_STARTER=""
+GC_MAPPING=""
+GC_OURS="tenant_id = '${APPLY_TENANT}' AND mapping_id IN (SELECT id FROM mailbox_mapping WHERE tenant_id = '${APPLY_TENANT}' AND name LIKE '${GC_PREFIX}%')"
+
+# gc_put <token> <ref> — "<code> <body>": the destination's password, as the
+# person types it: through jq's environment and curl's stdin, never an argument.
+gc_put() {
+  local out
+  out="$(GC_TYPED="$TARGET_DAV_PASSWORD" jq -nc --arg r "$2" '{ref:$r, values:{password:$ENV.GC_TYPED}, locale:"en"}' |
+    curl -sS -X PUT -H 'Content-Type: application/json' --data-binary @- -w '\n%{http_code}' \
+      "$API/api/grant/$1/password")"
+  printf '%s %s\n' "${out##*$'\n'}" "${out%$'\n'*}"
+}
+
+# gc_open <path under /api/> — "<code> <body>" of a GET with no session.
+gc_open() {
+  local out
+  out="$(curl -sS -w '\n%{http_code}' "$API/api/$1")"
+  printf '%s %s\n' "${out##*$'\n'}" "${out%$'\n'*}"
+}
+
+# gc_stop <view token> <ref> — "<code> <body>" of the person's *Stop copying*.
+gc_stop() {
+  local out
+  out="$(jq -nc --arg r "$2" '{destination:$r}' |
+    curl -sS -X POST -H 'Content-Type: application/json' --data-binary @- -w '\n%{http_code}' \
+      "$API/api/view/$1/withdraw")"
+  printf '%s %s\n' "${out##*$'\n'}" "${out%$'\n'*}"
+}
+
+# gc_settled — 0 once no pass of this section's migrations is running.
+gc_settled() {
+  local i=0 running
+  while [ "$i" -lt "$POLLS" ]; do
+    running="$(q "SELECT count(*) FROM migration_status WHERE ${GC_OURS} AND state = 'in_progress'")" || return 1
+    [ "$running" = "0" ] && return 0
+    sleep "$POLL_SLEEP"
+    i=$((i + 1))
+  done
+  return 1
+}
+
+# gc_remove_copy <the ledger's target id> — the copy gone from the demo target.
+# The account's password reaches curl as a config on stdin, never an argument.
+gc_remove_copy() {
+  local id="$1" path code col
+  case "$id" in
+    *://*) path="$(sed -E 's|^[a-zA-Z]+://[^/]*||' <<<"$id")" ;;
+    /remote.php/*) path="$id" ;;
+    /*) path="/remote.php/dav${id}" ;;
+    *)
+      # A bare name: in whichever of the account's calendars holds it.
+      while IFS= read -r col; do
+        [ -n "$col" ] || continue
+        code="$(printf 'user = "%s:%s"\n' "$TARGET_DAV_USER" "$TARGET_DAV_PASSWORD" |
+          curl -sS -K - -o /dev/null -w '%{http_code}' -X DELETE "${NC}${col%/}/${id}")"
+        case "$code" in 200|204) return 0 ;; esac
+      done < <(printf 'user = "%s:%s"\n' "$TARGET_DAV_USER" "$TARGET_DAV_PASSWORD" |
+        curl -sS -K - -X PROPFIND -H 'Depth: 1' "${NC}/remote.php/dav/calendars/${TARGET_DAV_USER}/" 2>/dev/null |
+        grep -oE '<([A-Za-z0-9]+:)?href>[^<]*</([A-Za-z0-9]+:)?href>' | sed -E 's#</?([A-Za-z0-9]+:)?href>##g')
+      echo "no calendar of ${TARGET_DAV_USER} holds the copy ${id}"
+      return 1 ;;
+  esac
+  code="$(printf 'user = "%s:%s"\n' "$TARGET_DAV_USER" "$TARGET_DAV_PASSWORD" |
+    curl -sS -K - -o /dev/null -w '%{http_code}' -X DELETE "${NC}${path}")"
+  case "$code" in
+    200|204|404) return 0 ;;
+    *) echo "removing the copy at ${path} answered ${code}"; return 1 ;;
+  esac
+}
+
+# gc_take_back — this section's rows by their names, and the copies its passes
+# made, whatever happened above. Paused first, and no pass running, so nothing
+# writes behind the removal.
+gc_take_back() {
+  local id code
+  for id in $(q "SELECT id FROM mailbox_mapping WHERE tenant_id = '${APPLY_TENANT}' AND name LIKE '${GC_PREFIX}%' AND status <> 'paused'"); do
+    read -r code _ <<<"$(http PUT "$API/api/migrations/$id" "$APPLY_TOKEN" '{"status":"paused"}')"
+    case "$code" in 200) ;; *) echo "pausing migration $id answered $code"; return 1 ;; esac
+  done
+  gc_settled || { echo "a pass of this section's migrations is still running"; return 1; }
+  for id in $(q "SELECT coalesce(target_ref->>'id', '') FROM item WHERE ${GC_OURS} AND status IN ('copied','updated')"); do
+    gc_remove_copy "$id" || return 1
+  done
+  for id in $(q "SELECT id FROM mailbox_mapping WHERE tenant_id = '${APPLY_TENANT}' AND name LIKE '${GC_PREFIX}%'"); do
+    read -r code _ <<<"$(http DELETE "$API/api/migrations/$id" "$APPLY_TOKEN")"
+    case "$code" in 200|204) ;; *) echo "taking back migration $id answered $code"; return 1 ;; esac
+  done
+  for id in $(q "SELECT id FROM connection WHERE tenant_id = '${APPLY_TENANT}' AND display_name LIKE '${GC_PREFIX}%'"); do
+    read -r code _ <<<"$(http DELETE "$API/api/connections/$id" "$APPLY_TOKEN")"
+    case "$code" in 200|204) ;; *) echo "taking back connection $id answered $code"; return 1 ;; esac
+  done
+  for id in $(q "SELECT id FROM person WHERE tenant_id = '${APPLY_TENANT}' AND display_name = '${GC_NAME}'"); do
+    read -r code _ <<<"$(http DELETE "$API/api/people/$id" "$APPLY_TOKEN")"
+    case "$code" in 200|204) ;; *) echo "taking back person $id answered $code"; return 1 ;; esac
+  done
+  return 0
+}
+
+if ! gc_take_back; then
+  fail_at "an earlier run's grant-that-copies rows could not be taken back"
+fi
+
+# 1. THE PERSON, THEIR DESTINATION WITHOUT A PASSWORD, AND TWO MIGRATIONS.
+read -r code body <<<"$(http POST "$API/api/people" "$APPLY_TOKEN" "{\"displayName\":\"$GC_NAME\"}")"
+if [ "$code" = "201" ]; then
+  GC_PERSON="$(jq -r '.id // empty' <<<"$body")"
+else
+  echo "adding the person answered $code: ${body:0:250}"
+  fail_at "the owner could not add a person whose grant starts a migration"
+fi
+if [ -n "$GC_PERSON" ]; then
+  read -r code body <<<"$(http POST "$API/api/connections" "$APPLY_TOKEN" \
+    "$(jq -nc --arg name "$GC_PREFIX (destination)" --arg u "$TARGET_DAV_USER" --arg url "$GC_NC_URL" --arg p "$GC_PERSON" \
+      '{role:"target", type:"nextcloud", displayName:$name, values:{url:$url, username:$u}, forPerson:$p}')")"
+  if [ "$code" = "201" ] && [ "$(jq -r '.forPerson // false' <<<"$body")" = "true" ]; then
+    GC_TARGET="$(jq -r '.id // empty' <<<"$body")"
+  else
+    echo "saving the destination for the person answered $code: ${body:0:250}"
+    fail_at "the nextcloud destination could not be saved for the person"
+  fi
+fi
+gc_migration() { # gc_migration <body json> — the id of a paused draft, or empty
+  local code body
+  read -r code body <<<"$(http POST "$API/api/migrations" "$APPLY_TOKEN" "$1")"
+  if [ "$code" = "201" ] && [ "$(jq -r '.status // empty' <<<"$body")" = "paused" ]; then
+    jq -r '.id // empty' <<<"$body"
+  else
+    echo "making a migration for the person answered $code: ${body:0:300}" >&2
+  fi
+}
+if [ -n "$GC_TARGET" ]; then
+  GC_STARTER="$(gc_migration "$(jq -nc --arg url "$GC_NC_URL" --arg p "$GC_PERSON" \
+    --arg tu "$TARGET_DAV_USER" --arg tp "$TARGET_DAV_PASSWORD" --arg n "$GC_PREFIX (first)" \
+    '{name:$n, sourceType:"caldav",
+      sourceConfig:{url:$url, username:"tenant-b-source", password:"tenant_b_source_pw"},
+      targetType:"nextcloud", targetConfig:{url:$url, username:$tu, password:$tp},
+      syncConfig:{domains:["calendar"]}, forPerson:$p}')")"
+  GC_MAPPING="$(gc_migration "$(jq -nc --arg url "$GC_NC_URL" --arg p "$GC_PERSON" --arg t "$GC_TARGET" \
+    --arg tu "$TARGET_DAV_USER" --arg n "$GC_PREFIX (second)" \
+    '{name:$n, sourceType:"caldav",
+      sourceConfig:{url:$url, username:"tenant-b-source", password:"tenant_b_source_pw"},
+      targetType:"nextcloud", targetConnectionId:$t, targetConfig:{url:$url, username:$tu, password:""},
+      syncConfig:{domains:["calendar"]}, forPerson:$p}')")"
+  [ -n "$GC_STARTER" ] || fail_at "the person's first migration could not be made"
+  [ -n "$GC_MAPPING" ] || fail_at "the person's second migration could not be made"
+fi
+
+# 2. THE OWNER STARTS THE FIRST; START ON THE SECOND SAYS IT WAITS, AND STARTS BY ITSELF.
+GC_STARTED=""
+if [ -n "$GC_STARTER" ] && [ -n "$GC_MAPPING" ]; then
+  read -r code body <<<"$(http POST "$API/api/migrations/$GC_STARTER/start" "$APPLY_TOKEN" '{}')"
+  if [ "$code" = "200" ]; then
+    GC_STARTED=1
+    echo "the owner started the person's first migration, so their move was started"
+  else
+    echo "starting the first migration answered $code: ${body:0:300}"
+    fail_at "the owner could not start the person's first migration"
+  fi
+  read -r code body <<<"$(http POST "$API/api/migrations/$GC_MAPPING/start" "$APPLY_TOKEN" '{}')"
+  if [ "$code" = "409" ] && jq -e '.error == "awaiting_grant" and .startsWhenGranted == true' >/dev/null <<<"$body"; then
+    echo "Start on the second answers that it waits for the person, and starts by itself once they connect"
+  else
+    echo "Start on the second answered $code: ${body:0:300} (expected 409 awaiting_grant, startsWhenGranted)"
+    fail_at "Start on a migration waiting for its person did not say it starts by itself"
+  fi
+fi
+
+# 3. THE PERSON TYPES THEIR DESTINATION'S PASSWORD ON THEIR GRANT LINK.
+GC_GRANTED=""
+if [ -n "$GC_STARTED" ]; then
+  read -r code body <<<"$(http POST "$API/api/people/$GC_PERSON/links" "$APPLY_TOKEN" '{"purpose":"grant"}')"
+  url="$(jq -r '.url // empty' <<<"$body" 2>/dev/null)"
+  token="${url##*/}"
+  ref=""
+  if [ "$code" = "201" ] && [ -n "$token" ]; then
+    read -r code page <<<"$(gc_open "grant/$token")"
+    ref="$(jq -r '[.accounts[]? | select(.way == "password" and .role == "target" and .provider == "nextcloud")][0].ref // empty' <<<"$page" 2>/dev/null)"
+  fi
+  if [ -z "$ref" ]; then
+    echo "the person's grant link: HTTP $code, no password card for the destination"
+    fail_at "the person's grant link did not ask for their destination's password"
+  else
+    read -r code body <<<"$(gc_put "$token" "$ref")"
+    if [ "$code" = "200" ] && jq -e '.connected == true and .linkSpent == true' >/dev/null <<<"$body"; then
+      GC_GRANTED=1
+      echo "the person typed their destination's password: connected, and the link is spent"
+    else
+      echo "the destination's password answered $code: ${body:0:200}"
+      fail_at "the person's destination did not connect"
+    fi
+  fi
+fi
+
+# 4. THE SECOND MIGRATION STARTS BY ITSELF, AND ITS FIRST PASS COMPLETES.
+if [ -n "$GC_GRANTED" ]; then
+  i=0
+  state=""
+  while [ "$i" -lt "$POLLS" ]; do
+    state="$(q "SELECT m.status || ' ' || coalesce((SELECT s.state FROM migration_status s WHERE s.mapping_id = m.id AND s.domain = 'calendar'), 'none') FROM mailbox_mapping m WHERE m.id = '${GC_MAPPING}'")"
+    case "$state" in "active completed" | *" failed") break ;; esac
+    sleep "$POLL_SLEEP"
+    i=$((i + 1))
+  done
+  if [ "$state" = "active completed" ]; then
+    echo "the second migration started by itself on the person's grant, and its first pass completed"
+    echo "  what the pass met on the target: $(q "SELECT string_agg(status || '=' || n, ', ') FROM (SELECT status, count(*) AS n FROM item WHERE ${GC_OURS} AND mapping_id = '${GC_MAPPING}' GROUP BY 1 ORDER BY 1) t")"
+  else
+    echo "the second migration, after the grant: '${state:-<unread>}' (expected 'active completed')"
+    fail_at "a person's grant did not start their waiting migration, or its first pass did not complete"
+  fi
+fi
+
+# 5. THEIR PROGRESS LINK, IN JE; STOP COPYING; HELD; A SECOND STOP REFUSED IN JE.
+if [ -n "$GC_GRANTED" ]; then
+  read -r code body <<<"$(http POST "$API/api/people/$GC_PERSON/links" "$APPLY_TOKEN" '{"purpose":"view","voice":"nl-je"}')"
+  url="$(jq -r '.url // empty' <<<"$body" 2>/dev/null)"
+  view="${url##*/}"
+  if [ "$code" != "201" ] || [ -z "$view" ] || [ "$(jq -r '.voice // empty' <<<"$body")" != "nl-je" ]; then
+    echo "the person's progress link in je answered $code: ${body:0:200}"
+    fail_at "a progress link could not be made with the voice chosen for the person"
+  else
+    read -r code page <<<"$(gc_open "view/$view")"
+    ref="$(jq -r '[.destinations[]? | select(.provider == "nextcloud")][0].ref // empty' <<<"$page" 2>/dev/null)"
+    if [ "$code" = "200" ] && jq -e '.language == "nl" and .register == "informal"' >/dev/null <<<"$page"; then
+      echo "their progress page speaks Dutch, with je, as chosen for them"
+    else
+      echo "their progress page: HTTP $code, language $(jq -r '.language // "?"' <<<"$page" 2>/dev/null), register $(jq -r '.register // "?"' <<<"$page" 2>/dev/null)"
+      fail_at "the person's page did not speak in the voice chosen for them"
+    fi
+    if [ -z "$ref" ]; then
+      fail_at "the person's page did not list the destination they connected"
+    else
+      read -r code body <<<"$(gc_stop "$view" "$ref")"
+      held="$(q "SELECT (grant_withdrawn_at IS NOT NULL) || ' ' || (SELECT count(*) FROM person_granted_connection WHERE connection_id = '${GC_TARGET}') FROM mailbox_mapping WHERE id = '${GC_MAPPING}'")"
+      if [ "$code" = "200" ] && [ "$(jq -r '.provider // empty' <<<"$body")" = "nextcloud" ] && [ "$held" = "true 0" ]; then
+        echo "they stopped copying to their destination: its password is gone, and the migration is held"
+      else
+        echo "stop copying answered $code: ${body:0:200}; held/granted rows: '${held:-?}' (expected 'true 0')"
+        fail_at "the person's stop did not take their destination back and hold the migration"
+      fi
+      read -r code body <<<"$(http POST "$API/api/migrations/$GC_MAPPING/start" "$APPLY_TOKEN" '{}')"
+      if [ "$code" = "409" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "grant_withdrawn" ]; then
+        echo "the owner's Start now answers that the person withdrew"
+      else
+        echo "Start after the stop answered $code: ${body:0:200} (expected 409 grant_withdrawn)"
+        fail_at "the owner's Start did not say the person had stopped it"
+      fi
+      read -r code body <<<"$(gc_stop "$view" "$ref")"
+      nl="$(jq -r '.reasonNl // empty' <<<"$body" 2>/dev/null)"
+      if [ "$code" = "409" ] && [[ "$nl" == "Je toestemming"* ]]; then
+        echo "a second stop is refused, in the je twin of its sentence"
+      else
+        echo "a second stop answered $code, its Dutch: '${nl:0:80}' (expected 409, *Je toestemming …*)"
+        fail_at "a refusal on the person's page was not said in their voice"
+      fi
+    fi
+  fi
+fi
+
+# THE TAKE-BACK, whatever happened above: the copies first, then the rows.
+if gc_take_back; then
+  echo "the copies the passes made, the two migrations, the destination and the person are taken back"
+else
+  fail_at "the grant-that-copies section could not take back what it added"
+fi
+
 # ---------- the status page answers ----------
 #
 # gatus has NO container healthcheck, and cannot have one: its image is
