@@ -490,7 +490,8 @@ const StopQuestion: React.FC<{
       </p>
       {names.family === 'google' && <p className="mt-3 text-lg text-gray-900">{t('view.grant.wholeApp')}</p>}
       <p className="mt-3 text-lg text-gray-900">{t('view.stop.final', { who })}</p>
-      <div data-answers className="mt-6 space-y-3">
+      {/* One size whatever wraps: each row of the grid is as tall as the taller answer. */}
+      <div data-answers className="mt-6 grid auto-rows-fr gap-3">
         <button type="button" data-main className={MAIN_OUTLINED} disabled={pending} onClick={onNo}>
           {t('view.stop.no')}
         </button>
@@ -614,7 +615,8 @@ const TheAccountTheyConnected: React.FC<{ link: string; destination: PersonViewD
           ) : (
             <div className="mt-4">
               <p className={LOOK.sentence}>{t('view.destination.confirm', { who })}</p>
-              <div data-answers className="mt-3 space-y-3">
+              {/* One size whatever wraps: each row of the grid is as tall as the taller answer. */}
+              <div data-answers className="mt-3 grid auto-rows-fr gap-3">
                 <button
                   type="button"
                   data-main
