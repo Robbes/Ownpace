@@ -212,21 +212,21 @@ export const en = {
   // Every failure category, re-voiced for a reader who cannot act on them
   // — see i18n/view-failure-key.ts. Never the provider's own prose: that
   // names files, and it does not cross (workplan 0122 §3).
-  'view.failure.authExpired': 'The connection to your account needs renewing. Whoever set this up can do it.',
+  'view.failure.authExpired': 'The connection to your account needs renewing. {who} can do it.',
   'view.failure.rateLimited': 'Your provider automatically asked us to slow down. This carries on by itself.',
   'view.failure.quotaExceeded': 'A daily limit was reached. Copying goes on by itself tomorrow.',
   'view.failure.policyRefused': 'Some items were left out by the settings of this copy, not by either account.',
   'view.failure.tooLarge': 'Some files were left out: they are larger than this service copies during the Alpha.',
   'view.failure.internalAddress':
-    'This service does not connect to the address given for one of your accounts. Whoever set this up can change it.',
+    'This service does not connect to the address given for one of your accounts. {who} can change it.',
   'view.failure.sourceRefused':
     'Your old account would not release some items. Nothing was sent to your new account.',
   'view.failure.targetRefused': 'Your new account would not accept some items.',
   'view.failure.formatRefused':
-    'Your new account refuses some file types. Whoever set this up can change that.',
+    'Your new account refuses some file types. {who} can change that.',
   'view.failure.network': 'A server could not be reached. This is usually brief and retries itself.',
   'view.failure.unknown':
-    'Something went wrong that the system does not know yet. Whoever runs this migration may be able to see more.',
+    'Something went wrong that the system does not know yet. {who} may be able to see more.',
   'view.failure.side.source': 'It was your old account.',
   'view.failure.side.target': 'It was your new account.',
   'view.until': 'This page works until {date}.',
@@ -237,7 +237,7 @@ export const en = {
   // the migrations into it; it is not the source's access taken back (the
   // owner's decisions of 2026-11-26, change 1, in the owner's words).
   'view.state.destinationRemoved':
-    'The password for {destination} was removed on {date}, so copying into it waits. Your {source} account was not touched, and nothing was deleted. Whoever set this up can send you a new link.',
+    'The password for {destination} was removed on {date}, so copying into it waits. Your {source} account was not touched, and nothing was deleted. {who} can send you a new link.',
   'view.grant.title': 'The access you gave',
   'view.grant.body': '{organisation} reads your Google account for this migration because you allowed it.',
   'view.grant.whatHappens': 'Stopping ends the copying from this account. What was already copied stays where it was copied to.',
@@ -319,7 +319,7 @@ export const en = {
     'Removing it deletes your password here, and nothing more is copied into this account until you connect it again. What was already copied stays there.',
   'view.destination.drive': 'The Cirrux Drive connection you gave is removed with it.',
   'view.destination.remove': 'Remove my password',
-  'view.destination.confirm': 'Remove it now? Connecting it again needs a new link from whoever sent this one.',
+  'view.destination.confirm': 'Remove it now? Connecting it again needs a new link from {who}.',
   'view.destination.confirmYes': 'Yes, remove it',
   'view.destination.keep': 'Keep it',
   'view.destination.removing': 'Removing…',
@@ -694,27 +694,27 @@ export const nl: Record<keyof typeof en, string> = {
   'view.retrying.one': '{count} item wordt opnieuw geprobeerd.',
   'view.retrying.many': '{count} items worden opnieuw geprobeerd.',
   'view.moved': 'Tot nu toe {bytes} overgezet.',
-  'view.failure.authExpired': 'De koppeling met uw account moet worden vernieuwd. Wie dit heeft ingesteld kan dat.',
+  'view.failure.authExpired': 'De koppeling met uw account moet worden vernieuwd. {who} kan dat.',
   'view.failure.rateLimited': 'Uw aanbieder vroeg ons (automatisch) rustiger aan te doen. Dit gaat vanzelf verder.',
   'view.failure.quotaExceeded': 'Een daglimiet is bereikt. Morgen gaat het kopiëren vanzelf verder.',
   'view.failure.policyRefused': 'Sommige items zijn niet gekopieerd door de instellingen van deze kopie, niet door uw accounts.',
   'view.failure.tooLarge': 'Sommige bestanden zijn niet gekopieerd: ze zijn groter dan deze dienst tijdens de Alpha kopieert.',
   'view.failure.internalAddress':
-    'Deze dienst maakt geen verbinding met het adres dat voor een van uw accounts is opgegeven. Wie dit heeft ingesteld kan het aanpassen.',
+    'Deze dienst maakt geen verbinding met het adres dat voor een van uw accounts is opgegeven. {who} kan het aanpassen.',
   'view.failure.sourceRefused':
-    'Uw oude omgeving gaf sommige items niet vrij. Deze gingen niet naar uw nieuwe omgeving.',
+    'Uw oude account gaf sommige items niet vrij. Deze gingen niet naar uw nieuwe account.',
   'view.failure.targetRefused': 'Uw nieuwe account kon sommige items niet in ontvangst nemen.',
   'view.failure.formatRefused':
-    'Uw nieuwe omgeving accepteert bepaalde bestandstypen niet. Wie dit uitvoert kan de indeling mogelijk aanpassen.',
+    'Uw nieuwe account accepteert bepaalde bestandstypen niet. {who} kan dat aanpassen.',
   'view.failure.network': 'Een server was niet bereikbaar. Dat is meestal van korte duur, er wordt opnieuw geprobeerd.',
-  'view.failure.unknown': 'Iets ging mis wat het systeem nog niet kent. Wie dit uitvoert kan er mogelijk meer over zien.',
+  'view.failure.unknown': 'Iets ging mis wat het systeem nog niet kent. {who} kan er mogelijk meer over zien.',
   'view.failure.side.source': 'Het ging om uw oude account.',
   'view.failure.side.target': 'Het ging om uw nieuwe account.',
   'view.until': 'Deze pagina werkt tot {date}.',
   'view.readOnly': 'Deze pagina toont alleen aantallen; er staat niets uit uw account op.',
   'view.state.withdrawn': 'Het kopiëren is op {date} gestopt.',
   'view.state.destinationRemoved':
-    'Het wachtwoord voor {destination} is op {date} verwijderd, dus het kopiëren wacht. Aan uw {source}-account is niets veranderd, en er is niets gewist. Wie dit voor u heeft ingesteld, kan u een nieuwe link sturen.',
+    'Het wachtwoord voor {destination} is op {date} verwijderd, dus het kopiëren wacht. Aan uw {source}-account is niets veranderd, en er is niets gewist. {who} kan u een nieuwe link sturen.',
   'view.grant.title': 'De toegang die u gaf',
   'view.grant.body': '{organisation} leest voor deze migratie uw Google-account, omdat u dat toestond.',
   'view.grant.whatHappens': 'Stoppen beëindigt het kopiëren uit dit account. Wat al gekopieerd is, blijft staan waar het nu staat.',
@@ -786,7 +786,7 @@ export const nl: Record<keyof typeof en, string> = {
     'Verwijderen wist uw wachtwoord hier, en er wordt niets meer naar dit account gekopieerd tot u het opnieuw verbindt. Wat al gekopieerd is, blijft daar staan.',
   'view.destination.drive': 'De verbinding met Cirrux Drive die u gaf, wordt mee verwijderd.',
   'view.destination.remove': 'Mijn wachtwoord verwijderen',
-  'view.destination.confirm': 'Nu verwijderen? Opnieuw verbinden kan alleen met een nieuwe link van de afzender.',
+  'view.destination.confirm': 'Nu verwijderen? Opnieuw verbinden kan alleen met een nieuwe link van {who}.',
   'view.destination.confirmYes': 'Ja, verwijderen',
   'view.destination.keep': 'Niet verwijderen',
   'view.destination.removing': 'Bezig met verwijderen…',

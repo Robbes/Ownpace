@@ -367,10 +367,14 @@ const CIRRUX: GrantProvider = {
   },
 };
 
-/** When Cirrux did not say which workspace signed in, so nothing could be bound. */
-const CIRRUX_NOT_NAMED: Bilingual = {
+/**
+ * When Cirrux did not say which workspace signed in, so nothing could be
+ * bound. With *je* for a person whose pages say *je* (workplan 0176 T7).
+ */
+export const CIRRUX_NOT_NAMED: Bilingual = {
   en: 'Cirrux did not say which workspace you signed in to, so nothing was stored. Press Connect Cirrux Drive again.',
   nl: 'Cirrux zei niet bij welke werkruimte u zich aanmeldde, dus er is niets opgeslagen. Druk opnieuw op Cirrux Drive verbinden.',
+  nlJe: 'Cirrux zei niet bij welke werkruimte je je aanmeldde, dus er is niets opgeslagen. Druk opnieuw op Cirrux Drive verbinden.',
 };
 
 /** The entries, by id. Apple is a password kind, never an entry. */

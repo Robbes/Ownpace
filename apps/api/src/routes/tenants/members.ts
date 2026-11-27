@@ -14,13 +14,13 @@ import { idsThatAreNoUuid } from '../../an-id-that-is-no-uuid.ts';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth.ts';
+import { authenticate, requireRole, requireTenantMatch, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { eq, and, or, sql } from 'drizzle-orm';
 import * as schema from '@openmig/managed/schema-managed';
 import { PgLedger } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
-import type { TenantId } from '@openmig/shared';
+import { senderNameFrom, senderOnAPage, senderPhoneFrom, type TenantId } from '@openmig/shared';
 import {
   countActiveOwners,
   demotesLastOwner,
@@ -33,7 +33,11 @@ import {
 import { serverFault } from '../../server-fault.ts';
 import { mailInvitation, SEND_AGAIN_AFTER, sendAgainAfterSeconds } from './invitation-mail.ts';
 
-const router = idsThatAreNoUuid(Router());
+// `mergeParams`: the organisation is named in the path this router is mounted
+// at (`/api/tenants/:tenantId/members`), and every door here refuses one that
+// is not the caller's (`requireTenantMatch`). Its ids pass the UUID check as
+// every router's do (`an-id-that-is-no-uuid.ts`).
+const router = idsThatAreNoUuid(Router({ mergeParams: true }));
 
 /**
  * What a member's removal is recorded under in `audit_log`, as `operator.sh
@@ -182,6 +186,7 @@ const UpdateMemberRoleSchema = z.object({
 router.get(
   '/',
   authenticate,
+  requireTenantMatch(),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { tenantId: _tenantId } = req.params;
@@ -209,12 +214,21 @@ router.get(
           joinedAt: schema.tenantMember.joinedAt,
           createdAt: schema.tenantMember.createdAt,
           updatedAt: schema.tenantMember.updatedAt,
+          // How a person's page names each as its sender (workplan 0176 T3):
+          // what each member said of themselves, read through the same rule.
+          displayName: schema.tenantMember.displayName,
+          phone: schema.tenantMember.phone,
         })
         .from(schema.tenantMember)
         .where(eq(schema.tenantMember.tenantId, tenantId));
       });
 
-      res.json({ members });
+      res.json({
+        members: members.map((m) => {
+          const shown = senderOnAPage({ name: m.displayName, phone: m.phone });
+          return { ...m, displayName: shown.name, phone: shown.phone };
+        }),
+      });
     } catch (error) {
       serverFault(res, 'list_failed', 'listing the members', error);
     }
@@ -229,6 +243,7 @@ router.get(
 router.post(
   '/',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -354,6 +369,7 @@ function inviterOf(req: AuthenticatedRequest): string | undefined {
 router.post(
   '/:memberId/resend',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -421,6 +437,85 @@ router.post(
 );
 
 /**
+ * The body of `PUT …/members/me`: the name and the number a member shows the
+ * people they send a person's link to. Each optional: absent leaves it, empty
+ * or null clears it. Nothing else, so a body cannot name another member.
+ */
+const SenderOfMyselfSchema = z
+  .object({
+    displayName: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
+  })
+  .strict();
+
+/**
+ * PUT /api/tenants/:tenantId/members/me
+ *
+ * WHAT A MEMBER SAYS OF THEMSELVES on a person's page (workplan 0176 §7, T3;
+ * D11): their name as the people they send a link to know them, and their
+ * own number. Their own row only, the signed-in member's, and never another
+ * member's: it is what they say about themselves, so no role gives it to
+ * anybody else. Each value is held to its shape (`senderNameFrom`,
+ * `senderPhoneFrom`), and a refusal is a code the page words in its own
+ * language, with the English beside it, as `owner_or_admin_only` is.
+ * Answers what is stored now. Like every door here it refuses an
+ * organisation in its path that is not the caller's (`requireTenantMatch`),
+ * so a member of two names the one they are signed in to.
+ */
+router.put(
+  '/me',
+  authenticate,
+  requireTenantMatch(),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId;
+      const userId = req.userId;
+      if (!tenantId || !userId) {
+        return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found in authentication context' });
+      }
+      const parsed = SenderOfMyselfSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Send { displayName, phone }: each a string, null or left out.',
+        });
+      }
+      const set: { displayName?: string | null; phone?: string | null } = {};
+      if (parsed.data.displayName !== undefined) {
+        const name = senderNameFrom(parsed.data.displayName);
+        if (!name.ok) return res.status(400).json({ error: name.code, message: name.reason });
+        set.displayName = name.name;
+      }
+      if (parsed.data.phone !== undefined) {
+        const phone = senderPhoneFrom(parsed.data.phone);
+        if (!phone.ok) return res.status(400).json({ error: phone.code, message: phone.reason });
+        set.phone = phone.phone;
+      }
+
+      const rows = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+        const mine = and(eq(schema.tenantMember.tenantId, tenantId), eq(schema.tenantMember.userId, userId));
+        if (Object.keys(set).length > 0) {
+          await db
+            .update(schema.tenantMember)
+            .set({ ...set, updatedAt: new Date() })
+            .where(mine);
+        }
+        return db
+          .select({ displayName: schema.tenantMember.displayName, phone: schema.tenantMember.phone })
+          .from(schema.tenantMember)
+          .where(mine);
+      });
+      const row = rows[0];
+      if (!row) return res.status(404).json(MEMBER_NOT_FOUND.body);
+      const shown = senderOnAPage({ name: row.displayName, phone: row.phone });
+      res.json({ displayName: shown.name, phone: shown.phone });
+    } catch (error) {
+      serverFault(res, 'sender_update_failed', 'saving your name and number', error);
+    }
+  }
+);
+
+/**
  * GET /api/tenants/:tenantId/members/:memberId
  *
  * Get member details
@@ -428,6 +523,7 @@ router.post(
 router.get(
   '/:memberId',
   authenticate,
+  requireTenantMatch(),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { memberId } = req.params;
@@ -486,6 +582,7 @@ router.get(
 router.patch(
   '/:memberId',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -577,6 +674,7 @@ router.patch(
 router.delete(
   '/:memberId',
   authenticate,
+  requireTenantMatch(),
   requireRole('owner', 'admin'),
   async (req: AuthenticatedRequest, res: Response) => {
     try {

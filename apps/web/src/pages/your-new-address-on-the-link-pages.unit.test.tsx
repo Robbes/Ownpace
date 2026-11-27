@@ -138,7 +138,7 @@ describe('the grant page', () => {
     expect(putMock).toHaveBeenLastCalledWith(DOOR('grant'), { state: 'proposed', newAddress: 'kid@example.org' });
     expect(
       await screen.findByText(
-        'Sent back. It changes nothing until it is confirmed again, and whoever set it up sees it waiting on their pages.',
+        'Sent back. It changes nothing until it is confirmed again. owner@example.org sees that it waits.',
       ),
     ).toBeInTheDocument();
   });
