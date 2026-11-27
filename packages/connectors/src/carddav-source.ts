@@ -17,7 +17,7 @@
 
 import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@openmig/shared';
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types.ts';
-import { carddavMatchAllFilter, davRefusalBody, elementsIn, log, namesPrefixedElement } from '@openmig/shared';
+import { carddavMatchAllFilter, davRefusalBody, elementsIn, log, namesPrefixedElement, davElement, firstMatchOf, textsOf } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
@@ -29,6 +29,9 @@ import {
 import { parseRemovedHrefs } from './dav-removals.ts';
 import { asksToSlowDown, rateLimitWaitMs } from './rate-limit-once.ts';
 import { RemoteRefusal, davRefusalParts } from '@openmig/shared';
+
+/** The prefix a reply's elements are read by, as the patterns before them named it: `<p:name…>`, `p` letters. */
+const LETTERS_PREFIX = /^[A-Za-z]+:/;
 
 /**
  * CardDAV source connector implementation.
@@ -551,11 +554,9 @@ export class CarddavSource implements ContactSource {
     const folders: ContactFolder[] = [];
     
     // Find all response elements - namespace-agnostic
-    const responseRegex = /<[A-Za-z]+:response[^>]*>([\s\S]*?)<\/[A-Za-z]+:response>/gi;
-    let match: RegExpExecArray | null;
-
-    while ((match = responseRegex.exec(body)) !== null) {
-      const responseContent = match[1];
+    // Each response, a tag at a time (`davElement`): a pattern `<p:response[^>]*>…`
+    // read a body that opens an element and never closes it in time quadratic in it.
+    for (const responseContent of textsOf(body, davElement('response', LETTERS_PREFIX))) {
       if (!responseContent) continue;
       
       // Extract href - namespace-agnostic
@@ -571,11 +572,11 @@ export class CarddavSource implements ContactSource {
       if (davPathOf(path) === davPathOf(homeSet)) continue;
 
       // Extract display name - namespace-agnostic
-      const displayNameMatch = responseContent.match(/<[A-Za-z]+:displayname[^>]*>([^<]*)<\/[A-Za-z]+:displayname>/i);
+      const displayNameMatch = firstMatchOf(responseContent, davElement('displayname', LETTERS_PREFIX), 'text');
       const displayName = displayNameMatch && displayNameMatch[1] ? displayNameMatch[1].trim() : undefined;
 
       // Extract description - namespace-agnostic
-      const descriptionMatch = responseContent.match(/<[A-Za-z]+:addressbook-description[^>]*>([^<]*)<\/[A-Za-z]+:addressbook-description>/i);
+      const descriptionMatch = firstMatchOf(responseContent, davElement('addressbook-description', LETTERS_PREFIX), 'text');
       const description = descriptionMatch && descriptionMatch[1] ? this.decodeXmlEntities(descriptionMatch[1].trim()) : undefined;
 
       // An address book's COLOUR is deliberately not read. It is presentation,
@@ -620,23 +621,21 @@ export class CarddavSource implements ContactSource {
     let ctag: string | undefined;
 
     // Extract sync-token if present - namespace-agnostic
-    const syncTokenMatch = body.match(/<[A-Za-z]+:sync-token[^>]*>([^<]+)<\/[A-Za-z]+:sync-token>/i);
+    const syncTokenMatch = firstMatchOf(body, davElement('sync-token', LETTERS_PREFIX), 'non-empty text');
     if (syncTokenMatch && syncTokenMatch[1]) {
       syncToken = syncTokenMatch[1].trim();
     }
 
     // Extract CTag from ETag if present - namespace-agnostic
-    const ctagMatch = body.match(/<[A-Za-z]+:getetag[^>]*>([^<]+)<\/[A-Za-z]+:getetag>/i);
+    const ctagMatch = firstMatchOf(body, davElement('getetag', LETTERS_PREFIX), 'non-empty text');
     if (ctagMatch && ctagMatch[1]) {
       ctag = ctagMatch[1].trim();
     }
 
     // Find all response elements - namespace-agnostic
-    const responseRegex = /<[A-Za-z]+:response[^>]*>([\s\S]*?)<\/[A-Za-z]+:response>/gi;
-    let match: RegExpExecArray | null;
-
-    while ((match = responseRegex.exec(body)) !== null) {
-      const responseContent = match[1];
+    // Each response, a tag at a time (`davElement`): a pattern `<p:response[^>]*>…`
+    // read a body that opens an element and never closes it in time quadratic in it.
+    for (const responseContent of textsOf(body, davElement('response', LETTERS_PREFIX))) {
       if (!responseContent) continue;
       
       // Extract href - namespace-agnostic
@@ -646,15 +645,13 @@ export class CarddavSource implements ContactSource {
       const href = hrefMatch[1].trim();
 
       // Extract vCard data - namespace-agnostic
-      const vcardMatch = responseContent.match(/<[A-Za-z]+:address-data[^>]*>([\s\S]*?)<\/[A-Za-z]+:address-data>/i);
+      const vcardMatch = firstMatchOf(responseContent, davElement('address-data', LETTERS_PREFIX), 'element');
       if (vcardMatch && vcardMatch[1]) {
         const vcardData = this.decodeXmlEntities(vcardMatch[1].trim());
         // This card's OWN etag, scoped to its <response> — not the
         // collection-level scrape above, which takes whichever getetag comes
         // first in the body and would give every card the same value.
-        const etagMatch = responseContent.match(
-          /<[A-Za-z]+:getetag[^>]*>([^<]+)<\/[A-Za-z]+:getetag>/i,
-        );
+        const etagMatch = firstMatchOf(responseContent, davElement('getetag', LETTERS_PREFIX), 'non-empty text');
         const etag = etagMatch?.[1]?.trim();
         objects.push({
           href,
