@@ -23,6 +23,7 @@
  * Nothing here is stored (§6.3, §8): the screen reads it live.
  */
 import type { DestinationCapacity } from './ports.ts';
+import { davElement, firstTextBeforeTag } from './xml-elements.ts';
 
 type Unknown = Extract<DestinationCapacity, { known: false }>;
 const unknown = (why: Unknown['why']): Unknown => ({ known: false, why });
@@ -52,8 +53,11 @@ function known(freeBytes: number, totalBytes: number | undefined, pool: string):
  * which this does not match: absent, as it should read.
  */
 function davProperty(body: string, name: string): string | undefined {
-  const m = new RegExp(`<(?:[A-Za-z][\\w.-]*:)?${name}(?:\\s[^>]*)?>\\s*([^<\\s][^<]*?)\\s*</(?:[A-Za-z][\\w.-]*:)?${name}>`).exec(body);
-  return m?.[1];
+  // Read a tag at a time (`davElement`), as `<(?:p:)?name(?:\s[^>]*)?>\s*(\S…)\s*</(?:p:)?name>`
+  // read it: that pattern read a body that opens a tag and never ends it in
+  // time quadratic in it. The text holds no tag, and is trimmed and not empty.
+  const element = davElement(name, /^[A-Za-z][\w.-]*:/, { optionalPrefix: true, after: (rest) => rest === '' || /^\s/.test(rest) });
+  return firstTextBeforeTag(body, element.opens, (text, next) => /\S/.test(text) && next !== undefined && element.closes(next))?.trim();
 }
 
 /** A DAV integer, which Nextcloud may send negative and may send as a float (`1.5E+10`). */

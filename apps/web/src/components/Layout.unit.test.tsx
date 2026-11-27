@@ -538,6 +538,14 @@ describe("a member's menu", () => {
     expect(linkNames()).toEqual(['Migrations', 'Needs you', 'Accounts', 'Help', 'Team', 'Recommend someone', 'Billing']);
   });
 
+  it('draws Recommend someone with the handshake the card carries, not a gift box (0177, the owner’s Q3)', () => {
+    // The owner, 2026-11-26: "Q3: yes as advised", so the menu and the card match.
+    renderLayout('/mappings');
+    const icon = within(screen.getByRole('navigation')).getByRole('link', { name: 'Recommend someone' }).querySelector('svg');
+    expect(icon).toHaveClass('lucide-handshake');
+    expect(icon).not.toHaveClass('lucide-gift');
+  });
+
   it('has no Dashboard, no Connections, and no Attention any more', () => {
     renderLayout('/mappings');
     const names = linkNames();

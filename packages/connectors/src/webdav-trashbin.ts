@@ -29,7 +29,7 @@
  * rather than trusting two code paths to agree by coincidence.
  */
 
-import { withoutEither } from '@openmig/shared';
+import { withoutEither, davElement, firstTextOf, textsOf } from '@openmig/shared';
 
 /** The properties the trashbin PROPFIND asks for. */
 export const TRASHBIN_PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8"?>
@@ -69,16 +69,13 @@ function decodeXml(text: string): string {
  */
 export function parseTrashbinOriginalLocations(body: string): string[] {
   const out: string[] = [];
-  const responseRegex = /<[A-Za-z][\w-]*:response[^>]*>([\s\S]*?)<\/[A-Za-z][\w-]*:response>/gi;
 
-  let match: RegExpExecArray | null;
-  while ((match = responseRegex.exec(body)) !== null) {
-    const responseXml = match[1];
+  // Read a tag at a time (`davElement`): a pattern `<p:response[^>]*>…` read a
+  // body that opens an element and never closes it in time quadratic in it.
+  const prefix = /^[A-Za-z][\w-]*:/;
+  for (const responseXml of textsOf(body, davElement('response', prefix))) {
     if (!responseXml) continue;
-    const locationMatch = responseXml.match(
-      /<[A-Za-z][\w-]*:trashbin-original-location[^>]*>([\s\S]*?)<\/[A-Za-z][\w-]*:trashbin-original-location>/i,
-    );
-    const raw = locationMatch?.[1]?.trim();
+    const raw = firstTextOf(responseXml, davElement('trashbin-original-location', prefix))?.trim();
     // Empty covers both "the server has no value" (it answers with a self-closing
     // element inside a 404 propstat) and a property that is genuinely blank. An
     // entry with no original location cannot be matched to anything we copied.

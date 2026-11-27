@@ -114,6 +114,8 @@ the page shows your organisation's, where it has one, and says whose it is.
 After that, your family member has a page of their own. It shows how far the copying is. They
 can also stop it there.
 
+This is how it works for family and acquaintances you help.
+
 ### When Google asks again {#google-again}
 
 While Ownpace's app at Google is in Google's test phase, a Google connection stops after about

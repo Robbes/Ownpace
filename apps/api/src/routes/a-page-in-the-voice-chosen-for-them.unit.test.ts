@@ -289,7 +289,10 @@ describe("the server's own Dutch on a person's link is in that register (T7, §1
     askedClient = url.searchParams.get('client_id')!;
     const ended = await request(app).get('/api/migrations/google/callback').query({ state: url.searchParams.get('state')!, code: 'c' });
     expect(ended.status, ended.text).toBe(200);
-    expect(ended.text).toContain('Je account is nu verbonden');
-    expect(ended.text).not.toMatch(/\b(Uw|uw)\b/);
+    // What the page says, without its links: a link's token is random, and
+    // one that holds `-Uw` reads as a word to `\b`.
+    const said = ended.text.replace(/https:\/\/app\.example\/[\w./-]*/g, '');
+    expect(said).toContain('Je account is nu verbonden');
+    expect(said).not.toMatch(/\b(Uw|uw)\b/);
   });
 });
