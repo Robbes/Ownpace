@@ -26,6 +26,7 @@
  */
 
 import { z } from 'zod';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain, type PersonVoice } from '@openmig/shared';
 import apiClient from './api.ts';
 
 /**
@@ -79,6 +80,16 @@ const IssuedSchema = z.object({
   // A person's grant link made while every account of theirs was connected
   // asks each of them again (managed migration 0036). A migration's never does.
   asksAgain: z.boolean().optional(),
+  // What a person's grant link asks for, for the message sent with it (0176
+  // T8): data types this screen has words for, and destination kinds.
+  copies: z
+    .object({
+      domains: z.array(z.string()).transform((ds) => ds.filter((d): d is DiscoveryDomain => (DISCOVERY_DOMAINS as readonly string[]).includes(d))),
+      to: z.array(z.string()),
+    })
+    .optional(),
+  // How the person's pages speak to them now (0176 T7), as the link was made.
+  voice: z.enum(['nl-u', 'nl-je', 'en']).nullable().optional().catch(null),
 });
 export type IssuedGrantLink = z.infer<typeof IssuedSchema>;
 
@@ -130,10 +141,21 @@ export const personLinkApi = {
     return z.array(GrantLinkSchema).parse(res.data.links);
   },
 
-  issue: async (personId: string, purpose: MappingLinkPurpose, expiryDays: number): Promise<IssuedGrantLink> => {
+  /**
+   * `voice` is how the person's pages speak to them (workplan 0176 T7); a
+   * progress link sends none. Nothing asks who you are to them (D7, reversed
+   * by the owner on 2026-11-26).
+   */
+  issue: async (
+    personId: string,
+    purpose: MappingLinkPurpose,
+    expiryDays: number,
+    extra?: { readonly voice?: PersonVoice },
+  ): Promise<IssuedGrantLink> => {
     const res = await apiClient.post(`/people/${encodeURIComponent(personId)}/links`, {
       purpose,
       expiryDays,
+      ...(extra?.voice === undefined ? {} : { voice: extra.voice }),
     });
     return IssuedSchema.parse(res.data);
   },

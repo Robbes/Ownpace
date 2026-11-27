@@ -72,10 +72,21 @@ import {
   type IssuedGrantLink,
   type MappingLinkPurpose,
 } from '../services/grant-link-service.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
+import { PERSON_VOICES, languageOf, registerOf, withoutTrailing, type PersonVoice } from '@openmig/shared';
+import { STRINGS } from '../i18n/strings.ts';
+import { NL_JE } from '../i18n/informal.ts';
+import { fill } from '../i18n/fill.ts';
+import { formatDateTime, formatList } from '../i18n/datetime.ts';
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
+import { memberApi } from '../services/mapping-service.ts';
+import { useAuthStore } from '../stores/auth-store.ts';
+import { testerGuideSectionUrl } from '../services/tester-guide-link.ts';
+import { isAlpha } from './AlphaNote.tsx';
+import { providerName } from './ProviderTile.tsx';
 
 /**
  * What `created_by` says when the grant ending minted the link itself
@@ -192,7 +203,29 @@ const LinkSection: React.FC<{
   firstDays?: number;
   /** One line before the form: said where the link is made, before it is (0176 D13). */
   beforeForm?: React.ReactNode;
-}> = ({ doors, purpose, links, loadFailed, words: ownWords, firstDays, beforeForm }) => {
+  /** Fields before the lifetime, and between it and the button (0176 T8). */
+  fieldsBefore?: React.ReactNode;
+  fieldsAfter?: React.ReactNode;
+  /** Whether the button may be pressed: false until the form's own condition holds (0176 T8's tick). */
+  ready?: boolean;
+  /** Run before the link is made: a sentence it answers refuses it, and no link is made. */
+  beforeIssue?: () => Promise<string | null>;
+  /** What else goes with the link once it is made (0176 T8's message). */
+  withIssued?: (issued: IssuedGrantLink) => React.ReactNode;
+}> = ({
+  doors,
+  purpose,
+  links,
+  loadFailed,
+  words: ownWords,
+  firstDays,
+  beforeForm,
+  fieldsBefore,
+  fieldsAfter,
+  ready = true,
+  beforeIssue,
+  withIssued,
+}) => {
   // Links that are only listed and revoked here, never made: a migration's
   // sent before the person's replaced them.
   const issuable = doors.issue !== undefined;
@@ -217,6 +250,11 @@ const LinkSection: React.FC<{
     setIssueError('');
     setCopied(false);
     try {
+      const refused = beforeIssue ? await beforeIssue() : null;
+      if (refused !== null) {
+        setIssueError(refused);
+        return;
+      }
       const link = await doors.issue(purpose, expiryDays);
       setIssued(link);
       await queryClient.invalidateQueries({ queryKey: doors.queryKey });
@@ -273,6 +311,7 @@ const LinkSection: React.FC<{
       {issuable && beforeForm}
       {issuable && (
       <form onSubmit={issue} className="mt-3 flex flex-wrap items-end gap-3">
+        {fieldsBefore}
         <label className="flex flex-col text-sm text-gray-700">
           {t('grantLink.expiryLabel')}
           <select
@@ -287,9 +326,10 @@ const LinkSection: React.FC<{
             ))}
           </select>
         </label>
+        {fieldsAfter}
         <button
           type="submit"
-          disabled={issuing}
+          disabled={issuing || !ready}
           className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {purpose === 'grant' ? <KeyRound className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -325,6 +365,7 @@ const LinkSection: React.FC<{
           </p>
           <p className="mt-1 text-sm text-gray-700">{t('grantLink.issued.youSend')}</p>
           {issued.asksAgain && <p className="mt-1 text-sm text-gray-700">{t('personLink.asksAgain')}</p>}
+          {withIssued?.(issued)}
         </div>
       )}
 
@@ -406,14 +447,141 @@ const LinkSection: React.FC<{
 const PERSON_GRANT_LINK_DAYS = 30;
 
 /**
+ * Whether a source's kind or card is a Google account: the Alpha's lines
+ * where a person's link is made are for Google only (0176 T8), as the
+ * progress page groups Google's kinds (`View.tsx`).
+ */
+export const isGoogleKind = (kindOrCard: string): boolean => kindOrCard === 'gmail' || kindOrCard.startsWith('google');
+
+/** How the page speaks to the person, in the member's words for each (§15). */
+const VOICE_WORDS: Readonly<Record<PersonVoice, StringKey>> = {
+  'nl-u': 'personLink.voice.dutchU',
+  'nl-je': 'personLink.voice.dutchJe',
+  en: 'personLink.voice.english',
+};
+
+/** A person's grant link's one page, which prints (D15 (a)): under the link page's own address. */
+const sheetOf = (url: string): string => `${withoutTrailing(url, '/')}/all`;
+
+/**
+ * THE MESSAGE TO SEND WITH THE LINK (workplan 0176 §12, §15): it names what
+ * was said aloud (*This is the link I told you about*), what is copied and
+ * where to, as the link asks it (`copies`), and until when, in the person's
+ * language and register (§11): the voice the link was made with, so Dutch
+ * with *je* for a person whose pages say *je* (the informal layer's twin),
+ * whatever language the member's screen is in. The link goes under it. No
+ * greeting is written for the member, and nothing hurries (R2). The member
+ * may change it before sending; *Copy message* copies what is in the box.
+ * Nothing is sent: the member sends it, through a channel the person already
+ * trusts (ADR-0035). Beside it, a sheet to print for them: the link's one
+ * page (D15 (a)).
+ */
+const MessageToSend: React.FC<{ issued: IssuedGrantLink; voice: PersonVoice; name: string }> = ({ issued, voice, name }) => {
+  const t = useT();
+  const id = React.useId();
+  const copies = issued.copies;
+  const spoken = issued.voice ?? voice;
+  const language = languageOf(spoken) ?? 'en';
+  const words = STRINGS[language];
+  const informal = language === 'nl' && registerOf(spoken) === 'informal';
+  const message = (informal ? NL_JE['message.toPerson'] : undefined) ?? words['message.toPerson'];
+  const composed = copies
+    ? `${fill(message, {
+        what: formatList(
+          copies.domains.map((d) => words[DOMAIN_STRING_KEY[d]].toLocaleLowerCase(language)),
+          language,
+        ),
+        destination: formatList(
+          copies.to.map((kind) => providerName(kind, 'target', language)),
+          language,
+        ),
+        date: formatDateTime(issued.expiresAt, language),
+      })}\n\n${issued.url}`
+    : null;
+  const [text, setText] = React.useState(composed ?? '');
+  const [copied, setCopied] = React.useState(false);
+  if (composed === null) return null;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      // Refused by the browser: the message is on screen and selectable.
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="mt-3">
+      <label htmlFor={id} className="block text-sm font-medium text-gray-900">
+        {t('personLink.message.label')}
+      </label>
+      <p id={`${id}-hint`} className="text-xs text-gray-600">
+        {t('personLink.message.hint')}
+      </p>
+      <textarea
+        id={id}
+        aria-describedby={`${id}-hint`}
+        value={text}
+        rows={7}
+        onChange={(e) => {
+          setText(e.target.value);
+          setCopied(false);
+        }}
+        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
+      />
+      <button
+        type="button"
+        onClick={copy}
+        className="mt-2 flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-white"
+      >
+        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+        {copied ? t('personLink.message.copied') : t('personLink.message.copy')}
+      </button>
+      <p className="mt-2 text-sm">
+        <a
+          href={sheetOf(issued.url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-700 underline underline-offset-2 hover:text-blue-900"
+        >
+          {t('personLink.print', { name })}
+          <span className="sr-only"> {t('common.newTab')}</span>
+        </a>
+      </p>
+    </div>
+  );
+};
+
+/**
  * A PERSON'S grant link (ADR-0035, amended 2026-09-29; workplan 0153 T5 (b)):
  * one link for all of their migrations, on their page and on *Start a
  * migration*'s last screen.
  *
- * TELL THEM FIRST (workplan 0176 D13 (a)). The person's first screen asks
- * whether the sender told them about the link themselves, so the member is
- * told so here, before the link is made. One line; a tick, a message to send
- * and the voice are step B's (T8).
+ * MADE AFTER TELLING THEM (workplan 0176 §12, T8). The person's first screen
+ * asks whether the sender told them about the link themselves, so the form
+ * holds that moment, when it can still be acted on:
+ *
+ * - step A's line (D13 (a)), and a tick before the button: *I have told
+ *   {name} that a link is coming: by phone, or in person.* It cannot be
+ *   checked; it is a prompt, and the button waits for it;
+ * - not who the member is to them: the owner, 2026-11-26, reversing D7
+ *   (*"Does the relationship matter and need to be registered? I would like
+ *   not to..."*);
+ * - the member's name, as the person knows them, asked here once: only while
+ *   they have given none, and saved for them before the link is made
+ *   (`PUT …/members/me`); Team holds it afterwards;
+ * - during the Alpha, where the link asks a Google account: that the address
+ *   must be on Google's list of test users first, with the tester guide's
+ *   part for a family member's link, and that the Google step is best done
+ *   together (*"Yes, preferably"*);
+ * - how the page speaks to them (§11, T7, D8): Dutch with *u*, Dutch with
+ *   *je*, or English, offered as it was chosen for this person, else in the
+ *   member's own language with *u*; kept with the person once the link is
+ *   made. With *je*, one line gives the privacy text's rule for a child under
+ *   16 (§12); nobody's age is asked;
+ * - thirty days first (D13 (a)), the choices 1, 7 and 30;
+ * - with the link, a message to send in the person's voice, and a sheet to
+ *   print for them (`MessageToSend`).
  */
 export const PersonGrantLinkSection: React.FC<{
   personId: string;
@@ -421,16 +589,133 @@ export const PersonGrantLinkSection: React.FC<{
   personName: string;
   links: GrantLink[] | undefined;
   loadFailed: boolean;
-}> = ({ personId, personName, ...props }) => {
-  const t = useT();
+  /** Whether the link asks a Google account, for the Alpha's two lines. */
+  asksGoogle?: boolean;
+  /** How the person's pages speak to them, as chosen before (T7); null when never. */
+  personVoice?: PersonVoice | null;
+}> = ({ personId, personName, asksGoogle = false, personVoice = null, ...props }) => {
+  const { t, locale } = useLocale();
+  const queryClient = useQueryClient();
+  const { user, tenantId } = useAuthStore();
+  const fieldId = React.useId();
+  const name = personName;
+
+  // Your own row, for whether your name is still to be asked (0176 T3).
+  const members = useQuery({
+    queryKey: ['members', tenantId],
+    queryFn: () => memberApi.list(tenantId as string),
+    enabled: Boolean(tenantId) && !isSelfHost(),
+    retry: false,
+  });
+  const me = members.data?.find((m) => m.userId === user?.id);
+  const asksName = me !== undefined && !me.displayName;
+
+  const [yourName, setYourName] = React.useState('');
+  const [told, setTold] = React.useState(false);
+  // As chosen for this person before, else your own language with u (§11).
+  const [voice, setVoice] = React.useState<PersonVoice | null>(null);
+  const spoken: PersonVoice = voice ?? personVoice ?? (locale === 'nl' ? 'nl-u' : 'en');
+
+  const doors: LinkDoors = {
+    ...personDoors(personId),
+    issue: (purpose, expiryDays) => personLinkApi.issue(personId, purpose, expiryDays, { voice: spoken }),
+  };
+
+  // Your name, before the link that shows it is made: a refusal makes no link.
+  const beforeIssue = async (): Promise<string | null> => {
+    const typed = yourName.trim();
+    if (!asksName || typed === '' || !tenantId) return null;
+    try {
+      await memberApi.setMine(tenantId, { displayName: typed });
+      await queryClient.invalidateQueries({ queryKey: ['members', tenantId] });
+      return null;
+    } catch (err) {
+      const code = (err as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+      return code === 'sender_name_refused' ? t('tenants.sender.name.refused') : serverMessage(err);
+    }
+  };
+
+  const fieldsBefore = (
+    <>
+      {asksName && (
+        <div className="flex w-full flex-col text-sm text-gray-700">
+          <label htmlFor={`${fieldId}-name`}>{t('personLink.name.label', { name })}</label>
+          <p id={`${fieldId}-name-hint`} className="text-xs text-gray-600">
+            {t('personLink.name.hint', { name })}
+          </p>
+          <input
+            id={`${fieldId}-name`}
+            aria-describedby={`${fieldId}-name-hint`}
+            autoComplete="name"
+            maxLength={60}
+            value={yourName}
+            onChange={(e) => setYourName(e.target.value)}
+            className="mt-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 w-72 max-w-full"
+          />
+        </div>
+      )}
+      <div className="flex w-full flex-col text-sm text-gray-700">
+        <label htmlFor={`${fieldId}-voice`}>{t('personLink.voice.label', { name })}</label>
+        <select
+          id={`${fieldId}-voice`}
+          value={spoken}
+          onChange={(e) => setVoice(e.target.value as PersonVoice)}
+          className="mt-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white w-72 max-w-full"
+        >
+          {PERSON_VOICES.map((v) => (
+            <option key={v} value={v}>
+              {t(VOICE_WORDS[v])}
+            </option>
+          ))}
+        </select>
+        {spoken === 'nl-je' && (
+          <p role="note" className="mt-1 text-sm text-gray-900">
+            {t('personLink.voice.child', { name })}
+          </p>
+        )}
+      </div>
+    </>
+  );
+
+  const fieldsAfter = (
+    <>
+      {isAlpha() && asksGoogle && (
+        <div className="w-full space-y-1">
+          <p role="note" className="text-sm text-gray-900">
+            {t('personLink.alpha.testUsers', { name })}{' '}
+            <a
+              href={testerGuideSectionUrl(locale, 'familyLink')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-700 underline underline-offset-2 hover:text-blue-900"
+            >
+              {t('personLink.alpha.guide')}
+              <span className="sr-only"> {t('common.newTab')}</span>
+            </a>
+          </p>
+          <p className="text-sm text-gray-900">{t('personLink.together')}</p>
+        </div>
+      )}
+      <label className="flex w-full items-start gap-2 text-sm text-gray-900">
+        <input type="checkbox" checked={told} onChange={(e) => setTold(e.target.checked)} className="mt-0.5" />
+        <span>{t('personLink.told', { name })}</span>
+      </label>
+    </>
+  );
+
   return (
     <LinkSection
       {...props}
-      doors={personDoors(personId)}
+      doors={doors}
       purpose="grant"
       words={PERSON_WORDS.grant}
       firstDays={PERSON_GRANT_LINK_DAYS}
-      beforeForm={<p className="mt-3 text-sm text-gray-900">{t('personLink.tellFirst', { name: personName })}</p>}
+      beforeForm={<p className="mt-3 text-sm text-gray-900">{t('personLink.tellFirst', { name })}</p>}
+      fieldsBefore={fieldsBefore}
+      fieldsAfter={fieldsAfter}
+      ready={told}
+      beforeIssue={beforeIssue}
+      withIssued={(issued) => <MessageToSend key={issued.id} issued={issued} voice={spoken} name={name} />}
     />
   );
 };

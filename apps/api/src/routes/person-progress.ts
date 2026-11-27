@@ -9,6 +9,16 @@
  * page shows it (`migrationProgress`, which both use), and nothing more: no
  * mapping id, no name, no address, no folder, no file, no provider's prose.
  *
+ * Two things more since workplan 0176 step B (T6), each a fact the link page
+ * already shows the same person: **who sent the link**, by the name the
+ * member gave, how the person knows them and the member's own number
+ * (`readPersonLinkSender`), with the organisation's number beside it, and
+ * never the member's address; and, per migration, **whether the organisation
+ * can open the copy** at its destination, by the link page's own rule
+ * (`isTheOrganisationsDestination`). The name and the number are what the
+ * member chose to show the people they send a link to; how long this page
+ * lives makes them part of what the privacy text says (§14).
+ *
  * ## Grouped by account, named by nothing a stranger could read
  *
  * *Take my grant back* is per Google account (the amendment's words). So the
@@ -48,6 +58,7 @@ import {
   type PgDatabase,
 } from '@openmig/ledger';
 import { personGrantedConnection, personMigration } from '@openmig/managed/schema-managed';
+import { readPersonVoice } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
   CIRRUX_DRIVE_GRANT_KEY,
@@ -59,6 +70,9 @@ import {
   foundByDomain,
   hasCirruxDriveGrant,
   isPasswordKind,
+  languageOf,
+  readTenantContactPhone,
+  registerOf,
   reasonPair,
   viewGrantFor,
   viewRowFor,
@@ -75,6 +89,7 @@ import {
   type PersonViewAccount,
   type PersonViewDestination,
   type PersonViewMigration,
+  type Register,
   type TenantId,
   type TokenRevoker,
   type ViewDomainRow,
@@ -82,7 +97,8 @@ import {
   type WhatStopped,
 } from '@openmig/shared';
 import { withTenantDb } from '../middleware/auth.ts';
-import { namedAccount, readGrantRows, storedCredentials } from './migrations/grant-subject.ts';
+import { grantReadiness, namedAccount, readGrantRows, storedCredentials } from './migrations/grant-subject.ts';
+import { isTheOrganisationsDestination, readPersonLinkSender } from './migrations/person-grant-subject.ts';
 import { isGrantableSourceKind } from './migrations/grant-link-readiness.ts';
 import { googleAccountKey } from './migrations/signed-in-account.ts';
 import { GRANT_WITHDRAWN_ACTION, WITHDRAWAL_ACTOR, grantedToken } from './withdraw-grant.ts';
@@ -270,6 +286,8 @@ interface Theirs {
   readonly withdrawnAt: Date | null;
   /** `googleAccountKey` of the account it reads, or null when it reads none through a link. */
   readonly accountKey: string | null;
+  /** The destination is the organisation's, by the link page's rule (workplan 0176 T6). */
+  readonly theOrganisationOpensIt: boolean;
 }
 
 /** One account's migrations, with the grants they hold. Server-side only: it carries the secrets. */
@@ -283,6 +301,16 @@ interface AccountGroup {
 
 /** Every migration of the person's, in the order they were added. */
 async function readTheirs(db: PgDatabase, tenantId: string, personId: string): Promise<Theirs[]> {
+  // The destinations this person connected themselves (0174 D1 (a)): theirs,
+  // so the organisation is not said to open the copy there.
+  const grantedByThem = new Set(
+    (
+      await db
+        .select({ connectionId: personGrantedConnection.connectionId })
+        .from(personGrantedConnection)
+        .where(and(eq(personGrantedConnection.personId, personId), eq(personGrantedConnection.tenantId, tenantId)))
+    ).map((r) => r.connectionId),
+  );
   const rows = await db
     .select({
       mappingId: personMigration.mappingId,
@@ -309,6 +337,11 @@ async function readTheirs(db: PgDatabase, tenantId: string, personId: string): P
       secretRef: row.secretRef,
       withdrawnAt: row.withdrawnAt,
       accountKey: named ? googleAccountKey(named) : null,
+      // Who else can open the copy (0176 T6, §10): the link page's own rule,
+      // read from the same rows, so the two pages cannot say it differently.
+      theOrganisationOpensIt:
+        grantRows !== null &&
+        isTheOrganisationsDestination(grantRows, grantReadiness(grantRows).includedDomains, grantedByThem),
     });
   }
   return theirs;
@@ -362,14 +395,20 @@ function groupByAccount(theirs: readonly Theirs[], stopped: ReadonlyMap<string, 
  */
 export async function readPersonView(
   db: PgDatabase,
-  input: { readonly tenantId: string; readonly personId: string; readonly expiresAt: Date },
+  input: { readonly tenantId: string; readonly personId: string; readonly expiresAt: Date; readonly linkId: string },
 ): Promise<PersonView | null> {
   const org = await db
-    .select({ name: schema.tenant.name })
+    .select({ name: schema.tenant.name, settings: schema.tenant.settings })
     .from(schema.tenant)
     .where(eq(schema.tenant.id, input.tenantId));
   const organisation = org[0]?.name;
   if (organisation === undefined) return null;
+  // Who sent the link (0176 T6, §7): the member's name and own number,
+  // never their address; the organisation's number beside it (D11).
+  const { sender } = await readPersonLinkSender(db, input.tenantId, input.linkId);
+  const organisationPhone = readTenantContactPhone(org[0]?.settings);
+  // How the person's pages speak to them (0176 T7), as the link page says it.
+  const voice = await readPersonVoice(db, input.tenantId, input.personId);
 
   const theirs = await readTheirs(db, input.tenantId, input.personId);
   const stopped = await readWhatStopped(
@@ -394,13 +433,25 @@ export async function readPersonView(
       ...(progress.time ? { time: progress.time } : {}),
       account: refFor(m.mappingId),
       ...(m.withdrawnAt ? { stopped: { at: m.withdrawnAt.toISOString(), ...stopped.get(m.mappingId) } } : {}),
+      theOrganisationOpensIt: m.theOrganisationOpensIt,
     });
   }
   const accounts: PersonViewAccount[] = groups.map((g) => ({ ref: g.ref, grant: g.grant }));
   const destinations: PersonViewDestination[] = (await readDestinations(db, input.tenantId, input.personId)).map(
     (d) => ({ ref: d.ref, provider: d.kind, drive: d.drive }),
   );
-  return { kind: 'person', organisation, expiresAt: input.expiresAt.toISOString(), migrations, accounts, destinations };
+  return {
+    kind: 'person',
+    organisation,
+    expiresAt: input.expiresAt.toISOString(),
+    migrations,
+    accounts,
+    destinations,
+    sender,
+    organisationPhone,
+    language: languageOf(voice),
+    register: registerOf(voice),
+  };
 }
 
 // ========================= A destination the person connected (workplan 0174 §4.3) =========================
@@ -583,6 +634,8 @@ export type PersonWithdrawalResult =
 export const NOTHING_TO_WITHDRAW: Bilingual = {
   en: 'This account holds no permission of yours that was given through a link, so there is nothing here to withdraw.',
   nl: 'Dit account heeft geen toestemming van u die via een link is gegeven, dus er is hier niets in te trekken.',
+  // With je, for a person whose pages say je (workplan 0176 T7, §11).
+  nlJe: 'Dit account heeft geen toestemming van jou die via een link is gegeven, dus er is hier niets in te trekken.',
 };
 
 /** When what the page showed is not what is held now. */
@@ -592,6 +645,9 @@ export const CHANGED_SINCE_OPENED: Bilingual = {
     'so nothing was deleted. Open this page again to see where it stands.',
   nl:
     'Uw toestemming is gewijzigd sinds deze pagina werd geopend (opnieuw gegeven, of elders ingetrokken), ' +
+    'dus er is niets verwijderd. Open deze pagina opnieuw om te zien hoe het ervoor staat.',
+  nlJe:
+    'Je toestemming is gewijzigd sinds deze pagina werd geopend (opnieuw gegeven, of elders ingetrokken), ' +
     'dus er is niets verwijderd. Open deze pagina opnieuw om te zien hoe het ervoor staat.',
 };
 
@@ -657,9 +713,13 @@ export async function withdrawPersonGrant(
   return { ok: true, withdrawal: { withdrawnAt: withdrawnAt.toISOString(), atGoogle } };
 }
 
-/** The refusal as the page reads it: the code, and both halves of the sentence. */
+/**
+ * The refusal as the page reads it: the code, and both halves of the
+ * sentence, its Dutch in the person's register (workplan 0176 T7).
+ */
 export function withdrawalRefusalBody(
   result: Extract<PersonWithdrawalResult, { ok: false }> | Extract<DestinationWithdrawalResult, { ok: false }>,
+  register?: Register,
 ) {
-  return { error: result.code, ...reasonPair(result.refusal) };
+  return { error: result.code, ...reasonPair(result.refusal, register) };
 }

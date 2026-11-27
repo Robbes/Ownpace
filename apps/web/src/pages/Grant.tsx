@@ -109,7 +109,7 @@ import { grantApi, type GrantSubject, type PersonGrantSubject } from '../service
 import { linkRefusal } from '../services/link-refusal.ts';
 import { consentToFollow } from '../services/address-to-follow.ts';
 import { legalLinks } from '../services/legal-links.ts';
-import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import { InTheirVoice, useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
@@ -117,6 +117,7 @@ import AlphaGoogleLine from '../components/AlphaGoogleLine.tsx';
 import { isAlpha } from '../components/AlphaNote.tsx';
 import AccessibilityLink from '../components/AccessibilityLink.tsx';
 import { PersonsPageProvider } from '../components/persons-page.tsx';
+import { whoSent } from '../components/TheSender.tsx';
 import { PersonGrant } from './PersonGrant.tsx';
 import { GrantScope, NotTheProvider, failureSentence, providerName, readsKey, wordsOf } from './grant-parts.tsx';
 
@@ -400,10 +401,19 @@ const Grant: React.FC = () => {
       </div>
     </main>
   );
-  // Whoever the page names as having sent the link (0176 D14): the member who
-  // made it, else the organisation; nothing yet while the page loads.
-  const who = subject.data && isPersonSubject(subject.data) ? (subject.data.askedBy ?? subject.data.organisation) : '';
-  return personsPage ? <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider> : page;
+  // Whoever the page names as having sent the link (0176 D14, §7): the name
+  // the member gave, else their address, else the organisation; nothing yet
+  // while the page loads.
+  const who = subject.data && isPersonSubject(subject.data) ? whoSent(subject.data) : '';
+  // In the voice chosen for them (0176 T7): the steps read their words in it.
+  const voice = subject.data && isPersonSubject(subject.data) ? subject.data : null;
+  return personsPage ? (
+    <InTheirVoice language={voice?.language} register={voice?.register}>
+      <PersonsPageProvider value={{ who }}>{page}</PersonsPageProvider>
+    </InTheirVoice>
+  ) : (
+    page
+  );
 };
 
 export default Grant;

@@ -223,6 +223,21 @@ export const en = {
   'tenants.org.phone.hint': 'Optional; shown to people you send a grant link to.',
   'tenants.org.phone.save': 'Save',
   'tenants.org.phone.saved': 'Saved.',
+  // What a member says of themselves on a person's page (workplan 0176 §7,
+  // T3; D11): their name as the people they send a link to know them, and
+  // their own number. Their own row only.
+  'tenants.sender.heading': 'When you send someone a link',
+  'tenants.sender.intro': 'The page they open names you as the sender, with a number to check.',
+  'tenants.sender.name': 'Your name, as they know you',
+  'tenants.sender.name.hint': 'Without a name, the page shows the address you sign in with.',
+  'tenants.sender.phone': 'Your own phone number',
+  'tenants.sender.phone.hint': "Without one, the page shows the organisation's number instead.",
+  'tenants.sender.save': 'Save name and number',
+  'tenants.sender.saved': 'Saved. A person’s page shows it from now on.',
+  'tenants.sender.name.refused':
+    "That is not a name a person’s page can show. Use only letters, spaces and ' - . (at most 60 characters).",
+  'tenants.sender.phone.refused':
+    'That is not a phone number a person’s page can show. Use only digits, spaces and + ( ) - . / (6 to 15 digits).',
   'tenants.org.phone.none': 'None given.',
   'tenants.org.readError': "Could not read the organisation's details.",
   'tenants.org.rename': 'Rename',
@@ -436,6 +451,18 @@ export const nl: Record<keyof typeof en, string> = {
   'tenants.org.phone.hint': 'Optioneel; getoond aan wie u een toegangslink stuurt.',
   'tenants.org.phone.save': 'Opslaan',
   'tenants.org.phone.saved': 'Opgeslagen.',
+  'tenants.sender.heading': 'Als u iemand een link stuurt',
+  'tenants.sender.intro': 'De pagina die zij openen, noemt u als afzender, met een nummer ter controle.',
+  'tenants.sender.name': 'Uw naam, zoals zij u kennen',
+  'tenants.sender.name.hint': 'Zonder naam toont de pagina het adres waarmee u inlogt.',
+  'tenants.sender.phone': 'Uw eigen telefoonnummer',
+  'tenants.sender.phone.hint': 'Zonder nummer toont de pagina het nummer van de organisatie.',
+  'tenants.sender.save': 'Naam en nummer opslaan',
+  'tenants.sender.saved': 'Opgeslagen. De pagina van een persoon toont het voortaan.',
+  'tenants.sender.name.refused':
+    "Dat is geen naam die de pagina van een persoon kan tonen. Gebruik alleen letters, spaties en ' - . (hooguit 60 tekens).",
+  'tenants.sender.phone.refused':
+    'Dat is geen telefoonnummer dat de pagina van een persoon kan tonen. Gebruik alleen cijfers, spaties en + ( ) - . / (6 tot 15 cijfers).',
   'tenants.org.phone.none': 'Niet opgegeven.',
   'tenants.org.readError':
     'De gegevens van de organisatie konden niet worden gelezen.',

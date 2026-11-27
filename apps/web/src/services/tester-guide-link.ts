@@ -70,6 +70,9 @@ export function testerGuideUrl(locale: Locale, source: LegalSiteEnv = buildEnv()
  */
 export const TESTER_GUIDE_SECTIONS = {
   google: { en: 'google-connect', nl: 'google-koppelen' },
+  // Where a person's link is made (workplan 0176 T8): the guide's part for
+  // a family member's link, which says to mail their Google address first.
+  familyLink: { en: 'family-link', nl: 'familielid-link' },
 } as const satisfies Readonly<Record<string, Readonly<Record<Locale, string>>>>;
 
 export type TesterGuideSection = keyof typeof TESTER_GUIDE_SECTIONS;

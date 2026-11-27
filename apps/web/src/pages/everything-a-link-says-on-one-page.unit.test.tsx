@@ -23,7 +23,8 @@
  * - ***The next step is on {provider}'s own page.***, which says where the
  *   provider's button goes, and there is none;
  * - ***The next screen shows from where and to where.***: there is no next
- *   screen, so it says *further down this page* (`grant.onePage.whatMany`).
+ *   screen, so it says *further down this page* (`grant.onePage.whatMany`);
+ * - ***Read everything on one page***, the steps' link to this page.
  *
  * And it asks the API for what the link page asks, and nothing more.
  */
@@ -219,7 +220,7 @@ function leftOut(locale: 'en' | 'nl'): RegExp[] {
   const words = STRINGS[locale];
   const shape = (key: keyof typeof words) =>
     new RegExp(`^${words[key].replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\\\{[a-z]+\\\}|\{[a-z]+\}/g, '.+')}$`);
-  return [shape('grant.step'), shape('grant.person.see.next'), shape('grant.person.whatMany')];
+  return [shape('grant.step'), shape('grant.person.see.next'), shape('grant.person.whatMany'), shape('grant.onePage.link')];
 }
 
 beforeEach(() => {

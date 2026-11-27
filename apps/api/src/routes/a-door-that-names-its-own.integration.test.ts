@@ -133,6 +133,22 @@ describe('a door that names an organisation or a migration in its path', () => {
     }
   });
 
+  it('refuses to set the name a member shows under another organisation’s id, and writes it in neither (1)', async () => {
+    // Workplan 0176 T3's own door: what a member says of themselves on a
+    // person's page. Named by the second organisation's path, it set the name
+    // in the first, the one signed in to.
+    const res = await request
+      .put(`/api/tenants/${SECOND}/members/me`)
+      .set('Authorization', `Bearer ${tokenOf(BOTH)}`)
+      .send({ displayName: 'Named by its path' });
+    expect(res.status).toBe(403);
+    const names = await owner.query<{ display_name: string | null }>(
+      'SELECT display_name FROM tenant_member WHERE user_id = $1 AND tenant_id = ANY($2)',
+      [BOTH, [FIRST, SECOND]],
+    );
+    expect(names.rows.map((r) => r.display_name)).toEqual([null, null]);
+  });
+
   it('answers the same doors for the organisation signed in to, as before (2)', async () => {
     const token = tokenOf(BOTH);
     expect((await request.get(`/api/tenants/${FIRST}`).set('Authorization', `Bearer ${token}`)).status).toBe(200);
