@@ -52,10 +52,10 @@ and its second identity (#2191, #2192, #2193), under Added.
 
 - **C and the freeze.** C is this fold's squash. From C until the tag only the nights' waiver
   (#2208) merges to `main`, and only with the owner's words: what is still open goes into alpha.22.
-- **The nights.** The owner is asked to waive them for alpha.21, as for alpha.18 to alpha.20. In
-  their place: E2E (managed) and E2E (self-hosted) on Postgres and on PGlite, dispatched on `main`
-  at C, one at a time, beside C's push runs and its Windows smoke. Without the waiver the tag waits
-  for two counted nights on C.
+- **The nights.** Waived for alpha.21 by the owner on 2026-11-27, as for alpha.18 to alpha.20: *"I
+  waive all nights and waiting for 21"*. The waiver (#2208) carries the words, and merges after C.
+  In the nights' place: E2E (managed) and E2E (self-hosted) on Postgres and on PGlite, dispatched on
+  `main` at C, one at a time, beside C's push runs and its Windows smoke.
 - **Owed before the tag:** C's checks, its push runs and its Windows smoke, the image scans, and the
   three E2E lanes at C, one at a time; the waiver, merged; then the Release run, which the owner
   starts from their own account, with `commit` set to C and `waive_nights` set to the reason in
