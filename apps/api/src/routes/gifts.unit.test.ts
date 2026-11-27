@@ -195,17 +195,64 @@ describe('the giver', () => {
     as(anna);
     const second = await request(app).post('/api/gifts').send({ locale: 'en' });
     expect(second.status).toBe(409);
-    expect(second.body).toMatchObject({ error: 'gift_limit', limit: 1 });
+    // In both languages, as the giver's page says it (0177, alpha.22).
+    expect(second.body).toMatchObject({
+      error: 'gift_limit',
+      limit: 1,
+      reason: 'You have recommended someone already. Withdraw an unused card to make another.',
+      reasonNl: 'U hebt al iemand aanbevolen. Trek een ongebruikte kaart in om een nieuwe te maken.',
+    });
+    expect(second.body.message).toBe(second.body.reason);
+  });
+
+  it('is refused one more than their number, with the number, in both languages', async () => {
+    await rows('UPDATE gift_rule SET gifts_per_person = 2');
+    await makeOne();
+    await makeOne();
+    as(anna);
+    const third = await request(app).post('/api/gifts').send({ locale: 'en' });
+    expect(third.status).toBe(409);
+    expect(third.body).toMatchObject({
+      error: 'gift_limit',
+      limit: 2,
+      reason: 'You have recommended 2 people already. Withdraw an unused card to make another.',
+      reasonNl: 'U hebt al 2 mensen aanbevolen. Trek een ongebruikte kaart in om een nieuwe te maken.',
+    });
+    expect(third.body.message).toBe(third.body.reason);
   });
 
   it('revokes their own unused gift, and may then make another; not somebody else’s', async () => {
     const made = await makeOne();
     as(bram);
-    expect((await request(app).post(`/api/gifts/${made.id}/revoke`)).status).toBe(404);
+    const notTheirs = await request(app).post(`/api/gifts/${made.id}/revoke`);
+    expect(notTheirs.status).toBe(404);
+    expect(notTheirs.body).toMatchObject({
+      reason: 'This recommendation is not yours, or does not exist.',
+      reasonNl: 'Deze aanbeveling is niet van u, of bestaat niet.',
+    });
+    expect(notTheirs.body.message).toBe(notTheirs.body.reason);
     as(anna);
     expect((await request(app).post(`/api/gifts/${made.id}/revoke`)).status).toBe(200);
-    expect((await request(app).post(`/api/gifts/${made.id}/revoke`)).status).toBe(409);
+    const again = await request(app).post(`/api/gifts/${made.id}/revoke`);
+    expect(again.status).toBe(409);
+    expect(again.body).toMatchObject({
+      reason: 'Only an unused recommendation can be withdrawn.',
+      reasonNl: 'Alleen een ongebruikte aanbeveling kan worden ingetrokken.',
+    });
+    expect(again.body.message).toBe(again.body.reason);
     expect((await request(app).post('/api/gifts').send({})).status).toBe(201);
+  });
+
+  it('is refused without an organisation, on the list and the make, in both languages', async () => {
+    as({ userId: ANNA });
+    for (const res of [await request(app).get('/api/gifts/mine'), await request(app).post('/api/gifts').send({})]) {
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({
+        reason: 'A recommendation is made from an organisation, and this sign-in has none.',
+        reasonNl: 'Een aanbeveling maakt u vanuit een organisatie, en bij deze aanmelding hoort er geen.',
+      });
+      expect(res.body.message).toBe(res.body.reason);
+    }
   });
 
   it('cannot make one without signing in', async () => {
@@ -444,6 +491,11 @@ describe('the operator', () => {
     const { id } = await makeOne();
     as(operator);
     expect((await request(app).post(`/api/gifts/operator/${id}/revoke`)).status).toBe(200);
+    // The operator's screen is English only, and its words are its own: never *not yours*.
+    expect((await request(app).post(`/api/gifts/operator/${id}/revoke`)).body).toEqual({
+      error: 'Conflict',
+      message: 'Only an unused gift can be revoked.',
+    });
     expect((await request(app).put('/api/gifts/operator/rule').send({ giftsPerPerson: 0 })).status).toBe(200);
     as(bram);
     expect((await request(app).post('/api/gifts').send({})).status).toBe(409);
