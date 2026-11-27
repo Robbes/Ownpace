@@ -26,7 +26,7 @@
  */
 
 import { CalDAVSource, CarddavSource } from '@openmig/connectors';
-import type { SoverinRecord } from '@openmig/shared';
+import { davElement, firstTextOf, type SoverinRecord } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import { davUrl } from './dav-endpoint.ts';
 
@@ -45,12 +45,17 @@ const PRINCIPAL_PROPFIND =
   '<?xml version="1.0" encoding="utf-8"?>' +
   '<D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>';
 
-/** The principal's href in a multistatus, or undefined. Namespace prefixes vary by server. */
+/** An element by its local name, with any namespace prefix or none, and nothing glued to the name. */
+const element = (name: string) =>
+  davElement(name, /^[\w-]+:/, { optionalPrefix: true, after: (rest) => rest === '' || /^[\s/]/.test(rest) });
+const PRINCIPAL = element('current-user-principal');
+const HREF = element('href');
+
+/** The principal's href in a multistatus, or undefined. Read a tag at a time, never by a backtracking pattern. */
 function principalHref(body: string): string | undefined {
-  const block = /<(?:[\w-]+:)?current-user-principal\b[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?current-user-principal>/i.exec(body);
-  const href = block?.[1] ? /<(?:[\w-]+:)?href\b[^>]*>([^<]*)<\/(?:[\w-]+:)?href>/i.exec(block[1]) : null;
-  const value = href?.[1]?.trim();
-  return value ? value.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>') : undefined;
+  const block = firstTextOf(body, PRINCIPAL);
+  const value = block === undefined ? undefined : firstTextOf(block, HREF)?.trim();
+  return value ? value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : undefined;
 }
 
 function statusWords(response: Response): string {

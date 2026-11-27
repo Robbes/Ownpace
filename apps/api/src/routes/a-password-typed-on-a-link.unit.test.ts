@@ -351,14 +351,37 @@ describe('replay, revocation and whose account (§7.2, §7.5, D1, D3)', () => {
   });
 
   it('never sends a password to a server named by a number', async () => {
-    await q(`UPDATE connection SET config = jsonb_set(config, '{host}', '"192.0.2.10"') WHERE id = $1`, [R.soverin]);
+    // A kind that publishes no server: Soverin's password goes only to its own
+    // since workplan 0175 T1, whatever host the row names.
+    await q(
+      `UPDATE connection SET kind = 'caldav', config = jsonb_set(config, '{host}', '"192.0.2.10"') WHERE id = $1`,
+      [R.soverin],
+    );
     try {
       const { token } = await mintFor(driver, R);
-      const res = await put(token, { ref: SOVERIN_REF, values: { password: ANNAS_SOVERIN } });
+      const res = await put(token, {
+        ref: accountRef('target', 'caldav', R.soverin, 'anna@soverin.net'),
+        values: { password: ANNAS_SOVERIN },
+      });
       expect(res.status).toBe(409);
       expect(res.body.error).toBe('server_not_a_name');
       expect(res.body.reasonNl).toEqual(expect.any(String));
       expect(server.logins).toHaveLength(0);
+    } finally {
+      await q(
+        `UPDATE connection SET kind = 'soverin', config = jsonb_set(config, '{host}', '"caldav.soverin.net"') WHERE id = $1`,
+        [R.soverin],
+      );
+    }
+  });
+
+  it('sends a Soverin password to Soverin’s own server even when the row names a number', async () => {
+    await q(`UPDATE connection SET config = jsonb_set(config, '{host}', '"192.0.2.10"') WHERE id = $1`, [R.soverin]);
+    try {
+      const { token } = await mintFor(driver, R);
+      const res = await put(token, { ref: SOVERIN_REF, values: { password: ANNAS_SOVERIN } });
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(JSON.stringify(server.logins)).not.toContain('192.0.2.10');
     } finally {
       await q(`UPDATE connection SET config = jsonb_set(config, '{host}', '"caldav.soverin.net"') WHERE id = $1`, [R.soverin]);
     }
