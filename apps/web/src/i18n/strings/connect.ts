@@ -541,6 +541,12 @@ export const en = {
   // The account's per-domain qualification line (0106 T0). Three marks,
   // deliberately three: '?' is unmeasured, never a quiet yes or no.
   'probe.qualify.lead': 'Carries:',
+  // Which kind of Soverin mailbox the Test found (workplan 0175 §5.5): one
+  // card serves both, and the Carries line names the kind before it.
+  'probe.soverin.personal': 'Soverin (personal).',
+  'probe.soverin.suite': 'Soverin Suite.',
+  'probe.soverin.unknown': 'We could not tell which kind of Soverin mailbox this is.',
+  'probe.soverin.personalFiles': 'A personal Soverin mailbox has no file storage; a Soverin Suite licence adds it.',
   // The measured-volume line (2026-09-02): how much each reached face holds.
   'probe.measured.lead': 'Found:',
   // A face that answered with nothing. "Tasks ✓ 0 task lists" read as a
@@ -1141,6 +1147,11 @@ export const nl: Record<keyof typeof en, string> = {
   'probe.unit.collection.one': 'verzameling',
   'probe.unit.collection.many': 'verzamelingen',
   'probe.qualify.lead': 'Omvat:',
+  'probe.soverin.personal': 'Soverin (persoonlijk).',
+  'probe.soverin.suite': 'Soverin Suite.',
+  'probe.soverin.unknown': 'Wij konden niet vaststellen wat voor Soverin-mailbox dit is.',
+  'probe.soverin.personalFiles':
+    'Een persoonlijke Soverin-mailbox heeft geen bestandsopslag; een Soverin Suite-licentie voegt die toe.',
   'probe.measured.lead': 'Gevonden:',
   'probe.found.none': 'geen',
   'probe.measured.message.one': '{count} bericht',

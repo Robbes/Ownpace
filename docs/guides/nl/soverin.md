@@ -1,11 +1,17 @@
 # Soverin — mail, agenda's en contacten in één account
 
-De kaart **Soverin** is één account voor een Soverin-account: mail, agenda's, contacten en takenlijsten. Bestanden horen er niet bij. Deze dienst meldt zich aan met het adres en het wachtwoord van het account; er is geen knop om toestemming te geven.
+De kaart **Soverin** is één account voor een Soverin-mailbox van beide soorten: een persoonlijke mailbox, of een mailbox met een Soverin Suite-licentie. U kiest niet welke: de test zoekt het uit, en zegt wat de mailbox omvat. Een persoonlijke mailbox omvat mail, agenda's, contacten en takenlijsten. Bestanden horen er niet bij: alleen een Suite-licentie voegt bestandsopslag toe, en deze dienst schrijft nog geen bestanden naar Suite. Deze dienst meldt zich aan met het adres en het wachtwoord van de mailbox; er is geen knop om toestemming te geven.
 
 ## Wat u nodig hebt {#before}
 
 - Uw Soverin-account: het e-mailadres en het wachtwoord. Biedt Soverin u een app-wachtwoord, dan kan dat in hetzelfde vak.
 - De keuze of er ook mail meegaat. Alleen dan is de mailserver nodig; agenda's en contacten hebben er geen nodig.
+
+## Persoonlijk of Suite {#kind}
+
+Soverin verkoopt twee soorten mailbox. Een persoonlijke mailbox bewaart zijn agenda's en contacten op de eigen server van Soverin, `caldav.soverin.net`. Een Soverin Suite-licentie, aangezet op een mailbox in het dashboard van Soverin, houdt dezelfde mailserver en verplaatst de agenda's en contacten van die mailbox naar Soverin Suite.
+
+**Zet Suite aan vóórdat u agenda's en contacten naar Soverin migreert.** Zet u het daarna aan, dan verplaatst Soverin ze naar een nieuwe server, en terugschakelen kost bij Soverin gegevens. Deze dienst volgt die verplaatsing niet: test het account opnieuw en maak een nieuwe migratie voor agenda's en contacten.
 
 ## Koppelen {#connect}
 
@@ -28,6 +34,15 @@ Er is geen vakje voor SSL/TLS: deze dienst gebruikt het altijd, voor agenda's en
 
 De test schrijft niets. Hij meldt zich aan bij de agenda's en meet daarnaast elk deel van het account apart: wat het account omvat staat achter **Omvat:**, en wat hij vond achter **Gevonden:**. Of één app-wachtwoord voor mail én voor agenda's en contacten werkt, staat niet vast: de test zegt het per deel. Wordt het ene deel geweigerd en het andere niet, dan dekt dat wachtwoord niet het hele account.
 
+De test zoekt ook uit wat voor mailbox dit is, en zegt dat vóór **Omvat:**:
+
+- **Soverin (persoonlijk). Omvat: E-mail · Agenda · Contacten · Taken** — de eigen server van Soverin antwoordde voor deze mailbox en noemde de agenda's en adresboeken. Daaronder: **Bestanden: Een persoonlijke Soverin-mailbox heeft geen bestandsopslag; een Soverin Suite-licentie voegt die toe.**
+- **Wij konden niet vaststellen wat voor Soverin-mailbox dit is.** — gevolgd door wat er misging, woordelijk. Mail wordt nog steeds apart gemeten. Er wordt niets geraden: de agenda's en contacten van een mailbox die de test niet kon plaatsen, gaan naar waar het formulier naar wijst, `caldav.soverin.net` zoals ingevuld.
+
+Een Suite-mailbox herkennen is nog niet af: dat wordt eerst gemeten op een echte Suite-mailbox. Tot die tijd heet een mailbox met een Suite-licentie niet Suite, en worden de agenda's en contacten niet naar Suite geschreven.
+
+Bij een account dat al bestond vóór deze test, zoekt de eerstvolgende ronde van de migratie één keer uit wat voor mailbox het is, voordat er agenda's, contacten of taken worden geschreven.
+
 U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart **Soverin**, en druk op **Toevoegen en testen**. De vakken zijn daar op dezelfde manier vooraf ingevuld, open in beeld.
 
 ## Als het account van iemand anders is {#somebody-else}
@@ -39,7 +54,7 @@ Is het account van een collega, een familielid of een klant, dan hebt u diens wa
 - **E-mail**, wanneer het account is bewaard met de **Mailserver** ingevuld: de mappen en de berichten daarin.
 - **Agenda**, **Contacten** en **Taken**. Takenlijsten zijn agenda's die taken bevatten, op dezelfde server als uw agenda's.
 - Elke afspraak wordt geschreven met een markering, `SCHEDULE-AGENT=CLIENT`, die de server vraagt er geen uitnodigingen voor te versturen. Deelnemers en organisator blijven in uw kopie van elke afspraak staan. Een server die de markering negeert, kan toch uitnodigingen versturen.
-- **Bestanden** gaan niet naar Soverin: bij **Waar gaat het naartoe?** biedt de rij voor bestanden het niet aan.
+- **Bestanden** gaan niet naar Soverin: bij **Waar gaat het naartoe?** biedt de rij voor bestanden het niet aan. Een persoonlijke mailbox heeft geen bestandsopslag; die van Suite wordt aangeboden zodra die is gemeten.
 - Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gemigreerd.
 
 ## Als de test iets meldt {#when-test-says}

@@ -1,11 +1,17 @@
 # Soverin — mail, calendars and contacts in one account
 
-The **Soverin** card is one account for a Soverin account: mail, calendars, contacts and task lists. Files are not among them. This service signs in with the account's address and password; there is no consent button.
+The **Soverin** card is one account for a Soverin mailbox of either kind: a personal mailbox, or a mailbox with a Soverin Suite licence. You do not choose which: the test finds out, and says what the mailbox carries. A personal mailbox carries mail, calendars, contacts and task lists. Files are not among them: only a Suite licence adds file storage, and this service does not write files to Suite yet. This service signs in with the mailbox's address and password; there is no consent button.
 
 ## What you need {#before}
 
 - Your Soverin account: the email address and the password. If Soverin offers you an app password, it goes in the same box.
 - Whether mail moves too. Only then is the mail server needed; calendars and contacts need none.
+
+## Personal or Suite {#kind}
+
+Soverin sells two kinds of mailbox. A personal mailbox keeps its calendars and contacts on Soverin's own server, `caldav.soverin.net`. A Soverin Suite licence, activated on a mailbox in Soverin's dashboard, keeps the same mail server and moves that mailbox's calendars and contacts to Soverin Suite.
+
+**Activate Suite before you move calendars and contacts to Soverin.** If you activate it afterwards, Soverin moves them to a new server, and switching back loses data at Soverin. This service does not follow such a move: test the account again, and make a new migration for calendars and contacts.
 
 ## Connecting {#connect}
 
@@ -28,6 +34,15 @@ There is no box for SSL/TLS: this service always uses it, for calendars and cont
 
 The test writes nothing. It signs in to the calendars and also measures each part of the account on its own: what the account carries follows **Carries:**, and what it found follows **Found:**. Whether one app password works for mail as well as for calendars and contacts is not certain: the test says so per part. If one part is refused and the other is not, that password does not cover the whole account.
 
+The test also finds which kind of mailbox this is, and says it before **Carries:**:
+
+- **Soverin (personal). Carries: Email · Calendar · Contacts · Tasks** — Soverin's own server answered for this mailbox and listed its calendars and address books. Under it: **Files: A personal Soverin mailbox has no file storage; a Soverin Suite licence adds it.**
+- **We could not tell which kind of Soverin mailbox this is.** — followed by what failed, word for word. Mail is still measured on its own. Nothing is guessed: the calendars and contacts of a mailbox the test could not place go where its form points, `caldav.soverin.net` as filled in.
+
+Telling a Suite mailbox apart is not finished yet: it is being measured on a real Suite mailbox first. Until then, a mailbox with a Suite licence is not called Suite, and its calendars and contacts are not written to Suite.
+
+An account added before this test existed has its kind found once, by its next migration run, before it writes calendars, contacts or tasks.
+
 You can also add the account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the **Soverin** card, and press **Add and test**. The boxes are pre-filled there in the same way, in plain view.
 
 ## If the account is somebody else's {#somebody-else}
@@ -39,7 +54,7 @@ If the account belongs to a colleague, a family member or a client, you do not n
 - **Email**, when the account is saved with its **Mail server**: the folders and the messages in them.
 - **Calendar**, **Contacts** and **Tasks**. Task lists are calendars that hold tasks, on the same server as your calendars.
 - Each event is written with a marker, `SCHEDULE-AGENT=CLIENT`, that tells the server not to send invitations for it. Attendees and the organiser stay in your copy of each event. A server that ignores the marker could still send invitations.
-- **Files** do not go to Soverin: on **Where does it go?**, the row for files does not offer it.
+- **Files** do not go to Soverin: on **Where does it go?**, the row for files does not offer it. A personal mailbox has no file storage; Suite's will be offered once it has been measured.
 - A migration may run again and again: what is already in the target is recognised and not copied a second time.
 
 ## When the test reports a problem {#when-test-says}

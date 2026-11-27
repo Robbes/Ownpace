@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import apiClient from './api.ts';
 import { z } from 'zod';
-import type { PlainFailure, ProbeOutcome, WhatHappenedAnswer } from '@openmig/shared';
+import type { PlainFailure, ProbeOutcome, SoverinRecord, WhatHappenedAnswer } from '@openmig/shared';
 import { DOMAIN_STATES, FAILURE_CATEGORIES, FAILURE_SIDES, MAPPING_LIFECYCLES, isGuideHandle } from '@openmig/shared';
 import type {
   DiscoveryRecord,
@@ -1000,6 +1000,8 @@ export interface TestConnectionResult {
     >
     >;
     scheduling?: { capability: 'auto-schedule' | 'none' | 'unknown'; sentence: string };
+    /** Which kind of Soverin mailbox answered (workplan 0175 §5.4); only on a Soverin Test. */
+    soverin?: SoverinRecord;
   };
 }
 

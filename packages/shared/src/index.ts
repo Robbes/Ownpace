@@ -111,6 +111,7 @@ export * from './provider-accounts.ts';
 export * from './archive-providers.ts';
 export * from './provider-directory.ts';
 export * from './provider-endpoints.ts';
+export * from './soverin-record.ts';
 export * from './google-deployment-client.ts';
 export * from './google-read-only.ts';
 export * from './dropbox-deployment-client.ts';

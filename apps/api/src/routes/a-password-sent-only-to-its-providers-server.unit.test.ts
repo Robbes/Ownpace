@@ -134,6 +134,9 @@ describe('a kind whose provider publishes its server is tried only there (§5.8,
   for (const [kind, provider, dav, mail] of [
     ['cirrux', 'Cirrux', 'api.cirrux.co', 'imap.cirrux.co'],
     ['infomaniak', 'Infomaniak', 'sync.infomaniak.com', 'mail.infomaniak.com'],
+    // Workplan 0175 T1: a personal mailbox's servers, from Soverin's help desk
+    // articles 26 and 38, which could not be read when 0174 left Soverin generic.
+    ['soverin', 'Soverin', 'caldav.soverin.net', 'imap.soverin.net'],
   ] as const) {
     it(`${provider}: the owner's host is ignored, the test goes to ${dav}, and the row says so after`, async () => {
       const ref = await destinationIs(kind, OWNERS_SERVERS);
@@ -193,26 +196,27 @@ describe('a kind whose provider publishes its server is tried only there (§5.8,
   });
 });
 
-describe('Soverin stays generic: its help pages could not be read (§14 question 2)', () => {
+describe('a kind that names no provider stays generic (§14 question 2)', () => {
+  // Soverin was this example until workplan 0175 T1 cited its servers; a
+  // protocol kind publishes none, so its host is the owner's.
   it('is tried against the owner’s host, which the page shows for the person to judge', async () => {
-    const config = { host: 'dav.owner.example', port: 443, mailHost: 'imap.owner.example', user: 'anna@soverin.net' };
-    const ref = await destinationIs('soverin', config);
+    const config = { host: 'dav.owner.example', port: 443, user: 'anna@soverin.net' };
+    const ref = await destinationIs('caldav', config);
     const { token } = await mintFor(driver, R);
     const server = await serverOn(token, ref);
     expect(server.published).toBe(false);
-    expect(server.hosts).toEqual(['dav.owner.example', 'imap.owner.example']);
+    expect(server.hosts).toEqual(['dav.owner.example']);
     const res = await request(app).put(`/api/grant/${token}/password`).send({ ref, values: await filled(token, ref) });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(logins[0]!.config).toMatchObject({ host: 'dav.owner.example', mailHost: 'imap.owner.example' });
+    expect(logins[0]!.config).toMatchObject({ host: 'dav.owner.example' });
   });
 });
 
 describe('a host inside a private network is refused, nothing tried, nothing counted (§5.8)', () => {
   it('answers 409 server_not_public with the sentence in both languages', async () => {
-    const ref = await destinationIs('soverin', {
+    const ref = await destinationIs('caldav', {
       host: 'dav.inside.example',
       port: 443,
-      mailHost: 'imap.soverin.net',
       user: 'anna@soverin.net',
     });
     const { token, id } = await mintFor(driver, R);
@@ -241,7 +245,7 @@ describe('a host inside a private network is refused, nothing tried, nothing cou
   });
 
   it('a host that resolves outward is tried as before', async () => {
-    const ref = await destinationIs('soverin', { host: 'dav.public.example', port: 443, mailHost: 'imap.soverin.net', user: 'anna@soverin.net' });
+    const ref = await destinationIs('caldav', { host: 'dav.public.example', port: 443, user: 'anna@soverin.net' });
     const { token } = await mintFor(driver, R);
     const values = await filled(token, ref);
     const off = refuseInternalAddresses({ resolve: async () => [{ address: '203.0.113.7', family: 4 }] });
