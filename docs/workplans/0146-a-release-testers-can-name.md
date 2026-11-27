@@ -4,8 +4,53 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
-**2026-11-27: alpha.21's counted nights waived, in the owner's words (T4).** On the branch
-`claude/ownpace-public-readiness-y7orc6-a21-waiver`; not merged. The owner wrote, on 2026-11-27: *"I
+**2026-11-27, morning: `v0.2.0-alpha.21` is released, its nights waived (T2, T4).** Read from GitHub
+on 2026-11-27. Times are UTC.
+
+- **C is `c34b30f8`**, the squash of #2211, the fold, merged on 2026-11-27 at 03:16:51. On C, all
+  green: CI run 45933241224 (its jobs 03:27:32 to 04:01:24, `ci-complete` included; it waited behind
+  `main`'s run on `a1e3d5b9`), Security Scan run 45933241327, Images run 45933241303, Semgrep run
+  45933241248, Dockerfile lint run 45933241259, CodeQL run 45933241194 and Nextcloud's second major,
+  run 45933241157. One commit reached `main` after C, as planned: the waiver (#2208), as `4283d374`,
+  at 03:43:30.
+- **In the counted nights' place**, waived for alpha.21 (*"I waive all nights and waiting for 21"*,
+  #2208), dispatched on `main` at C: `windows-payload.yml` run 45933260724 (win-x64, its smoke on
+  Windows included, 03:17:04 to 03:18:00); E2E (managed), run 45933257146 (03:17:02 to 03:23:09);
+  then E2E (self-hosted) on Postgres, run 45933910509 (03:23:42 to 03:29:35), and on PGlite, run
+  45934327426, one at a time. PGlite's first attempt failed in one case at 03:34:12, the zip archive
+  gate's *a second import writes nothing*: its one read after one pass met a pass the fixture's
+  schedule starts every minute, and read `in_progress`. That was the test's race, not the product's.
+  Its second attempt passed (03:37:05 to 03:42:23), and #2212 makes the three archive gates read
+  once no pass is running.
+- **The image scans ran before the tag**, as the fold's entry asks: Security Scan run 45933264170,
+  dispatched on C with `image_scans`, 03:17:06 to 03:20:10, green, 19 images scanned.
+- **Release.** The owner ran it from their own account, first as a preflight alone: run 45956517347
+  (`mode` `preflight`, 07:09:25 to 07:10:11), which passed with nothing refused. Then Release run
+  45959038794 (`mode` `release`), with `waive_nights` set to the owner's words, in one attempt: its
+  preflight passed (07:31:30 to 07:32:13), and it waited at its approve job until the owner approved
+  in the `release` environment (the job ran 07:32:24 to 07:32:27); then the gate scan of C (run
+  45959177759, on `release-gate/v0.2.0-alpha.21`, 07:32:40 to 07:33:36) and the tag (07:34:01)
+  succeeded. The publish job's Security Scan on the tag, run 45959379088 (07:34:24 to 07:35:42),
+  made the release with its body and SBOM; the images, run 45959603216 (07:36:18 to 07:40:18), and
+  the Windows zip, run 45959600300 (07:36:16 to 07:37:41), both on the tag, were green; and verify
+  passed, the run ending at 07:41:14.
+- **What the release carries, uploaded by `github-actions[bot]`:** `bom.json` (924,114 bytes, with
+  the release at 07:35:35), `ownpace-appliance-win-x64-v0.2.0-alpha.21.zip` (50,223,904 bytes,
+  07:37:36) and each image's own SBOM for both platforms: eight files
+  `ownpace-{api,selfhost,web,worker}-0.2.0-alpha.21.linux-{amd64,arm64}.spdx.json` (07:40:12 to
+  07:40:13). Verify, which reads them, passed.
+- **The tag.** `v0.2.0-alpha.21` is tag object `e9aef490…` on `c34b30f8`, made by
+  `github-actions[bot]` at 07:34:01. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/45959038794*, *Proved by: CI run #6688, Security
+  Scan run #6853 on main, windows-payload run #69; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/45959177759* and *Nights waived by Robbes, in their
+  words: "I waive all nights and waiting for 21"*.
+- **The freeze ended with the tag.** The first merge after it was #2212, as `f284fd80`.
+- **The deploy to live** of alpha.21 is not planned yet. It is one-way, as the fold's entry says,
+  and its sheet is filled from this tag.
+
+**2026-11-27: alpha.21's counted nights waived, in the owner's words (T4).** Merged as #2208
+(`4283d374`) at 03:43:30 UTC, after C and before the Release. The owner wrote, on 2026-11-27: *"I
 waive all nights and waiting for 21"*. `v0.2.0-alpha.21` joins `WAIVER_VERSIONS` in
 `scripts/release-nights.mjs` with those words; both list guards name it, and `v0.2.0-alpha.22` is
 now the version a waiver is refused for; `docs/release.md` lists it. It waives the nights and
