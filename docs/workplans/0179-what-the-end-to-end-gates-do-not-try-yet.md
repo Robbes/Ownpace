@@ -4,16 +4,27 @@
 
 ## Status — 2026-11-27 (update this block at the end of every session)
 
-**A plan for the maintainer. Nothing is built.** No product code, no test and no workflow
-changes with this plan; the maintainer decides what is built, from §3. Every claim about the
-code cites a file and a line as read on `main` at `4283d37`; after `main` was merged in at
-`e083778` (#2212, #2214), the archive gates' lines and §4.2 were read again there. Open: the
-maintainer's answers to D1 to D4 (§3.2).
+**2026-11-27, the maintainer's answers, and T1 done.** The maintainer answered on 2026-11-27:
+*"D1: a / D2: a / D3: a / D4: b / E2E: as advised"*. So the advice stands for all four
+decisions (§3.2) and for the order in §3.1. T1 is done in this plan's pull request, docs only:
+§2.3's finding is in `docs/testing.md` (the `e2e-managed.yml` entry), in
+`docs/managed-bring-up.md` (beside *Nextcloud's pin moves one way*), and a line in
+`.github/pull_request_template.md`. T2 and T3 (and T4, if cheap) come next, in one pull request
+touching only the smoke. Every claim about the code cites a file and a line as read on `main` at
+`4283d37`; after `main` was merged in at `e083778` (#2212, #2214), the archive gates' lines and
+§4.2 were read again there.
 
 | Task | Owner | State | Note |
 |---|---|---|---|
 | T0 The read and this plan | builder | ✅ Written | This file. |
-| T1 to T8 The gates in §3.1 | — | ⏳ Not started | Each waits for the maintainer's choice in §3.2. |
+| T1 §2.3 written down | builder | ✅ Done | In this plan's pull request: `docs/testing.md`, `docs/managed-bring-up.md`, the pull request template. |
+| T2 The recommendation door, on the managed smoke | builder | 📋 Planned, alpha.22 | With T3, one pull request touching only `smoke-managed.sh` (D1 (a)). |
+| T3 A grant that copies, and *Stop copying*, on the managed smoke | builder | 📋 Planned, alpha.22 | With T2. |
+| T4 The voice chosen for a person, on the managed smoke | builder | 📋 Planned, alpha.22 | With T2 and T3 if cheap. |
+| T5 The appliance upgraded from the previous release | — | ⏭ Next | D2 (a): a step on the Postgres night. |
+| T6 The owner's appliance flows | — | 🕓 After alpha.22 | |
+| T7 A real browser against the real managed API | — | 🕓 After alpha.22 | D4 (b). |
+| T8 Soverin | — | 🕓 Later | D3 (a): stand-ins first, a real account later. |
 
 ## 1. In short
 
@@ -112,6 +123,9 @@ there reaches them before the owner notices. T5 comes before T6 because an upgra
 breaks every appliance at once, while each T6 flow breaks for one owner who can see it.
 
 ### 3.2 Decisions for the maintainer
+
+**Answered by the maintainer on 2026-11-27:** *"D1: a / D2: a / D3: a / D4: b / E2E: as
+advised"*. Each answer is the advice below.
 
 - **D1. Where the managed additions go.** (a) New sections of `smoke-managed.sh`, as every
   managed check so far; (b) a separate script the workflow runs after it. **Advice: (a)**, as
