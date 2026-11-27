@@ -2,7 +2,14 @@
 
 > **In one line:** The screens a gift's giver and recipient see: a free gift becomes a recommendation that lets a person in at once and buys nothing; the code gets a door of its own; the card reads without a screen; the two mails say what happened; the Alpha gets two ceilings; a paid gift code stays as 0172 left it.
 
-## Status — 2026-11-26 (update this block at the end of every session)
+## Status — 2026-11-27 (update this block at the end of every session)
+
+**2026-11-27: step A is in alpha.21.** alpha.21, tagged at `c34b30f8` (0146), carries step A
+(#2198), its door's three answers kept one size when one wraps (#2210), and its words as the owner
+read them (#2206). The task table says so: T1 to T8, T10 and T16 are merged, and T11 is met by T1
+and T4. Two things wait: the 76 rows marked *drafted (plan)* and the operator's English, for the
+owner's read (T3), and the privacy text, changed in place under 1.0 once the lawyer has read it (T7,
+Q1). Still open: T0 and T14, the owner's; T9 (step B); T12 (step C).
 
 **2026-11-26, later still: the owner's answers on the privacy text (Q1) and the menu's icon
 (Q3), and the read of step A's Dutch.** Step A is merged (#2198), with E2E managed, Postgres
@@ -200,22 +207,22 @@ for that one to be merged (§19, §21).
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The owner's hand test: from the mail that lets a person in to the first screen after signing in, word for word | owner | ⏳ **Owner** | §8. On a real phone, in Dutch and English. Blocks nothing; the yes mail's third step takes its words. |
-| T1 The door: the code first and alone, then let in at once | builder | 📋 Planned | §5. One new route, and a managed migration with no table (D6). The question about Google (D14) and a request already waiting (D15) are part of it. L. |
-| T2 The card: a full sheet, in type that can be read, with steps that match the screens | builder | 🚧 Built, in review | §6. S. |
-| T3 The words, EN and NL, and one name for the thing | builder | 📋 Planned | §7. D1 (a). The glossary first. Merged after the owner's read of the Dutch. M. |
-| T4 The two mails: what happened, in both languages alike | builder | 📋 Planned | §8. D11 (a), D12 (a). For every request. M. |
-| T5 The giver's page: what it is, and what the other person will read | builder | 🚧 Built, in review | §9. With a link beside the card (D2). M. |
-| T6 Size, contrast and targets on the door and the giver's page | builder | 🚧 Built, in review | §10. S. |
-| T7 What follows: the site's page, the glossary, the privacy text, the records | builder | 📋 Planned | §11. With each step. S. The privacy text: *"Q1: yes"* (the owner, 2026-11-26), changed in place under 1.0 once the lawyer has read it, as for 0176; #2198's drafts are on the lawyer's list. |
-| T8 Proofs | builder | 📋 Planned | §14. With each step. |
+| T1 The door: the code first and alone, then let in at once | builder | ✅ Merged, alpha.21 (#2198, `f9f24bef`) | §5. One new route, and a managed migration with no table (D6). The question about Google (D14) and a request already waiting (D15) are part of it. L. |
+| T2 The card: a full sheet, in type that can be read, with steps that match the screens | builder | ✅ Merged, alpha.21 (#2198) | §6. S. |
+| T3 The words, EN and NL, and one name for the thing | builder | ✅ Merged, alpha.21 (#2198, #2206); the 76 rows marked *drafted (plan)* wait for the owner's read | §7. D1 (a). The glossary first. Merged after the owner's read of the Dutch. M. |
+| T4 The two mails: what happened, in both languages alike | builder | ✅ Merged, alpha.21 (#2198) | §8. D11 (a), D12 (a). For every request. M. |
+| T5 The giver's page: what it is, and what the other person will read | builder | ✅ Merged, alpha.21 (#2198) | §9. With a link beside the card (D2). M. |
+| T6 Size, contrast and targets on the door and the giver's page | builder | ✅ Merged, alpha.21 (#2198, #2210) | §10. S. |
+| T7 What follows: the site's page, the glossary, the privacy text, the records | builder | 🔄 Merged, alpha.21 (#2198, #2206); the privacy text under 1.0, after the lawyer (Q1) | §11. With each step. S. The privacy text: *"Q1: yes"* (the owner, 2026-11-26), changed in place under 1.0 once the lawyer has read it, as for 0176; #2198's drafts are on the lawyer's list. |
+| T8 Proofs | builder | ✅ Merged, alpha.21 (#2198) | §14. With each step. |
 | T9 Who sent it: the giver's name at the door and in the yes mail | builder | 📋 Planned | §12. Step B. D3 (a). After 0176's T3, which holds the name. M. |
-| T10 What the giver hears: used, and so let in | builder | 🚧 Built, in review | §9. Step A now, in words: under D6 *used* means *let in*, so no column is needed (D8). S. |
-| T11 A receipt by mail | builder | 📋 Planned | §12. Met by T1 and T4: under D6 the yes mail goes out at once, and it is the receipt (D10). No task of its own is left. |
+| T10 What the giver hears: used, and so let in | builder | ✅ Merged, alpha.21 (#2198) | §9. Step A now, in words: under D6 *used* means *let in*, so no column is needed (D8). S. |
+| T11 A receipt by mail | builder | ✅ Met by T1 and T4 (#2198) | §12. Met by T1 and T4: under D6 the yes mail goes out at once, and it is the receipt (D10). No task of its own is left. |
 | T12 After the Alpha: a paid code at the same door | builder | 📋 Planned | §13. Step C. With payments; 0172's G2. Not designed here beyond the door. |
 | T13 The owner's decisions, D1 to D13 | owner | ✅ Answered 2026-11-26 | §15.1. In the owner's words, with what each changes. Later that day the owner also said yes to building step A now. |
 | T14 A first test with four people | owner | ⏳ **Owner** | §16. After step A is on a stack the owner can reach. |
 | T15 The owner's decisions after the answers, D14 to D16 | owner | ✅ Answered 2026-11-26 | §15.2. In the owner's words. What D16's numbers mean in the code is this plan's reading (§20). |
-| T16 The Alpha's two ceilings: 50 people the owner lets in, 50 by a recommendation | builder | 📋 Planned | §20. D16 to D18. Step A. Two numbers on the operator's *Gifts* screen; both counts shown there, on the queue, and in an overview on *Support* (D17); nothing refuses the owner's yes; a new card and the door keep to the second; during the Alpha only the people the owner let in recommend (D18). M. |
+| T16 The Alpha's two ceilings: 50 people the owner lets in, 50 by a recommendation | builder | ✅ Merged, alpha.21 (#2198) | §20. D16 to D18. Step A. Two numbers on the operator's *Gifts* screen; both counts shown there, on the queue, and in an overview on *Support* (D17); nothing refuses the owner's yes; a new card and the door keep to the second; during the Alpha only the people the owner let in recommend (D18). M. |
 | T17 The owner's decisions on the ceilings, D17 and D18 | owner | ✅ Answered 2026-11-26 | §15.3. In the owner's words. D17: nothing is refused, and *Support* gets an overview. D18: during the Alpha only the people the owner let in recommend; after it, every member. |
 
 ## 1. What the owner decided
