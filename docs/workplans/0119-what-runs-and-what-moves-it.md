@@ -29,8 +29,12 @@ On 2026-11-28 (UTC), in that order:
   `dump-idp.sh`: the set `20261128T131134Z`, 701 entries read back. The move is one-way, so the
   dump is the way back. It is deleted once `main`'s first scheduled E2E (managed) on v4.20.6 is
   green.
-- Next, E2E (managed) on this branch applies v4.20.6 on the OTA instance, and the owner's hand
-  check there follows.
+- E2E (managed) run 46149031651, on this branch at `4c2ecb64`, applied v4.20.6 on the OTA
+  instance, from 13:19 to 13:25: `SMOKE PASS`, with the identity provider up on v4.20.6 and its
+  database's backup-and-restore drill passed.
+- The owner's hand check on the OTA instance after it was ok on all three steps: one sign-in
+  through login v1, and one forgot-password mail opened from the mail catcher, whose link opened
+  the page to set a new password.
 
 **2026-11-27: what alpha.21 moves, which live takes with its deploy.** The fold for
 `v0.2.0-alpha.21` (0146's entry of the same day) carries what `main` merged after alpha.20's C,
