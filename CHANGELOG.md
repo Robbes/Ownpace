@@ -67,6 +67,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Files at the top of a source are copied when you choose a destination folder that does not
+  exist yet** (workplan 0179; the maintainer's decision of 2026-11-27). Moving files into a
+  Nextcloud or other WebDAV target under a new folder, the files at the top of the source could
+  fail five times each with `File with name /<folder> could not be located` and be left failed
+  until retried by hand, while the files in subfolders arrived. Whether it happened depended on
+  which file went first. Ownpace now makes the folder before the first file at the top is
+  written, large files sent in pieces included.
 - **Two answers stay one size when one of them wraps, and the giver's page hears its refusals in
   Dutch too** (workplans 0176, 0177). On a person's link and progress page, the two answers to a
   question are one height even where a phone's narrow column wraps the longer one, as the door of
