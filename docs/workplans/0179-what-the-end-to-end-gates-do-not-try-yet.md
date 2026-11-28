@@ -4,6 +4,18 @@
 
 ## Status — 2026-11-28 (update this block at the end of every session)
 
+**2026-11-28, later: T6's first E2E passed on both backends, and G6 stays as built (the
+maintainer's *"G6: a"*).** E2E (self-hosted, Postgres) 46153849618 and E2E (self-hosted, PGlite)
+46154752493, both on `16555e00`, passed. On Postgres the gate took 74.3 s: G9's retry 13.4 s and
+its move 6.2 s, G7's stop and resume 16.9 s and its end and keep 14.4 s, G8 6.2 s, and G6 under a
+second. On PGlite its step took about 75 s. The upgrade gate after it passed on Postgres. Asked on
+2026-11-28 whether G6 should stay as built (the appliance moves one person, ADR-0050, and refuses
+to add one), also go to the managed smoke, or wait for a product change, the maintainer answered
+*"G6: a"*. So G6 stays as built: `/people` lists the one person, both writes are refused with
+their reason, and the gate's three migrations, added as files, complete their first passes.
+Adding a person and a migration is tried on the managed stack already: the managed smoke's
+section on a person's link (0122, 0153 T5) makes a person and adds a migration to them.
+
 **2026-11-28, T6 built, waiting for its first E2E (self-hosted, Postgres and PGlite).** The
 maintainer took T6 into alpha.22 on 2026-11-28 (*"T6: yes in this alpha"*), against this plan's
 advice to take it after: T5's first run found a gap that left files failed until someone
@@ -134,7 +146,7 @@ lines and §4.2 were read again there.
 | T3 A grant that copies, and *Stop copying*, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Runs 45976766670 and 45987424991 passed. |
 | T4 The voice chosen for a person, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Inside T3's section; both runs passed. |
 | T5 The appliance upgraded from the previous release | builder | ✅ Merged as #2220 (`8858cd67`), E2E 46000058137 and 46001198346 passed | D2 (a): the last steps of `e2e.yml`, Postgres only; `selfhost-upgrade.e2e.test.ts`. |
-| T6 The owner's appliance flows | builder | 🔨 Built, waiting for E2E (self-hosted, both backends) | The maintainer's yes of 2026-11-28. G9, G7, G8 as asked; G6 narrower, a decision asked (Status of 2026-11-28). |
+| T6 The owner's appliance flows | builder | ✅ Built as #2224, E2E 46153849618 and 46154752493 passed (the gate about 75 s) | The maintainer's yes of 2026-11-28. G9, G7, G8 as asked; G6 as built, the maintainer's *"G6: a"* (Status of 2026-11-28). |
 | T7 A real browser against the real managed API | — | 🕓 After alpha.22 | D4 (b). |
 | T8 Soverin | — | 🕓 Later | D3 (a): stand-ins first, a real account later. |
 
