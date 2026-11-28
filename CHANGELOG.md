@@ -55,6 +55,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   printed. `scripts/a-door-and-a-grant-the-gate-walks.unit.test.ts` runs both against a fake API,
   database and DAV server. No product code changes.
 
+### Changed
+
+- **The identity provider moves to Zitadel v4.20.6** (workplan 0119; the pin watch's #2218), from
+  v4.20.5. In what this stack runs, its event store's projection handlers now recover from a panic
+  instead of stopping; the rest is login v2, which does not run here, the tarpit's delays logged, a
+  faster lookup of users by login name, and documentation. It is not a security release: x/net's
+  CVE-2026-78661, which the image scans read in v4.20.5, is still in it. No setup step is expected.
+  The OTA instance's `zitadel` database is dumped by hand before E2E (managed) applies it there, and
+  live takes it from alpha.22's tag; the move is one-way for the identity provider's database.
+
 ### Fixed
 
 - **Files at the top of a source are copied when you choose a destination folder that does not
