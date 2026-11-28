@@ -2,7 +2,38 @@
 
 > **In one line:** A read of the three E2E workflows and the managed UI smoke as they stand on `main` at `4283d37`: what a person does with Ownpace that no gate tries end to end, in what order to add it, and what each costs on the one self-hosted runner.
 
-## Status — 2026-11-27 (update this block at the end of every session)
+## Status — 2026-11-28 (update this block at the end of every session)
+
+**2026-11-28, T6 built, waiting for its first E2E (self-hosted, Postgres and PGlite).** The
+maintainer took T6 into alpha.22 on 2026-11-28 (*"T6: yes in this alpha"*), against this plan's
+advice to take it after: T5's first run found a gap that left files failed until someone
+retried them by hand, and the retry route had no E2E caller. On
+`claude/ownpace-public-readiness-y7orc6-a22-e2e-appliance-flows`, as its own pull request.
+`test/e2e/selfhost-owner-flows.e2e.test.ts`, a step of `e2e.yml` after the archive gates and
+before the upgrade gate, both backends; its flows are `test/e2e/owner-flows-lib.ts`. Three
+mappings of its own (`fixtures/selfhost-owner-flows-{retry,paths,sharing}.mapping.json`), each
+reading a folder of its own on e2e-source and writing the folder of the same name on e2e-target;
+every status read through `statusAfterAPass`; names carry the run's token; each flow brings its
+data types back to copying from the phase `/status` says an earlier run left. What each tries:
+**G9** a file blocked by a folder on the target fails until it waits on a decision, a pass with the
+folder gone leaves it parked, `/failures/:h/retry` gets it copied with the source's bytes, and a
+renamed file's move applied leaves it at its new place and not at the old one; **G7** files stopped
+while the calendar copies, a file made then not copied by a pass that completed, resumed and copied,
+then the calendar ended and files kept, a file copied and an event not; **G8** a share made on the
+source listed by the rescan, refused before its data type's cutover, applied after it with a
+confirmed address, once on the target, and still once after a second pass, rescan and one-go
+press; **G6** `/people` lists one implicit person holding every mapping, and adding a person or a
+migration answers 409 `one_person_here` with its reason. **G6 is narrower than the brief asked:**
+the appliance refuses both writes by design (ADR-0050; `apps/selfhost/src/index.ts`, the
+`ONE_PERSON_HERE` refusal), so a person and a migration cannot be added through its routes; a
+migration is added by its file, as the gate's three are, and their first passes complete. Which
+way G6 should go is the maintainer's decision, asked in the pull request. Proved off the stack:
+`test/e2e/owner-flows-lib.unit.test.ts`, 17 cases against a fake appliance and Nextcloud
+(`owner-flows-fake.ts`); all 17 failed on the flows before they were written; on the flows, the
+seven where the fake does what the routes say pass (a second run on the stack the first left
+included), and each of ten single breaks of a route or a rule turns its flow red for the reason
+it names. **Not proved yet, and not measured:** the flows on the real stack, and their run time,
+which each flow prints; that is the dispatched E2E. The plan's estimate is 1 to 3 minutes.
 
 **2026-11-27, the product gap T5 found, fixed (the maintainer's *"a"*).** On
 `claude/ownpace-public-readiness-y7orc6-a22-prefix-root-files`, as its own pull request. The
@@ -103,7 +134,7 @@ lines and §4.2 were read again there.
 | T3 A grant that copies, and *Stop copying*, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Runs 45976766670 and 45987424991 passed. |
 | T4 The voice chosen for a person, on the managed smoke | builder | ✅ Merged, #2217 (`dc1ac95a`) | Inside T3's section; both runs passed. |
 | T5 The appliance upgraded from the previous release | builder | ✅ Merged as #2220 (`8858cd67`), E2E 46000058137 and 46001198346 passed | D2 (a): the last steps of `e2e.yml`, Postgres only; `selfhost-upgrade.e2e.test.ts`. |
-| T6 The owner's appliance flows | — | 🕓 After alpha.22 | |
+| T6 The owner's appliance flows | builder | 🔨 Built, waiting for E2E (self-hosted, both backends) | The maintainer's yes of 2026-11-28. G9, G7, G8 as asked; G6 narrower, a decision asked (Status of 2026-11-28). |
 | T7 A real browser against the real managed API | — | 🕓 After alpha.22 | D4 (b). |
 | T8 Soverin | — | 🕓 Later | D3 (a): stand-ins first, a real account later. |
 

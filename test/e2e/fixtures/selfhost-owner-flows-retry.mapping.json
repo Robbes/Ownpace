@@ -1,0 +1,49 @@
+{
+  "_note": "The owner-flows gate's retry-and-move mapping (workplan 0179 T6, G9): files only, from a folder of its own on e2e-source to the folder of the same name on e2e-target. Loads PAUSED like every mapping and is green-lit only by its own gate, which runs after the archive gates and before the upgrade gate. e2e.yml rewrites both urls to the stack's Nextcloud; the gates select mappings by id, never by position.",
+  "tenantId": "00000000-0000-4000-8000-000000000001",
+  "mappingId": "55555555-5555-4555-8555-555555555555",
+  "schedule": {
+    "cron": "* * * * *"
+  },
+  "source": {
+    "type": "webdav",
+    "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-source/owner-flows-retry/",
+    "user": "e2e-source",
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "SOURCE_DAV_PASSWORD"
+    }
+  },
+  "target": {
+    "type": "webdav",
+    "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/owner-flows-retry/",
+    "user": "e2e-target",
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "TARGET_DAV_PASSWORD"
+    }
+  },
+  "domains": {
+    "files": {
+      "enabled": true,
+      "source": {
+        "type": "webdav",
+        "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-source/owner-flows-retry/",
+        "user": "e2e-source",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "SOURCE_DAV_PASSWORD"
+        }
+      },
+      "target": {
+        "type": "webdav",
+        "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/owner-flows-retry/",
+        "user": "e2e-target",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
+      }
+    }
+  }
+}

@@ -515,6 +515,27 @@ jobs:
             inTarget.target.url = targetFiles + "from-target/";
             inTarget.domains.files.target.url = targetFiles + "from-target/";
             fs.writeFileSync("deploy/selfhost/config/zzz-archive-in-target-import.mapping.json", JSON.stringify(inTarget, null, 2));
+            // THREE MORE, for the owner-flows gate (workplan 0179 T6): files
+            // from a folder of their own on e2e-source to the folder of the
+            // same name on e2e-target, and one with calendars too. Each loads
+            // paused and is green-lit by its own flow, which runs after the
+            // archive gates, once the main mapping is finished, so nothing
+            // made in these folders is read by it. Sort after every other.
+            for (const flow of ["retry", "paths", "sharing"]) {
+              const owner = JSON.parse(fs.readFileSync(`test/e2e/fixtures/selfhost-owner-flows-${flow}.mapping.json`, "utf8"));
+              const folder = `owner-flows-${flow}/`;
+              const sourceFiles = nextcloudDav + "/files/" + process.env.NEXTCLOUD_SOURCE_USER + "/" + folder;
+              owner.domains.files.source.url = sourceFiles;
+              owner.domains.files.target.url = targetFiles + folder;
+              if (owner.source.type === "webdav") owner.source.url = sourceFiles;
+              else owner.source.host = "stalwart";
+              owner.target.url = targetFiles + folder;
+              if (owner.domains.calendar) {
+                owner.domains.calendar.source.url = nextcloudDav;
+                owner.domains.calendar.target.url = nextcloudDav;
+              }
+              fs.writeFileSync(`deploy/selfhost/config/zzzz-owner-flows-${flow}.mapping.json`, JSON.stringify(owner, null, 2));
+            }
             // The Organisation door's table of address changes (workplan 0168
             // T8): its file in the config directory, read at start-up, before
             // any pass. One row for the address canary the DAV seed names, one
@@ -826,6 +847,20 @@ jobs:
       # a network and no shared volume.
       - name: Run Archive In-Target Gate (0116 T4 — the relay's route, read by byte range)
         run: pnpm test:e2e test/e2e/selfhost-archive-in-target-import.e2e.test.ts
+
+      # THE OWNER'S FLOWS (workplan 0179 T6; the maintainer's yes of
+      # 2026-11-28): what an owner presses on the appliance's screens that no
+      # gate above presses. A failed item retried until it is copied, a move
+      # applied (G9); one data type stopped and resumed, one ended and one kept
+      # (G7); the sharing queue answered, the share recreated once (G8); and
+      # the one person the appliance moves, with nobody to add (G6). Three
+      # mappings of its own, written above, each reading and writing a folder
+      # of its own, and every status read through statusAfterAPass. After the
+      # archive gates, so the main mapping is finished and reads none of its
+      # folders; BEFORE the upgrade gate, which runs last on purpose (see it
+      # below). Both backends. Each flow prints its run time.
+      - name: Run Owner-Flows Gate (0179 T6 — retry, move, stop, end, sharing, people)
+        run: pnpm test:e2e test/e2e/selfhost-owner-flows.e2e.test.ts
 
       # THE UPGRADE GATE (workplan 0179 T5; the maintainer's D2 (a) of
       # 2026-11-27). The previous release's appliance, with data, upgraded in

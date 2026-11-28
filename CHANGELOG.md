@@ -6,6 +6,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The owner's flows on the appliance, on E2E (self-hosted)** (workplan 0179 T6; the
+  maintainer's yes of 2026-11-28). A gate of its own, `test/e2e/selfhost-owner-flows.e2e.test.ts`,
+  on both backends, before the upgrade gate, presses what an owner presses on the appliance's
+  screens and no gate pressed before: a failed item retried until it is copied, and a move applied
+  so that the file is at its new place and not at the old one (G9); one data type stopped, a pass
+  copying nothing of it, then resumed, and one ended while another is kept copying (G7); the
+  sharing queue answered, the share recreated once and not twice on a second pass (G8); and the
+  one person the appliance moves, with adding a person or a migration refused with its reason
+  (G6). Three mappings and folders of its own, every status read through `statusAfterAPass`, and
+  each flow's run time printed. Held off the stack against a fake appliance, one break at a time.
+
 - **The upgrade gate: the previous release's appliance, with data, upgraded in place**
   (workplan 0179 T5; the maintainer's D2 (a) of 2026-11-27). The last steps of E2E (self-hosted),
   on the Postgres night and a Postgres dispatch only. `scripts/previous-release.mjs` names the

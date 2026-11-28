@@ -1,0 +1,51 @@
+{
+  "_note": "The owner-flows gate's sharing mapping (workplan 0179 T6, G8): files only, from a folder of its own, under the SAME name on both accounts, because a share is recreated at the path the source names. Its top-level source is the source mailbox, only so that the sharing rescan knows whose sharing it inventories (resolveCoverage); no mail domain is carried. Loads PAUSED; green-lit only by its own gate.",
+  "tenantId": "00000000-0000-4000-8000-000000000001",
+  "mappingId": "77777777-7777-4777-8777-777777777777",
+  "schedule": {
+    "cron": "* * * * *"
+  },
+  "source": {
+    "type": "imap-oauth2",
+    "host": "host.docker.internal",
+    "port": 993,
+    "user": "source@dev.local",
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "SOURCE_IMAP_PASSWORD"
+    },
+    "tlsVerify": false
+  },
+  "target": {
+    "type": "webdav",
+    "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/owner-flows-sharing/",
+    "user": "e2e-target",
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "TARGET_DAV_PASSWORD"
+    }
+  },
+  "domains": {
+    "files": {
+      "enabled": true,
+      "source": {
+        "type": "webdav",
+        "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-source/owner-flows-sharing/",
+        "user": "e2e-source",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "SOURCE_DAV_PASSWORD"
+        }
+      },
+      "target": {
+        "type": "webdav",
+        "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/owner-flows-sharing/",
+        "user": "e2e-target",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
+      }
+    }
+  }
+}

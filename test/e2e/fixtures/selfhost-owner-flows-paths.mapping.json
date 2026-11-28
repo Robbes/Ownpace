@@ -1,0 +1,70 @@
+{
+  "_note": "The owner-flows gate's mapping for one data type's ending and stop (workplan 0179 T6, G7): files from a folder of its own, and the calendars of e2e-source into those of e2e-target, which the main mapping copied already, so this one adopts them. The gate stops and resumes files, ends calendar and keeps files. Loads PAUSED; green-lit only by its own gate.",
+  "tenantId": "00000000-0000-4000-8000-000000000001",
+  "mappingId": "66666666-6666-4666-8666-666666666666",
+  "schedule": {
+    "cron": "* * * * *"
+  },
+  "source": {
+    "type": "webdav",
+    "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-source/owner-flows-paths/",
+    "user": "e2e-source",
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "SOURCE_DAV_PASSWORD"
+    }
+  },
+  "target": {
+    "type": "webdav",
+    "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/owner-flows-paths/",
+    "user": "e2e-target",
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "TARGET_DAV_PASSWORD"
+    }
+  },
+  "domains": {
+    "files": {
+      "enabled": true,
+      "source": {
+        "type": "webdav",
+        "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-source/owner-flows-paths/",
+        "user": "e2e-source",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "SOURCE_DAV_PASSWORD"
+        }
+      },
+      "target": {
+        "type": "webdav",
+        "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/owner-flows-paths/",
+        "user": "e2e-target",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
+      }
+    },
+    "calendar": {
+      "enabled": true,
+      "source": {
+        "type": "caldav",
+        "url": "http://host.docker.internal:8082/remote.php/dav",
+        "user": "e2e-source",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "SOURCE_DAV_PASSWORD"
+        }
+      },
+      "target": {
+        "type": "caldav",
+        "url": "http://host.docker.internal:8082/remote.php/dav",
+        "user": "e2e-target",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
+      }
+    }
+  }
+}

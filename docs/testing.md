@@ -449,6 +449,26 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `scripts/upgrade-drill.sh`) and the managed edition. Its pure parts are held by
   `scripts/the-release-an-upgrade-starts-from.unit.test.ts` and
   `test/e2e/upgrade-gate-lib.unit.test.ts`.
+  **The owner-flows gate** (workplan 0179 T6), after the archive gates and before the upgrade
+  gate, on both backends: `test/e2e/selfhost-owner-flows.e2e.test.ts`, three mappings of its own
+  (`test/e2e/fixtures/selfhost-owner-flows-*.mapping.json`), each a folder of its own, every
+  status read through `statusAfterAPass`, each flow's run time printed. One line per flow:
+  - **G9, a retry:** a file blocked by a folder on the target fails until it waits on a decision;
+    with the folder gone, a pass leaves it parked; `/failures/:h/retry` then gets it copied with
+    the source's bytes, off both lists, and a second retry answers 404.
+  - **G9, a move:** a copied file renamed on the source is queued with its new key;
+    `/moves/:h/apply` leaves it at its new place and not at the old one; a second apply answers 404.
+  - **G7, stop and resume:** files stopped, a file made then is not copied by a pass that
+    completed (the calendar's); resumed, it is copied.
+  - **G7, end and keep:** the calendar seen copying, then ended, and files kept copying: a file
+    made then is copied, an event made then is not; a second End changes nothing.
+  - **G8, the sharing queue:** a share made on the source is listed by the rescan, refused before
+    its data type's cutover, applied after it with the address a person confirms, and on the
+    target once; after a second pass, rescan and one-go press, still once.
+  - **G6, the one person:** `/people` lists one implicit person holding every mapping; adding a
+    person or a migration answers 409 `one_person_here` with its reason (ADR-0050).
+  Its logic is held off the stack by `test/e2e/owner-flows-lib.unit.test.ts`, against a fake
+  appliance and Nextcloud (`test/e2e/owner-flows-fake.ts`), one break at a time.
 - `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the machine: the managed-edition
   gate, run against a long-lived configured stack, so it does not prove bring-up from scratch.
   The jobs run on pg-boss, in the `worker` service (ADR-0054); alpha.18 removed Trigger.dev's
