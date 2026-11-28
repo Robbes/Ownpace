@@ -2,7 +2,7 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-27 (update this block at the end of every session)
+## Status — 2026-11-28 (update this block at the end of every session)
 
 **2026-11-27: the identity provider's pin moves to Zitadel v4.20.6, for alpha.22 (the pin watch's
 #2218).** Six commits after v4.20.5, read on 2026-11-27 from upstream's release notes and the list
@@ -23,6 +23,14 @@ told then that it keeps x/net's CVE, *"Keep it"*. So after its floor it takes th
 #2218 gives: the owner dumps the OTA instance's `zitadel` database first (`dump-idp.sh`), E2E
 (managed) applies it there, and the owner checks one sign-in and one forgot-password mail, as for
 v4.20.5; live takes it from alpha.22's tag.
+
+On 2026-11-28 (UTC), in that order:
+- The owner dumped the OTA instance's `zitadel` database at 13:11:34, on v4.20.5, with
+  `dump-idp.sh`: the set `20261128T131134Z`, 701 entries read back. The move is one-way, so the
+  dump is the way back. It is deleted once `main`'s first scheduled E2E (managed) on v4.20.6 is
+  green.
+- Next, E2E (managed) on this branch applies v4.20.6 on the OTA instance, and the owner's hand
+  check there follows.
 
 **2026-11-27: what alpha.21 moves, which live takes with its deploy.** The fold for
 `v0.2.0-alpha.21` (0146's entry of the same day) carries what `main` merged after alpha.20's C,
